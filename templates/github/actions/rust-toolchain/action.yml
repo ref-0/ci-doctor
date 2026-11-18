@@ -1,0 +1,151 @@
+# A crate's Rust toolchain from a Blacksmith sticky disk, with a read timeout and a fresh-install
+# fallback: a bad disk once read nothing for minutes and hung every job. Runs after checkout in each
+# Linux job that builds the crate. Installs the musl target and musl-gcc too; drop those lines if
+# you don't build static binaries. Reference implementation from a production monorepo; adapt to
+# your repo. Why: the guide's sections 2 and 6.
+#
+# Without Blacksmith (GitHub-hosted or self-hosted runners), pass `sticky-disk: 'false'`: rustup
+# and apt then install every time. The plain actions/cache fallback keeps main's toolchain under
+# the same stamp, restored before this action and saved only from main; the probe below still
+# decides whether a restored toolchain is used:
+#
+#   - uses: actions/cache/restore@v6
+#     with:
+#       path: ~/.rust-toolchain-disk
+#       key: rust-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('<rust-crate-dir>/rust-toolchain.toml', '.github/actions/rust-toolchain/action.yml') }}
+#   # ...and on main, actions/cache/save@v6 with the same path and key after the job's build.
+name: A crate's Rust toolchain
+description: >-
+  The Rust that a crate's rust-toolchain.toml pins, with rustfmt, Clippy, the runner's musl target
+  and musl-gcc, from a Blacksmith sticky disk when it holds main's install of this toolchain and
+  reads, several times faster than installing, or installed by rustup and apt when it doesn't.
+  Measure both paths in your own CI. On Linux it sets RUSTUP_HOME to ~/.rustup-disk, whichever way the
+  toolchain came, so rust-cache's key stays the same, and CC_<target>=musl-gcc for the musl
+  target, and gives that target as `target`. A Linux job that builds the crate runs it, after its
+  checkout.
+inputs:
+  toolchain-file:
+    description: >-
+      The crate's rust-toolchain.toml, from the repository's root, such as
+      <rust-crate-dir>/rust-toolchain.toml. The disk's stamp hashes it.
+    required: true
+  working-directory:
+    description: >-
+      The folder rustup runs in, from the repository's root: the one whose toolchain file it finds,
+      such as <rust-crate-dir>.
+    required: true
+  sticky-disk:
+    description: >-
+      Mount the Blacksmith sticky disk. Pass 'false' on other runners: rustup and apt install every
+      time, or from the actions/cache fallback in the header.
+    default: 'true'
+  fresh:
+    description: >-
+      Install from rustup and apt with no disk, as a release does, so nothing kept reaches what it
+      publishes.
+    default: 'false'
+outputs:
+  target:
+    description: The musl target for the runner's architecture.
+    value: ${{ steps.toolchain.outputs.target }}
+runs:
+  using: composite
+  steps:
+    # One disk for each architecture, holding main's newest install: 0.84 GB on x64 and 0.67 GB on
+    # arm64, billed per GB-month until a week after its last use. Each job mounts its
+    # own clone of the disk's last committed snapshot. Only main's own runs, a push, the sweep and
+    # the cron, commit theirs, and only when the install below changed it: never a pull request or
+    # a run by hand of another commit, so others read only what main installed.
+    - name: The toolchain's disk
+      if: runner.os == 'Linux' && inputs.fresh != 'true' && inputs.sticky-disk == 'true'
+      uses: useblacksmith/stickydisk@3f6be1451e3cad893b778bc93495c80452a5da26 # v1.7.2
+      with:
+        key: ${{ github.repository }}-rust-v2-${{ runner.os }}-${{ runner.arch }}
+        path: ~/.rust-toolchain-disk
+        commit: ${{ (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref) && 'on-change' || 'false' }}
+    # The disk holds this toolchain when its stamp, written last, is the hash of the toolchain file
+    # and this action's own action.yml, the copy the job runs, at github.action_path. Then
+    # RUSTUP_HOME is an overlay with the disk's copy as its lower layer, read only, and the job's
+    # own writes in an upper layer on the runner's disk, musl-tools comes from the disk's packages,
+    # and the disk's own mount is detached, so its post step commits nothing.
+    # Otherwise rustup installs into the disk, which only main's runs commit, and apt downloads
+    # musl-tools' packages beside it. ring and SQLite compile C, so cc-rs takes musl-gcc: the
+    # host's gcc would build against glibc's headers.
+    #
+    # The disk's toolchain must read, too. Once, the arm64 disk mounted, and its stamp and file
+    # list read, but no read of a file's data returned, and every arm64 job's cargo waited on its
+    # first rustc until the job's timeout. So rustc checks a small crate for the target,
+    # in the background, given a minute, where it takes about a second. A rustc that hasn't ended is
+    # left waiting on the disk, and the job installs fresh beside it, with a warning to change the
+    # key's `v2`, which starts a new disk.
+    - name: The toolchain
+      id: toolchain
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        FRESH: ${{ inputs.fresh }}
+        TOOLCHAIN_FILE: ${{ inputs.toolchain-file }}
+      run: |
+        STAMP=$(cat "$GITHUB_WORKSPACE/$TOOLCHAIN_FILE" "$GITHUB_ACTION_PATH/action.yml" | sha256sum | cut -d ' ' -f 1)
+        case "$RUNNER_ARCH" in
+          X64) target=x86_64-unknown-linux-musl ;;
+          ARM64) target=aarch64-unknown-linux-musl ;;
+          *) echo "::error::No musl target for $RUNNER_ARCH."; exit 1 ;;
+        esac
+        echo "target=$target" >> "$GITHUB_OUTPUT"
+        echo "CC_${target//-/_}=musl-gcc" >> "$GITHUB_ENV"
+        disk=~/.rust-toolchain-disk
+        rustup_home=$HOME/.rustup-disk
+        echo "RUSTUP_HOME=$rustup_home" >> "$GITHUB_ENV"
+
+        if [ "$FRESH" != true ] && [ "$(cat "$disk/stamp" 2> /dev/null)" = "$STAMP" ]; then
+          mkdir -p "$rustup_home" "$RUNNER_TEMP/rustup/upper" "$RUNNER_TEMP/rustup/work"
+          sudo mount -t overlay overlay -o "lowerdir=$disk/rustup,upperdir=$RUNNER_TEMP/rustup/upper,workdir=$RUNNER_TEMP/rustup/work" "$rustup_home"
+          sudo dpkg -i "$disk"/debs/*.deb > /dev/null
+          if mountpoint -q "$disk"; then sudo umount -l "$disk"; fi
+
+          check=$RUNNER_TEMP/rustc-check
+          mkdir "$check"
+          echo 'pub fn f() -> String { format!("{}", 1) }' > "$check/lib.rs"
+          RUSTUP_HOME=$rustup_home rustc --edition 2024 --crate-name check --crate-type lib --emit metadata \
+            --target "$target" --out-dir "$check" "$check/lib.rs" > "$check/log" 2>&1 &
+          rustc=$!
+          for _ in $(seq 60); do
+            kill -0 "$rustc" 2> /dev/null || break
+            sleep 1
+          done
+          if kill -0 "$rustc" 2> /dev/null; then
+            echo "::warning::rustc from the toolchain's disk didn't end within a minute: its reads are stuck. Installing fresh. If it keeps on, change the disk's key, its v2, in this rust-toolchain action."
+          elif wait "$rustc"; then
+            echo "The toolchain from the disk."
+            exit 0
+          else
+            cat "$check/log"
+            echo "::warning::rustc from the toolchain's disk failed. Installing fresh. If it keeps on, change the disk's key, its v2, in this rust-toolchain action."
+          fi
+          sudo umount -l "$rustup_home"
+          rmdir "$rustup_home"
+          home=$RUNNER_TEMP/rust
+        elif [ "$FRESH" = true ]; then
+          home=$RUNNER_TEMP/rust
+          echo "Installing fresh."
+        else
+          home=$disk
+          echo "The disk doesn't hold this toolchain: installing."
+        fi
+        rm -rf "${home:?}/stamp" "$home/rustup" "$home/debs"
+        mkdir -p "$home/debs" "$home/rustup"
+        ln -sfn "$home/rustup" "$rustup_home"
+        export RUSTUP_HOME=$rustup_home
+        rustup set auto-self-update disable
+        rustup toolchain install
+        # The default too, so rustc runs outside the working directory, as rust-cache runs it.
+        rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
+        rustup target add "$target"
+        if ! (cd "$home/debs" && apt-get download musl musl-dev musl-tools); then
+          sudo apt-get update -q
+          (cd "$home/debs" && apt-get download musl musl-dev musl-tools)
+        fi
+        sudo dpkg -i "$home"/debs/*.deb > /dev/null
+        echo "$STAMP" > "$home/stamp"
+        du -sh "$home"/* | sort -h

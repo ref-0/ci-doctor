@@ -1,0 +1,11 @@
+# Reference implementation from a production monorepo; adapt to your repo.
+[Unit]
+Description=Delete idle worktrees' Rust target folders each week
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

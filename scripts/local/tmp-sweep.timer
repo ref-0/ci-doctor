@@ -1,0 +1,11 @@
+# Reference implementation from a production monorepo; adapt to your repo.
+[Unit]
+Description=Sweep old /tmp entries every 6 hours
+
+[Timer]
+OnCalendar=00/6:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

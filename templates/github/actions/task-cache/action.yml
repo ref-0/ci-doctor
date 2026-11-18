@@ -1,0 +1,59 @@
+# Remote task cache: points this job's `vp run` at the remote tier of Vite+'s task cache.
+# Runs in each CI job that runs `vp run`, before the dependency install, so tasks the install runs
+# can hit too. Configure the URL below (<worker-host>, <project>). Reference implementation from a
+# production monorepo; adapt to your repo. Server side: ../../../cache/remote/. Why: docs/README.md
+# section 6.
+name: Remote task cache
+description: >-
+  Points this job's `vp run` at the remote task cache. It reads with the read token, by HTTP Basic,
+  and writes with the job's GitHub OIDC token, which needs `permissions: id-token: write`. Only
+  trusted events write: a push to the write branch, and, when `branch-writes` is 'true' (an opt-in
+  the Worker must allow too), a pull request from a branch of this repository into it and a run by
+  hand on one of its branches. Every other run only reads. A fork's pull request gets
+  no secret, so this sets nothing there, and its tasks run fresh. Vite+ treats every remote failure
+  as a miss, or an upload not made, and never fails a task for it.
+inputs:
+  read-token:
+    description: The read token, `secrets.TASK_CACHE_READ_TOKEN`.
+    required: true
+  write-branch:
+    description: >-
+      The branch whose pushes write: the branch registered in the Worker's project row
+      (cache/remote/migrations/0003_project.sql).
+    default: main
+  branch-writes:
+    description: >-
+      'true' when the Worker's project row has pull_requests = 1, so same-repository PRs and runs
+      by hand write too. 'false' for the protected-branch-only policy (pull_requests = 0): only pushes
+      to write-branch write, every other run reads, and no machine writer is needed. The default,
+      matching the shipped project row. A mismatch with the Worker gets 403s on upload, which Vite+
+      treats as an upload not made.
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Enable the remote task cache
+      if: >-
+        inputs.read-token != '' &&
+        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      shell: bash
+      env:
+        READ_TOKEN: ${{ inputs.read-token }}
+        EVENT: ${{ github.event_name }}
+        BASE: ${{ github.base_ref }}
+        WRITE_BRANCH: ${{ inputs.write-branch }}
+        BRANCH_WRITES: ${{ inputs.branch-writes }}
+      run: |
+        # The token is base64url, so it goes into the URL as it is, and GitHub masks it in logs as
+        # the secret it is. Vite+ asks GitHub for its OIDC token with this URL as the audience; the
+        # Worker strips the userinfo before comparing it with the registered endpoint.
+        echo "VP_REMOTE_CACHE_URL=https://ci:$READ_TOKEN@<worker-host>/projects/<project>" >> "$GITHUB_ENV"
+        mode=read
+        if [ "$EVENT" = push ] && [ "$GITHUB_REF" = "refs/heads/$WRITE_BRANCH" ]; then mode=read-write; fi
+        if [ "$BRANCH_WRITES" = true ]; then
+          if [ "$EVENT" = pull_request ] && [ "$BASE" = "$WRITE_BRANCH" ]; then mode=read-write; fi
+          # Whoever can start a run by hand can push that branch and open a PR from it, which writes.
+          if [ "$EVENT" = workflow_dispatch ] && [[ "$GITHUB_REF" == refs/heads/* ]]; then mode=read-write; fi
+        fi
+        echo "VP_REMOTE_CACHE=$mode" >> "$GITHUB_ENV"
+        echo "The remote task cache: $mode"

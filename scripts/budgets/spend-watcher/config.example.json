@@ -1,0 +1,11 @@
+{
+  "repos": ["<org>/<repo>"],
+  "alerts_repo": "<org>/<alerts-repo>",
+  "alert_workflow": "ci-budget-alert.yml",
+  "issue_title": "CI budget",
+  "approvers": ["<maintainer-login>"],
+  "cap": "<monthly-cap>",
+  "warn": "<monthly-warning>",
+  "mode": "report",
+  "stop_workflows": ["<workflow-file-to-stop>"]
+}

@@ -1,0 +1,101 @@
+# A reusable static-checks workflow, for a repo whose static job is simple: checkout, the
+# workspace's dependencies, then format, lint, types and the docs' budget, each a command the
+# caller passes and each skipped when it passes none. Once the install passes, each command runs
+# whether or not the one before passed (`!cancelled()`), so one run reports them all.
+#
+# Runs on GitHub Actions as a called workflow (`workflow_call`). Keep it in a shared repo with the
+# `dependencies` action, and call both by full commit SHA, updated in a PR of their own so CI tests
+# the change alone. Configure <org>/<shared-actions-repo> and <full-commit-sha> below. Reference
+# implementation from a production monorepo; adapt to your repo. Why: docs/pages/03-workflow-anatomy.md.
+#
+#   jobs:
+#     static:
+#       uses: <org>/<shared-actions-repo>/.github/workflows/static.yml@<full-commit-sha>
+#       with:
+#         runs-on: blacksmith-4vcpu-ubuntu-2404
+#         format: pnpm exec vp fmt --check
+#         lint: pnpm exec vp lint
+#
+# The `dependencies` step below names the action by a full commit too: a called workflow's `./`
+# paths resolve in the caller's checkout, never in the shared repo. A change to the action moves
+# that commit in a change of its own after it.
+name: Static checks
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: The runner's label. The dependencies' disk needs a Blacksmith Linux runner.
+        type: string
+        required: true
+      timeout-minutes:
+        type: number
+        default: 15
+      ref:
+        description: The commit to check out, when not the event's own.
+        type: string
+        default: ''
+      node-version-file:
+        description: The `dependencies` action's `node-version-file`.
+        type: string
+        default: .node-version
+      prepare:
+        description: The `dependencies` action's `prepare`.
+        type: boolean
+        default: false
+      format:
+        description: The command that checks the format, such as `pnpm exec vp fmt --check`.
+        type: string
+        default: ''
+      lint:
+        description: The command that lints.
+        type: string
+        default: ''
+      types:
+        description: The command that checks the types.
+        type: string
+        default: ''
+      docs-budget:
+        description: The command that holds agent-loaded docs to their size budgets.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Format, lint, types and docs
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      # Installed, so pnpm checks the lockfile against its supply-chain policies in every run.
+      - id: dependencies
+        uses: <org>/<shared-actions-repo>/.github/actions/dependencies@<full-commit-sha>
+        with:
+          check: true
+          node-version-file: ${{ inputs.node-version-file }}
+          prepare: ${{ inputs.prepare }}
+      - name: Format
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && inputs.format != '' }}
+        env:
+          COMMAND: ${{ inputs.format }}
+        run: eval "$COMMAND"
+      - name: Lint
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && inputs.lint != '' }}
+        env:
+          COMMAND: ${{ inputs.lint }}
+        run: eval "$COMMAND"
+      - name: Types
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && inputs.types != '' }}
+        env:
+          COMMAND: ${{ inputs.types }}
+        run: eval "$COMMAND"
+      - name: Docs within budget
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && inputs.docs-budget != '' }}
+        env:
+          COMMAND: ${{ inputs.docs-budget }}
+        run: eval "$COMMAND"

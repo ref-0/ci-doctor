@@ -1,0 +1,64 @@
+# Waits inside a job that is already set up for other jobs of this run, or one step of them, as
+# `needs` would but without waiting to start. Runs in any job that needs another job's artifact
+# (a pack waiting for binaries, a proof waiting for a published snapshot). Needs `permissions:
+# actions: read`. Nothing to configure. Reference implementation from a production monorepo; adapt
+# to your repo. Why: the guide's sections 3 and 7.
+name: Wait for this run's jobs
+description: >-
+  Wait, inside a job that's already set up, for other jobs of this run, as `needs` would but
+  without waiting to start: until each named job has passed, or a step of it has. A pack can wait
+  for the binary builds this way, and proof jobs for the pack's published snapshot, so their
+  checkout and setup run beside what they wait for (it roughly halved the time to a proof's start).
+  It fails as soon as one fails, is skipped or is cancelled, and when the timeout passes. Reads the run's jobs through the API, so
+  the job needs `actions: read`.
+inputs:
+  jobs:
+    description: The jobs' names as the run lists them, one a line.
+    required: true
+  step:
+    description: A step each job must pass, which ends the wait before the job does. Empty waits for the whole job.
+    default: ''
+  timeout:
+    description: Seconds to wait at most.
+    default: '600'
+runs:
+  using: composite
+  steps:
+    # Every 5 s: a wait is short, since it starts after this job's own setup, and each look is one
+    # call against the token's 1,000 an hour for the repo. The latest attempt of each job, so a
+    # rerun waits for its own.
+    - name: Wait
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        JOBS: ${{ inputs.jobs }}
+        STEP: ${{ inputs.step }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        mapfile -t names < <(grep -v '^[[:space:]]*$' <<< "$JOBS")
+        names_json=$(printf '%s\n' "${names[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+        start=$SECONDS
+        while true; do
+          if jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" 2> /dev/null); then
+            state=$(jq -r --argjson names "$names_json" --arg step "$STEP" '
+              [.jobs[] | select(.name as $n | $names | index($n))] as $found |
+              [$names[] as $n | ($found | map(select(.name == $n)) | first) as $job |
+                if $job == null then "waiting \($n): not listed yet"
+                elif $step != "" and (($job.steps // []) | any(.name == $step and .conclusion == "success")) then "done"
+                elif $job.status == "completed" and $step == "" and $job.conclusion == "success" then "done"
+                elif $job.status == "completed" then "failed \($n): \($job.conclusion)\(if $step != "" then ", before its step \"\($step)\" passed" else "" end)"
+                else "waiting \($n): \($job.status)" end] |
+              (map(select(startswith("failed"))) | first) // (map(select(startswith("waiting"))) | first) // "done"' <<< "$jobs")
+            case "$state" in
+              done) echo "Passed after $((SECONDS - start)) s: ${names[*]}${STEP:+, to \"$STEP\"}"; exit 0 ;;
+              failed*) echo "::error::${state#failed }. So this job can't go on: that job's own failure is what to read."; exit 1 ;;
+            esac
+          else
+            state="waiting: the API didn't answer"
+          fi
+          if [ $((SECONDS - start)) -ge "$TIMEOUT" ]; then
+            echo "::error::Waited ${TIMEOUT} s, and still ${state#waiting }."
+            exit 1
+          fi
+          sleep 5
+        done

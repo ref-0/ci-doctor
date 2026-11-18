@@ -1,0 +1,94 @@
+# Installs apt packages with their .deb files cached by the exact resolved package hashes. Runs in
+# any Linux job that needs extra packages (install heavy optional ones only on the shard that needs
+# them). Nothing to configure. Reference implementation from a production monorepo; adapt to your
+# repo. Why: docs/pages/06-reuse-work-by-its-real-inputs.md.
+name: Packages from apt
+description: >-
+  Installs packages with apt-get, taking their .deb files from the Actions cache when it holds the
+  ones the runner's package lists resolve them to. The key is a hash of the SHA256 the lists give
+  each file apt would download, so a change to the packages, the image's lists or the runner moves
+  it. apt takes a file already in its archive folder by its size alone, so each restored file whose
+  SHA256 isn't one of those is deleted first, and apt downloads it. Linux only.
+inputs:
+  packages:
+    description: The packages, separated by spaces.
+    required: true
+  recommends:
+    description: Whether apt installs each package's recommended packages too, as it does by default.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    # A simulated install, from the image's lists, as an unprivileged user may run it. It prints an
+    # `Inst` line for each package it would install, with its version, and none for a package
+    # already installed. The lists give each of those versions' file a SHA256.
+    - name: What apt would install
+      id: plan
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        RECOMMENDS: ${{ inputs.recommends }}
+      run: |
+        read -ra packages <<< "$PACKAGES"
+        flags=(-y -qq)
+        [ "$RECOMMENDS" = true ] || flags+=(--no-install-recommends)
+        plan=$(apt-get install -s "${flags[@]}" "${packages[@]}" 2> /dev/null | grep '^Inst ' || true)
+        printf '%s\n' "$plan"
+        mapfile -t versions < <(sed -E 's/^Inst ([^ ]+) (\[[^]]*\] )?\(([^ ]+) .*/\1=\3/' <<< "$plan" | grep . || true)
+        hashes=$RUNNER_TEMP/apt-plan.sha256
+        : > "$hashes"
+        if [ "${#versions[@]}" -gt 0 ]; then
+          apt-cache show --no-all-versions "${versions[@]}" | awk '/^SHA256:/ { print $2 }' | sort -u > "$hashes"
+        fi
+        echo "key=apt-$RUNNER_OS-$RUNNER_ARCH-$(sha256sum < "$hashes" | cut -c1-20)" >> "$GITHUB_OUTPUT"
+    # Only that exact plan's files: a partial match would carry another plan's files forward, and
+    # each save would grow.
+    - name: Their files, from the cache
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: ${{ steps.plan.outputs.key }}
+    # From the image's lists first: a fresh `apt-get update` took anywhere from seconds to over a
+    # minute in one sample, so it runs only when they're too old to install from. Files apt
+    # downloads after an update are of newer lists than the key's, so they're not saved under it.
+    - name: The packages
+      id: install
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        RECOMMENDS: ${{ inputs.recommends }}
+      run: |
+        read -ra packages <<< "$PACKAGES"
+        flags=(-y -qq)
+        [ "$RECOMMENDS" = true ] || flags+=(--no-install-recommends)
+        archives=$RUNNER_TEMP/apt-archives
+        mkdir -p "$archives/partial"
+        kept=0
+        for file in "$archives"/*.deb; do
+          [ -e "$file" ] || continue
+          if grep -qxF "$(sha256sum < "$file" | cut -d ' ' -f 1)" "$RUNNER_TEMP/apt-plan.sha256"; then
+            kept=$((kept + 1))
+          else
+            echo "::warning::$(basename "$file") from the cache isn't the file the lists name, so apt downloads it."
+            rm -f -- "$file"
+          fi
+        done
+        echo "$kept of $(wc -l < "$RUNNER_TEMP/apt-plan.sha256") files from the cache"
+        install=(sudo apt-get -o "Dir::Cache::Archives=$archives" -o APT::Keep-Downloaded-Packages=true install "${flags[@]}" "${packages[@]}")
+        updated=false
+        if ! "${install[@]}" > /dev/null; then
+          sudo apt-get update -qq
+          updated=true
+          "${install[@]}" > /dev/null
+        fi
+        echo "updated=$updated" >> "$GITHUB_OUTPUT"
+        # apt's lock and partial downloads are root's, and the cache's tar can't read the lock.
+        sudo rm -rf -- "${archives:?}/lock" "${archives:?}/partial"
+        sudo chown -R "$(id -u):$(id -g)" "$archives"
+    - name: Their files, saved
+      if: steps.restore.outputs.cache-hit != 'true' && steps.install.outputs.updated == 'false'
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: ${{ steps.plan.outputs.key }}

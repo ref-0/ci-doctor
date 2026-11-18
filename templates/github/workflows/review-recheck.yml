@@ -1,0 +1,62 @@
+# Reruns only CI's result job when a valid review record lands after the result failed for that
+# alone, so a late review doesn't rerun all of CI.
+#
+# Runs on GitHub Actions (2 vCPU Blacksmith), on PR comments and PR body edits. Configure the review
+# record's markers below (`## Review:` comments by members, or a "No review:" body line) to match
+# what ci.yml's review step accepts: `review-record.ts` in the code-review skill, whose
+# references/record.md defines the record. With no review gate, delete this workflow and
+# that step. Reference implementation from a production monorepo; adapt to your repo. Why:
+# docs/pages/03-workflow-anatomy.md.
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request:
+    types: [edited]
+
+concurrency:
+  group: review-recheck-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  recheck:
+    name: Rerun CI result
+    # Skipped without a runner unless it's a member's review comment, or a body edit that says why
+    # there's no review.
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+      github.event.comment.user.type == 'User' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      startsWith(github.event.comment.body, '## Review:')) ||
+      (github.event_name == 'pull_request' && github.event.changes.body &&
+      contains(github.event.pull_request.body, 'No review:'))
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.issue.number || github.event.pull_request.number }}
+    steps:
+      # A run still going reads the review itself when it ends. A run with any other failure waits
+      # for a person.
+      - name: Rerun it where it alone failed
+        run: |
+          head=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+          run=$(gh run list --workflow ci.yml --commit "$head" --event pull_request --limit 1 \
+            --json databaseId,status --jq '.[0] | select(.status == "completed") | .databaseId')
+          if [ -z "$run" ]; then
+            echo "No finished run of CI on $head: a run still going reads the review when it ends."
+            exit 0
+          fi
+          failed=$(gh run view "$run" --json jobs \
+            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name] | join(", ")')
+          if [ "$failed" != "CI result" ]; then
+            echo "Run $run failed in: ${failed:-nothing}. Only a run where CI result alone failed is rerun."
+            exit 0
+          fi
+          gh run rerun "$run" --failed
+          echo "Reran CI result on run $run, for $head."

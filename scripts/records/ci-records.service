@@ -1,0 +1,12 @@
+# CI's records, collected each night. `bash ci-records.sh install` links it and starts its timer.
+# Reference implementation from a production monorepo; adapt to your repo.
+# Configure: the script's path, and a PATH that finds node 24+, gh and git.
+[Unit]
+Description=Collect CI records before GitHub drops their logs
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash <ci-records-script>
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Nice=19

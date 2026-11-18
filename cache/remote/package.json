@@ -1,0 +1,29 @@
+{
+  "name": "task-cache",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vite+ remote task cache on Cloudflare Workers, R2 and D1. Reference implementation; adapt to your repo.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "deploy": "wrangler d1 migrations apply INDEX --remote && wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "6.2.17"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261116.1",
+    "@types/node": "24.19.2",
+    "cborg": "6.2.1",
+    "esbuild": "0.28.2",
+    "jsonc-parser": "3.3.1",
+    "miniflare": "5.20261116.0-beta",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "wrangler": "4.163.0"
+  }
+}

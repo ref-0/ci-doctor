@@ -1,0 +1,34 @@
+# ci-budget-alert.yml: posts the CI spend watcher's alerts on its issue, so they come from
+# github-actions[bot] and their @mention notifies the maintainer. GitHub doesn't notify anyone of
+# their own comments, and the watcher's `gh` is the maintainer's.
+#
+# Put this in .github/workflows/ of the alerts repo (<org>/<alerts-repo>): a different repo from
+# the ones the watcher stops, so the alert still runs while their workflows are disabled. The
+# watcher (ci-spend-watcher.ts) dispatches it with the issue number and the comment.
+# Reference implementation from a production monorepo; adapt to your repo.
+name: CI budget alert
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: The CI budget issue's number
+        required: true
+      body:
+        description: The comment
+        required: true
+
+permissions:
+  issues: write
+
+jobs:
+  alert:
+    # Any runner your org allows. If GitHub-hosted runners are off for your org, use a provider label.
+    runs-on: <runner-label>
+    timeout-minutes: 2
+    steps:
+      - run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ inputs.issue }}
+          BODY: ${{ inputs.body }}

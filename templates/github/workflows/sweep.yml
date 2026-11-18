@@ -1,0 +1,123 @@
+# Starts main's daily sweep, and main's integration-test slots between sweeps, in ci.yml.
+#
+# Runs on GitHub Actions (2 vCPU Blacksmith), from two crons and from every merge to main.
+# Reference implementation from a production monorepo; adapt to your repo. Why: docs/README.md
+# section 5.
+#
+# The slots: the times here are illustrative. Each slot appears in four coupled places, since GitHub
+# takes no expression in a cron or in a job's `if:`. Change them together:
+#   1. the two crons under `on.schedule`;
+#   2. the server cron's exact string in both jobs' `if:`;
+#   3. SWEEP_AT and SERVER_AT under `env`, which the steps compute the newest slot from.
+# A renamed run title (ci.yml's run-name) also has to change in both steps' `select`.
+#
+# Pushes don't each start a sweep. The `push` trigger is the fallback for a late or missing cron: a
+# merge starts a sweep only when none has started since the newest slot. On a new install, or after
+# a slot whose cron never ran, the first merge starts one; the merges after it find that run and
+# start nothing until the next slot. It can start CI on a merge, so approve it separately, or delete
+# it to rely on the cron alone.
+#
+# With one daily suite and no server slots: delete the second cron, SERVER_AT and the `server` job.
+#
+# The daily sweep is the release's check: release publishes only what a passing sweep checked.
+# Pick its slot from your merge timing, the quietest few hours before your release, so the day's
+# run is done before the day's release.
+#
+# Cron is not a scheduler you can trust: GitHub's scheduled runs arrived hours late, and in one
+# period most never started. So the first merge after each slot checks whether a run has started
+# since that slot, and dispatches one if not. Either starts it once a slot; a sweep with nothing
+# new since the last passing one runs only its plan. Serialized controller groups prevent
+# duplicates when merges land close together.
+#
+# Between sweeps, a second cron starts the integration-heavy package's tests alone, so with the
+# sweep's slot they run every 6 hours: a miss by a PR's near selection shows within hours, not up to
+# a day, and their passes replay from the task cache on a PR that runs everything. Each runs only
+# when the merges since the last pass reach the package. An unchanged slot pays only for its
+# dispatch, plan and result. An unchanged daily sweep runs only its plan, and the Rust checks when
+# the pass PRs skip them by is about to age out.
+#
+# Check the schedule itself: a dispatch isn't a pass. Schedule a one-off check at a new job's first
+# run time, and read its result.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '41 2 * * *'
+    - cron: '41 8,14,20 * * *'
+
+# The slots' times, UTC, as the crons above say them. SERVER_AT may be empty.
+env:
+  SWEEP_AT: '02:41'
+  SERVER_AT: '08:41 14:41 20:41'
+
+# The run's own token may start a workflow_dispatch, unlike its other events.
+permissions:
+  actions: write
+
+jobs:
+  start:
+    name: Start main's sweep
+    if: github.event.schedule != '41 8,14,20 * * *'
+    # Merges close together take turns, so the second finds the sweep the first started.
+    concurrency:
+      group: sweep-start
+      cancel-in-progress: false
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 2
+    steps:
+      # A sweep's name, as ci.yml's run-name gives it on main, whoever started it.
+      - name: Start it, unless one started since the day's slot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          slot=$(date -u "+%Y-%m-%dT${SWEEP_AT}:00Z")
+          if [ "$(date -u +%s)" -lt "$(date -u -d "$slot" +%s)" ]; then
+            slot=$(date -u -d yesterday "+%Y-%m-%dT${SWEEP_AT}:00Z")
+          fi
+          # Only runs started by hand, which a day's merges' own runs can't push past a page.
+          started=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&created=%3E%3D$slot&per_page=100" \
+            --jq '.workflow_runs[] | select(.display_title | startswith("CI on main, ")) | .id' | wc -l)
+          if [ "$started" -gt 0 ]; then
+            echo "::notice::A sweep started on main since $slot, so the next one checks this merge."
+            exit 0
+          fi
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sweep=true
+
+  # Its plan, in ci.yml, runs nothing when the package's tests have nothing new to check.
+  server:
+    name: Start main's server tests
+    if: github.event_name == 'push' || github.event.schedule == '41 8,14,20 * * *'
+    concurrency:
+      group: server-sweep-start
+      cancel-in-progress: false
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 2
+    steps:
+      # The newest of the four slots: the sweep's, which `start` keeps and whose sweep runs these
+      # tests too, or one of the three between. A run of either name since it counts.
+      - name: Start them, unless they started since the slot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          now=$(date -u +%s)
+          slot=
+          mapfile -t slots < <(printf '%s\n' "$SWEEP_AT" "$SERVER_AT" | sort -r)
+          for day in "$(date -u +%Y-%m-%d)" "$(date -u -d yesterday +%Y-%m-%d)"; do
+            for at in "${slots[@]}"; do
+              if [ "$(date -u -d "${day}T${at}:00Z" +%s)" -le "$now" ]; then
+                slot="${day}T${at}:00Z"
+                break 2
+              fi
+            done
+          done
+          if [[ $slot == *T$SWEEP_AT:00Z ]]; then
+            echo "::notice::The newest slot, $slot, is the sweep's, which runs these tests."
+            exit 0
+          fi
+          started=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&created=%3E%3D$slot&per_page=100" \
+            --jq '.workflow_runs[] | select(.display_title == "Server tests on main" or (.display_title | startswith("CI on main, "))) | .id' | wc -l)
+          if [ "$started" -gt 0 ]; then
+            echo "::notice::Main's server tests started since $slot, so the next slot checks this merge."
+            exit 0
+          fi
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f server_sweep=true

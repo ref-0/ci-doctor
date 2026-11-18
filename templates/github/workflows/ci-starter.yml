@@ -1,0 +1,96 @@
+# A starter CI workflow on GitHub-hosted runners: your existing checks as parallel jobs, and one
+# result job to require. No planner, Rust, snapshots, shared actions, proofs, caches of ours,
+# budgets or automation: each of those is an overlay from ci.yml, added later as its own approved
+# change. Start here when the repo doesn't use Vite+, Blacksmith or the selection planner.
+#
+# Runs on GitHub Actions (`ubuntu-latest`), for pull requests into main, pushes to main and a merge
+# queue's commits. Copy it to .github/workflows/ci.yml, keep your current triggers if they differ,
+# and fill each <placeholder> with the command your repo runs today, so coverage stays what it is.
+# Reference implementation from a production monorepo; adapt to your repo. Why: docs/README.md
+# section 3.
+#
+# Placeholders:
+#   <node-setup>           what your repo uses to set up Node and its package manager, as steps
+#   <install-command>      e.g. pnpm install --frozen-lockfile
+#   <lint-command>         your lint and format check
+#   <types-command>        your type check, e.g. pnpm exec tsc -b
+#   <js-test-command>      your JS/TS test command, all of it
+#   <python-version-file>  e.g. .python-version
+#   <python-install>       your Python install from its lockfile, e.g. uv sync --frozen
+#   <python-test-command>  your Python test command, all of it, e.g. uv run pytest
+#
+# Drop a job you don't have, and drop it from `result`'s `needs` too.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # A merge queue's commit, if you use one. Never fires without a queue.
+  merge_group:
+    types: [checks_requested]
+
+# A newer push to the same PR cancels the older run. Pushes to main each run.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      # TODO: <node-setup>, such as pnpm/action-setup and actions/setup-node with `cache: pnpm`.
+      - run: <install-command>
+      - run: <lint-command>
+      - if: ${{ !cancelled() }}
+        run: <types-command>
+
+  js-tests:
+    name: JS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # TODO: <node-setup>
+      - run: <install-command>
+      - run: <js-test-command>
+
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: <python-version-file>
+      - run: <python-install>
+      - run: <python-test-command>
+
+  # The one check to require. Every job above must succeed: none is skipped by a plan here, so a
+  # skipped or cancelled one fails it. GitHub's required-check setting counts a skipped job as
+  # satisfied, so this job never skips: it runs `if: always()`. Read rights only.
+  result:
+    name: CI result
+    needs: [lint, js-tests, python-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every job passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          bad=$(jq -r 'to_entries[] | select(.value.result != "success") | .key' <<< "$NEEDS")
+          if [ -n "$bad" ]; then
+            echo "::error::Not passed: $(tr '\n' ' ' <<< "$bad")"
+            exit 1
+          fi

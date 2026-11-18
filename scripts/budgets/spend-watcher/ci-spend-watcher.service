@@ -1,0 +1,16 @@
+# The CI spend watcher, as a systemd user service. `node ci-spend-watcher.ts install` links and starts it.
+# Reference implementation from a production monorepo; adapt to your repo.
+[Unit]
+Description=CI spend watcher on Blacksmith
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/ci-spend-watcher watch
+# The link's shebang finds Node 24 on this PATH. If `command -v node` is elsewhere (nvm, fnm, volta),
+# add its directory here; `install` checks and says so.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

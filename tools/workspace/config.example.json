@@ -1,0 +1,16 @@
+{
+  "types": {
+    "compiler": ["node_modules/typescript/bin/tsc"],
+    "root": "tsconfig.json",
+    "jobs": 4
+  },
+  "symbols": {
+    "skip": ["^vendor/", "^<generated-dir>/"]
+  },
+  "packageExports": {
+    "packages": ["packages/*", "apps/*"],
+    "condition": "workspace-source",
+    "packConfig": "vite.config.ts",
+    "packKey": "pack"
+  }
+}

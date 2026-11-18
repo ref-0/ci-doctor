@@ -1,0 +1,189 @@
+# A pnpm workspace's dependencies from a Blacksmith sticky disk with overlay layers: main's last full
+# install as a read-only lower layer, the job's writes in an upper layer. Runs after checkout in each
+# job that needs the workspace installed, on Blacksmith Linux runners (elsewhere it installs every
+# time). Keep one job per run with `check: true`, so a frozen-lockfile install still validates the
+# lockfile. Uses Vite+'s setup-vp for the cold install; swap it for your package manager's setup.
+# Reference implementation from a production monorepo; adapt to your repo. Why: the guide's
+# sections 2 and 6.
+#
+# Three modes, by inputs:
+# - `sticky-disk: 'true'` (default): Blacksmith's disk, as above. Only a mounted disk is written.
+# - `sticky-disk: 'false'`, `cache-folder: 'false'`: a plain setup-vp install from pnpm's store,
+#   which setup-vp caches in the Actions cache. No disk or copy step runs.
+# - `sticky-disk: 'false'`, `cache-folder: 'true'`: the disk's folder kept in the Actions cache
+#   instead. Restore it before this action, and on main save it after, under the manifests' hash:
+#
+#   - uses: actions/cache/restore@v6
+#     with:
+#       path: ~/.dependencies
+#       key: dependencies-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', '**/package.json', '!**/node_modules/**', '.node-version') }}
+#   - uses: ./.github/actions/dependencies
+#     with: { sticky-disk: 'false', cache-folder: 'true' }
+#   - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+#     uses: actions/cache/save@v6
+#     with:
+#       path: ~/.dependencies
+#       key: <the same key>
+#
+# A restore of a few GB takes time a disk mount doesn't: time the restore and a plain install
+# separately before adopting it.
+#
+# If you don't use Vite+, don't use this action. Keep your existing setup, or start from this, with
+# your repo's pinned pnpm and Node and its existing lifecycle scripts:
+#
+#   - uses: pnpm/action-setup@v4          # reads packageManager from package.json
+#   - uses: actions/setup-node@v5
+#     with: { node-version-file: .node-version, cache: pnpm }
+#   - run: pnpm install --frozen-lockfile
+#
+# For Python, keep the repo's own setup, manager and lockfiles.
+name: A workspace's dependencies
+description: >-
+  Vite+, Node and a pnpm workspace's installed dependencies, from a Blacksmith sticky disk when it
+  holds main's install of this commit's manifests, which skips linking and toolchain setup, or
+  installed by setup-vp from pnpm's store in the Actions cache when it doesn't. Measure both paths
+  in your own CI. A job that installs the workspace runs it after its checkout, on a Blacksmith
+  Linux runner for the disk; elsewhere it installs every time.
+inputs:
+  check:
+    description: >-
+      Install with setup-vp even when the disk holds this install, so pnpm checks the lockfile
+      against its supply-chain policies. Pass it from at least one job in each run.
+    default: 'false'
+  disk-path:
+    description: >-
+      Where the sticky disk mounts. The disk's key is the repository's own, so repos never share a
+      disk, whatever the path.
+    default: ~/.dependencies
+  node-version-file:
+    description: >-
+      The file setup-vp reads Node's version from, and which the manifests' hash takes in.
+    default: .node-version
+  sticky-disk:
+    description: >-
+      Mount the Blacksmith sticky disk. Pass 'false' on other runners: the action then installs from
+      pnpm's store in the Actions cache, unless cache-folder is 'true'.
+    default: 'true'
+  cache-folder:
+    description: >-
+      With sticky-disk 'false': take the install from disk-path as an Actions cache restored it,
+      and on main refresh that folder for the cache save after this action, as the header shows.
+    default: 'false'
+  prepare:
+    description: >-
+      Run the root package.json's prepare script after taking the disk's install, for what it writes
+      outside node_modules. An install runs it anyway. Pass true only when the root has one.
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    # One disk for each repository, OS and architecture, holding main's newest install: a key's
+    # disk is billed per GB-month until a week after its last use, and a key per lockfile would
+    # keep a dozen. Each job mounts its own clone of the disk's last committed snapshot, so jobs
+    # never share a live disk. Only main's own runs, a push, a schedule or a run by hand of main,
+    # commit theirs, and only when the copy below changed it: never a pull request or a run by hand
+    # whose `ref` input names another commit, so others read only what main installed. A job whose
+    # step failed commits nothing, and when several commit, the last wins, each a whole install. A
+    # job that checks on another branch mounts none.
+    - name: The dependencies' disk
+      id: mount
+      if: runner.os == 'Linux' && inputs.sticky-disk == 'true' && (inputs.check != 'true' || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref))
+      uses: useblacksmith/stickydisk@3f6be1451e3cad893b778bc93495c80452a5da26 # v1.7.2
+      with:
+        key: ${{ github.repository }}-dependencies-v3-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ inputs.disk-path }}
+        commit: ${{ (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref) && 'on-change' || 'false' }}
+    # The disk holds this commit's install when the hash of its manifests, which the copy below
+    # writes last, is this commit's: the lockfile, the workspace's settings and every package.json,
+    # Vite+'s and pnpm's versions in the root's among them, and Node's. Then node_modules, and
+    # Vite+'s own folder with Node and pnpm, are overlays with the disk's copy as their lower
+    # layer, read only, and the job's own writes, such as Vitest's cache, in an upper layer on the
+    # runner's disk. Each project's node_modules, and Vite+'s config and state, come out of the
+    # disk's tarballs. Then the disk's own mount is detached: the overlays keep it, and the sticky
+    # disk's post step finds nothing mounted and commits nothing.
+    - name: Dependencies from the disk
+      id: disk
+      if: runner.os == 'Linux' && ((inputs.sticky-disk == 'true' && steps.mount.outcome == 'success') || inputs.cache-folder == 'true')
+      shell: bash
+      env:
+        CHECK: ${{ inputs.check }}
+        DISK: ${{ inputs.disk-path }}
+        MANIFESTS: ${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', '**/package.json', '!**/node_modules/**', inputs.node-version-file) }}
+      run: |
+        disk=${DISK/#\~/$HOME}
+        echo "manifests=$MANIFESTS" >> "$GITHUB_OUTPUT"
+        if [ "$CHECK" = true ] || [ "$(cat "$disk/manifests" 2> /dev/null)" != "$MANIFESTS" ]; then
+          echo "warm=false" >> "$GITHUB_OUTPUT"
+          if [ "$CHECK" = true ]; then
+            echo "Installing, so pnpm checks the lockfile."
+          else
+            echo "The disk doesn't hold this commit's install: installing."
+          fi
+          exit 0
+        fi
+
+        overlay() {
+          mkdir -p "$2" "$RUNNER_TEMP/overlay/$3/upper" "$RUNNER_TEMP/overlay/$3/work"
+          sudo mount -t overlay overlay -o "lowerdir=$1,upperdir=$RUNNER_TEMP/overlay/$3/upper,workdir=$RUNNER_TEMP/overlay/$3/work" "$2"
+        }
+        overlay "$disk/node_modules" node_modules node_modules
+        overlay "$disk/vite-plus" ~/.local/share/vite-plus vite-plus
+        tar -xf "$disk/projects.tar"
+        tar -xf "$disk/vite-plus.tar" -C ~
+        if mountpoint -q "$disk"; then sudo umount -l "$disk"; fi
+
+        echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
+        # The disk holds the install of these manifests, so pnpm needn't check them again before a
+        # script: after a checkout they're newer than the install, and its check installed again,
+        # with the supply-chain check and the dependencies' builds, for nothing.
+        echo "pnpm_config_verify_deps_before_run=false" >> "$GITHUB_ENV"
+        echo "warm=true" >> "$GITHUB_OUTPUT"
+        echo "Dependencies from the disk."
+    - if: steps.disk.outputs.warm != 'true'
+      id: vite-plus
+      uses: voidzero-dev/setup-vp@v1.22.0
+      with:
+        cache: true
+        node-version-file: ${{ inputs.node-version-file }}
+        run-install: true
+    # When Vite+'s installer fails, it says why only in upgrade.log, which stays on the runner, and
+    # each of setup-vp's 8 attempts said just "See log for details".
+    - name: Why Vite+ didn't install
+      if: failure() && steps.vite-plus.outcome == 'failure'
+      shell: bash
+      run: cat ~/.local/share/vite-plus/upgrade.log || echo "Vite+ wrote no upgrade.log."
+    # What the root's prepare script writes outside node_modules, such as generated files. Its
+    # patches to node_modules are on the disk already.
+    - name: The root's prepare
+      if: steps.disk.outputs.warm == 'true' && inputs.prepare == 'true'
+      shell: bash
+      run: |
+        export PATH="$PWD/node_modules/.bin:$PATH"
+        sh -c "$(node -p 'require("./package.json").scripts.prepare')"
+    # Right after the install, before anything else writes to node_modules: the copy, then the
+    # manifests' hash last, so a copy cut short reads as another install's.
+    - name: Dependencies onto the disk
+      if: >-
+        runner.os == 'Linux' && steps.disk.outcome == 'success' && steps.disk.outputs.warm != 'true' &&
+        github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref
+      shell: bash
+      env:
+        DISK: ${{ inputs.disk-path }}
+        MANIFESTS: ${{ steps.disk.outputs.manifests }}
+      run: |
+        disk=${DISK/#\~/$HOME}
+        if [ "$(cat "$disk/manifests" 2> /dev/null)" = "$MANIFESTS" ]; then
+          echo "The disk holds this install already."
+          exit 0
+        fi
+
+        mkdir -p "$disk"
+        rm -rf "$disk/manifests" "$disk/node_modules" "$disk/projects.tar" "$disk/vite-plus" "$disk/vite-plus.tar"
+        cp -a node_modules "$disk/node_modules"
+        find . -path ./node_modules -prune -o -path ./.git -prune -o -name node_modules -type d -print -prune > "$RUNNER_TEMP/projects"
+        tar -cf "$disk/projects.tar" -T "$RUNNER_TEMP/projects"
+        # Vite+'s folders, as `VP_DUMP_DIRS=1 vp` prints them.
+        cp -a ~/.local/share/vite-plus "$disk/vite-plus"
+        (cd ~ && tar -cf "$disk/vite-plus.tar" $(ls -d .config/vite-plus .cache/vite-plus .local/state/vite-plus 2> /dev/null))
+        echo "$MANIFESTS" > "$disk/manifests"
+        du -sh "$disk"/* | sort -h

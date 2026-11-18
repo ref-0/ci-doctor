@@ -1,0 +1,11 @@
+{
+  "lint": {
+    "base": "origin/main",
+    "files": "\\.[cm]?tsx?$",
+    "workspace": ["vp", "run", "lint:workspace"],
+    "workspaceFix": ["vp", "check", "--fix"],
+    "changed": ["vp", "run", "lint:files"],
+    "changedFix": ["vp", "lint", "--fix", "--no-error-on-unmatched-pattern"],
+    "before": [["node", "tools/workspace/src/bin.ts", "types"]]
+  }
+}
