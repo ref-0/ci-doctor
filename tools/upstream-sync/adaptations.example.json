@@ -1,0 +1,14 @@
+{
+  "skillsDir": ".agents/skills",
+  "ours": ["<vendor>-workers"],
+  "leftOut": ["<skill-you-skip>"],
+  "keepsUpstreamNames": ["skill-feedback.md"],
+  "edited": [
+    {
+      "folder": ".agents/skills/test-audit",
+      "repo": "https://github.com/openclaw/openclaw",
+      "path": ".agents/skills/test-audit",
+      "baseline": "80930af448ebabc84174146b56bc106d37fab3b4"
+    }
+  ]
+}

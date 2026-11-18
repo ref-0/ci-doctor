@@ -1,0 +1,29 @@
+# The Actions cache's address and token, for a job's own scripts: work-stealing claims and the small
+# files a run's jobs read back (claims, flakes, test times). Runs in the test shards and the result
+# and report jobs. Reference implementation from a production monorepo; adapt to your repo. Why:
+# the guide's sections 7 and 13.
+name: The Actions cache's address and token
+description: >-
+  Exposes the Actions cache service's address and the job's runtime token, which only a JavaScript
+  action is given, to the job's own scripts. Claims are cache reservations: the first reservation of
+  a key wins. Small cross-job records go here rather than into artifacts, which count against a
+  storage quota (when that quota filled, every upload failed and so did every passing shard). On
+  Blacksmith's runners the cache is Blacksmith's storage, scoped by branch as GitHub's is. The token
+  is masked, and goes only into the environment of steps that name these outputs.
+outputs:
+  url:
+    description: The cache service's address.
+    value: ${{ steps.cache.outputs.url }}
+  token:
+    description: The job's runtime token, masked.
+    value: ${{ steps.cache.outputs.token }}
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/github-script@v9
+      with:
+        script: |
+          core.setSecret(process.env.ACTIONS_RUNTIME_TOKEN);
+          core.setOutput('token', process.env.ACTIONS_RUNTIME_TOKEN);
+          core.setOutput('url', process.env.ACTIONS_RESULTS_URL);

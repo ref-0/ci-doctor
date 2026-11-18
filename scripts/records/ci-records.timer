@@ -1,0 +1,12 @@
+# Runs ci-records.service each night. Persistent catches up a night the machine was off.
+# Reference implementation from a production monorepo; adapt to your repo.
+[Unit]
+Description=Collect CI records each night
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

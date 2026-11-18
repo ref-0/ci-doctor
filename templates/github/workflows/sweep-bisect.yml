@@ -1,0 +1,71 @@
+# Bisects a failed sweep or server slot to the merge that broke it, within a budget.
+#
+# Runs on GitHub Actions (2 vCPU Blacksmith), started by ci.yml's report job when main's sweep or
+# server slot fails on its first attempt. The logic lives in scripts/sweeps/sweep-bisect.ts, in this
+# playbook; set its CONFIG block. Reference implementation from a production monorepo; adapt to your
+# repo. Why: docs/pages/05-tiers-what-runs-where.md.
+#
+# What scripts/sweeps/sweep-bisect.ts does:
+# 1. Rerun before bisecting: rerun the failed jobs at the same commit. Passing on rerun means a
+#    flake (it gets a flake issue), so no bisect starts.
+# 2. A still-failing server run reruns at most four failed files by hand, then halves the merge
+#    range since the run's base, up to six midpoint runs (about log2 of the merges).
+# 3. Record verdicts on the "CI on main failed" issue: confirmed-failing files and the merge found,
+#    so later slots don't pay to rediscover them, and a run whose failed files an earlier bisect
+#    already confirmed isn't bisected again.
+# 4. Bound the spend: count every probe job, cancelled and in-flight ones included, against a
+#    monthly vCPU-minute allowance (`bisectBudget.monthlyVcpuMinutes`, 0 until you set it), and
+#    refuse new probes if the accounting is incomplete. It finds its probes by ci.yml's run-name,
+#    which ends `, for a bisect` when its `bisect` input is set, and this controller by its own.
+# It won't bisect checks that can't be repeated, such as run-seeded property tests.
+#
+#   gh workflow run sweep-bisect.yml --ref main -f run=<the failed run's id>
+#
+# Must match `controllerTitle` in sweep-bisect.ts, which refuses to run otherwise. It reads the
+# failed run's own title to tell a sweep from a server slot.
+run-name: "Bisect main's run ${{ inputs.run }}"
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: The failed run's ID, of main's sweep or server tests.
+        required: true
+
+# One bisect at a time, and none cancelled: each runs CI by hand, which a second would race.
+concurrency:
+  group: sweep-bisect
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  bisect:
+    name: Bisect the failed run
+    # It waits on CI's runs: a rerun, then up to 6 runs by hand of one check. So the smallest
+    # runner. Its timeout is `bisectBudget.controllerMinutes`, which an unended controller holds
+    # against the allowance.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 120
+    steps:
+      # Main's whole history, for the merges since the run's base.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      # Node 24 runs the TypeScript as it is; the controller needs nothing installed but gh and git.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # setup-node turns this on by itself when package.json names a package manager, and
+          # then fails without one installed: this job installs nothing.
+          package-manager-cache: false
+      - name: Rerun the failed jobs, and bisect a second failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run }}
+        run: node scripts/sweeps/sweep-bisect.ts "$RUN"

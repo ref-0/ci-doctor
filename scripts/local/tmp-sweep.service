@@ -1,0 +1,14 @@
+# Reference implementation from a production monorepo; adapt to your repo.
+[Unit]
+Description=Delete /tmp entries untouched for 2+ days
+
+# Before enabling the timer: agree with the machine's users what it may delete, set the keep list
+# below (the slot pool is always kept), and read a dry run with the same settings:
+#   TMP_SWEEP_KEEP='<keep-globs>' tmp-sweep --days 2
+# Or set it in an override: systemctl --user edit tmp-sweep.service.
+[Service]
+Type=oneshot
+Environment=TMP_SWEEP_KEEP=
+ExecStart=%h/.local/bin/tmp-sweep --delete --days 2
+Nice=19
+IOSchedulingClass=idle

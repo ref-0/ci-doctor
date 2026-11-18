@@ -1,0 +1,1376 @@
+# The main CI workflow: plan → jobs → result.
+#
+# Runs on GitHub Actions with Blacksmith runners, for every ready pull request into main, every
+# merge (types only), main's daily sweep and its integration-test slots (started by sweep.yml), and
+# runs by hand. Copy it to .github/workflows/ci.yml and fill in each <placeholder> and TODO. Every
+# script it calls is in this playbook, at the path it calls it by, as ../README.md's install layout
+# says; the rest are <placeholders> that README lists. Reference implementation from a production
+# monorepo (distilled from a much longer workflow); adapt to your repo. Why each part exists:
+# the guide's sections 3 (anatomy), 4 (selection), 5 (tiers), 6 (caches) and 7 (shards and runners).
+#
+# The shape:
+# - A draft runs nothing. Marking it ready starts its one run, and each push while ready runs again.
+# - `plan` (2 vCPU, no workspace install) reads the diff and writes outputs: which test files, the
+#   shard split, which jobs, the runner size, and whether to pack, build Rust or run proofs. Every
+#   other job is `if:`-gated on those outputs, so a job the plan didn't select is skipped and costs
+#   nothing. It logs its inputs and choice as one line, so every run can be audited later.
+# - `static` (build, generated files) and `lint` (format, type-aware lint, types) run in parallel.
+#   Split, each ended in a little over half the time the two took as one job.
+# - `tests` runs time-split shards with work stealing, on 2 or 8 vCPU by the selection's size.
+# - Covered-only proofs, `pack`, `proof` and `rust` run only when the plan says their inputs changed.
+# - `pack` and `proof` start setup at once and wait for the step they need (wait-for-jobs), not
+#   `needs`, so setup overlaps upstream work.
+# - `result` runs `if: always()` and is the one check to require. A skipped job counts as passing
+#   only when the plan didn't select it. It holds read rights only; `report` files the issues.
+# - Opt-in, each its own approved change: the test retry (`vars.CI_TEST_RETRY`) and Rust pass
+#   reuse (`RUST_PASS_REUSE`). Both start off.
+# - A merge to main runs workspace types only: two independently green PRs can still break types
+#   together, and the sweep comes once a day. Main's sweep runs everything since the last passing
+#   sweep and gates the release.
+#
+# By hand:
+#
+#   gh workflow run ci.yml --ref <branch> -f test_paths='<app-dir>/src/queue' -f repeat=50
+#   gh workflow run ci.yml --ref main -f sweep=true
+#   gh workflow run ci.yml --ref main -f server_sweep=true
+#   gh workflow run ci.yml --ref <branch> -f pack_only=true
+#
+# Dispatch with `--ref <branch>`: `--ref` picks the workflow's revision, the `ref` input the code's.
+# A branch behind main fails on main's newer workflow scripts.
+#
+# scripts/sweeps/sweep-bisect.ts dispatches this workflow by hand with `ref`, `test_paths`,
+# `pack_only` and `bisect`, finds its runs by the run-name's `CI by hand on <sha>` start and
+# `, for a bisect` end, and matches its jobs by name (`Tests n/m`, `Pack`, `Proof`, `Build and
+# generated files`, `Format, lint and types`). Change one and change its `checks` with it.
+name: CI
+run-name: >-
+  ${{ inputs.sweep && (github.ref_name == 'main' && 'CI on main, daily' || format('CI on {0}, as main''s sweep', github.ref_name)) ||
+  inputs.server_sweep && format('Server tests on {0}', github.ref_name) ||
+  github.event_name == 'workflow_dispatch' && format('CI by hand on {0}{1}{2}{3}{4}',
+  inputs.ref || github.ref_name,
+  inputs.test_paths && format(', tests under {0}', inputs.test_paths) || '',
+  inputs.repeat && inputs.repeat != '1' && format(', {0} times', inputs.repeat) || '',
+  inputs.pack_only && ', packing only' || '',
+  inputs.bisect && ', for a bisect' || '') ||
+  github.event_name == 'push' && 'Types on main' || '' }}
+
+on:
+  pull_request:
+    branches: [main]
+    # `ready_for_review`, so marking a draft ready starts its first real run.
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Every merge: its types, and the record a failed one files.
+  push:
+    branches: [main]
+  # A merge queue's commit, if you use one: it runs the full selection. Never fires without a queue.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The commit, branch or tag to check. Empty checks the branch it's started on.
+        default: ''
+      test_paths:
+        description: Run only the ordinary tests under these paths, separated by spaces. Empty runs what the plan selects.
+        default: ''
+      repeat:
+        description: With test_paths, how many times to run those tests with no retry, 1 to 100, on up to ten runners. To measure a flake or prove its fix.
+        default: '1'
+      sweep:
+        description: Main's sweep, on the tip of the branch it's started on, with no other input. Only on main does it open or close the issue.
+        type: boolean
+        default: false
+      server_sweep:
+        description: Main's integration-test slot, every test file of <server-package>, as sweep.yml starts it between daily sweeps.
+        type: boolean
+        default: false
+      full:
+        description: With sweep, run every test afresh, none replayed from the task cache.
+        type: boolean
+        default: false
+      pack_only:
+        description: Only pack, and run the proof on the packed snapshot. Takes ref and bisect, nothing else.
+        type: boolean
+        default: false
+      bisect:
+        description: Set by sweep-bisect.ts on the runs it starts, so its monthly allowance counts them. Changes nothing else.
+        type: boolean
+        default: false
+
+# Groups keep ready PRs, drafts, reruns, runs by hand and merges apart, so a draft event or an old
+# rerun can't cancel the newest head's useful run. A newer ready push cancels the older one, and a
+# run by hand cancels one with the same inputs. A running sweep is never cancelled, so a second
+# start can't throw away the first's work. GitHub keeps one waiting run per group, so a third start
+# can replace a waiting one; that loses nothing, as each sweep plans from the last *passing* sweep. A rerun checks an older commit again and a merge's
+# run checks only its merge, so each gets a group of its own.
+concurrency:
+  group: >-
+    ${{ github.run_attempt == 1 && inputs.sweep && format('ci-sweep-{0}', github.ref_name) ||
+    github.run_attempt == 1 && inputs.server_sweep && format('ci-server-sweep-{0}', github.ref_name) ||
+    github.run_attempt == 1 && github.event_name == 'pull_request' && !github.event.pull_request.draft && format('ci-pr-{0}', github.event.pull_request.number) ||
+    github.run_attempt == 1 && github.event_name == 'workflow_dispatch' && format('ci-hand-{0}-{1}-{2}-{3}', inputs.ref || github.ref_name, inputs.test_paths, inputs.repeat, inputs.pack_only) ||
+    format('ci-run-{0}-{1}', github.run_id, github.run_attempt) }}
+  cancel-in-progress: ${{ !inputs.sweep && !inputs.server_sweep }}
+
+permissions:
+  contents: read
+
+env:
+  DO_NOT_TRACK: '1'
+  # The in-process test retry, which your test config reads: each failed test runs once more. Off
+  # unless the repository variable CI_TEST_RETRY is 1. It changes what the gate accepts: a test that
+  # fails and then passes passes its shard. So turning it on is its own approved change, never part
+  # of adding timing records. It exists to *detect* flakes: every recovery is recorded and filed by
+  # the report job (guide section 11). It is distinct from a rerun of a failed job and from a runner
+  # or infrastructure failure. Never add a per-test retry. A run by hand with a repeat measures
+  # failure rates, so it never retries.
+  TEST_RETRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.test_paths != '' && inputs.repeat != '1') && '0' || vars.CI_TEST_RETRY || '0' }}
+  # The ordinary test files, as `grep -E` reads them: what your runner discovers. Keep it equal to
+  # scripts/affected-checks.ts's `testFile`.
+  ORDINARY_TESTS: '\.test\.tsx?$'
+  # Every job the plan can select, `plan` included: the jobs `result` needs, no more and no fewer.
+  # `result` fails when its `needs` and this list differ in either direction. Add a plan-gated job
+  # here, to `result`'s `needs` and to the plan's `selected`, together.
+  SELECTABLE_JOBS: '["plan","static","lint","types","tests","rust","pack","proof"]'
+
+jobs:
+  plan:
+    name: Plan
+    # A draft skips the plan, and so every job after it.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    # actions: main's last passing sweep, and main's passes for the Rust key.
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      base: ${{ steps.plan.outputs.base }}
+      packages: ${{ steps.plan.outputs.packages }}
+      shards: ${{ steps.plan.outputs.shards || '[]' }}
+      shard_count: ${{ steps.plan.outputs.shard_count || '0' }}
+      shard_files: ${{ steps.plan.outputs.shard_files || '{}' }}
+      queue: ${{ steps.plan.outputs.queue || '[]' }}
+      plan_attempt: ${{ steps.plan.outputs.plan_attempt }}
+      bin_key: ${{ steps.plan.outputs.bin_key }}
+      test_runner: ${{ steps.plan.outputs.test_runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+      test_workers: ${{ steps.plan.outputs.test_workers || '6' }}
+      static: ${{ steps.plan.outputs.static }}
+      types: ${{ steps.plan.outputs.types }}
+      pack: ${{ steps.plan.outputs.pack }}
+      proof: ${{ steps.plan.outputs.proof }}
+      rust: ${{ steps.plan.outputs.rust }}
+      rust_key: ${{ steps.plan.outputs.rust_key }}
+      # The jobs this run selected, which `result` holds to success.
+      selected: ${{ steps.plan.outputs.selected }}
+    steps:
+      - name: The commit to check
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+          SWEEP: ${{ inputs.sweep }}
+          SERVER_SWEEP: ${{ inputs.server_sweep }}
+          OTHERS: ${{ inputs.ref }}${{ inputs.test_paths }}${{ inputs.pack_only && 'pack_only' || '' }}${{ inputs.bisect && 'bisect' || '' }}
+          TEST_PATHS: ${{ inputs.test_paths }}
+          PACK_ONLY: ${{ inputs.pack_only }}
+          FULL: ${{ inputs.full }}
+        run: |
+          # A sweep checks the tip of its branch from the last passing sweep, and on main closes the
+          # issue when it passes, so an input that checks less would close it too.
+          if { [ "$SWEEP" = true ] || [ "$SERVER_SWEEP" = true ]; } && [ -n "$OTHERS" ]; then
+            echo "::error::sweep and server_sweep take no other input."
+            exit 1
+          fi
+          if [ "$PACK_ONLY" = true ] && [ -n "$TEST_PATHS" ]; then
+            echo "::error::pack_only takes ref and bisect, nothing else."
+            exit 1
+          fi
+          if [ "$FULL" = true ] && [ "$SWEEP" != true ]; then
+            echo "::error::full goes with sweep."
+            exit 1
+          fi
+          if [ -n "$REF" ]; then
+            # Anything else could change the URL, and so which commit comes back.
+            if ! [[ $REF =~ ^[A-Za-z0-9._/-]+$ ]] || [[ $REF == *..* ]]; then
+              echo "::error::ref takes a branch, tag or sha: letters, digits and . _ / - only"
+              exit 1
+            fi
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$REF" --jq .sha)
+          else
+            sha=$GITHUB_SHA
+          fi
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::${REF:-$GITHUB_REF} names no commit here"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # A pull request checks out its merge into main, so its first parent is main's tip and the
+      # diff between them is what it brings. A sweep takes the whole history, to reach its base.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.commit.outputs.sha }}
+          fetch-depth: ${{ (inputs.sweep || inputs.server_sweep) && '0' || '2' }}
+
+      # Unpublished snapshot pins (pkg.pr.new URLs) only on a run by hand of named files, a draft's
+      # experiment: a PR, a merge, a sweep and a release need released versions in the manifests and
+      # the lockfile. First, so a refused run plans and starts nothing. scripts/sweeps/snapshot-pins.ts;
+      # this template has no heavy-file input, so HEAVY_FILE stays empty.
+      - name: No snapshot in the dependencies
+        env:
+          EVENT: ${{ inputs.sweep && 'sweep' || inputs.server_sweep && 'server_sweep' || github.event_name }}
+          HEAVY_FILE: ''
+          TEST_PATHS: ${{ inputs.test_paths }}
+        run: node scripts/sweeps/snapshot-pins.ts
+
+      # Each test file's newest time on main, which the sweep's test-times job keeps. Only the plan
+      # reads them, so every shard gets its files from one split.
+      - name: Main's test times
+        uses: actions/cache/restore@v6
+        with:
+          path: test-times.json
+          key: test-times-all-${{ github.run_id }}
+          restore-keys: test-times-all-
+
+      # The planner diffs CI files as YAML. The plan installs nothing, so it fetches `yaml` at the
+      # lockfile's version and holds the tarball to the lockfile's integrity. Without it, a CI edit
+      # runs everything. TODO: adjust the two `sed`/`grep` lines to your lockfile's format.
+      - name: The YAML parser, for CI-file diffs
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --quiet HEAD^1 HEAD -- .github/workflows/ .github/actions/ && exit 0
+          version=$(grep -m1 -A1 "^  yaml@" pnpm-lock.yaml | sed -n 's/^  yaml@\([^:(]*\):.*/\1/p')
+          integrity=$(grep -A1 -Fx "  yaml@$version:" pnpm-lock.yaml | sed -n 's/.*integrity: \(sha512-[^}]*\)}.*/\1/p' || true)
+          if [ -n "$integrity" ] &&
+            curl -fsSL --retry 2 "https://registry.npmjs.org/yaml/-/yaml-$version.tgz" -o "$RUNNER_TEMP/yaml.tgz" &&
+            [ "sha512-$(openssl dgst -sha512 -binary "$RUNNER_TEMP/yaml.tgz" | base64 -w0)" = "$integrity" ] &&
+            mkdir -p "$RUNNER_TEMP/yaml" && tar -xzf "$RUNNER_TEMP/yaml.tgz" -C "$RUNNER_TEMP/yaml"; then
+            echo "PLAN_YAML=$RUNNER_TEMP/yaml/package/dist/index.js" >> "$GITHUB_ENV"
+          else
+            echo "::warning::yaml ${version:-of no version} wasn't fetched and held to the lockfile, so the change to CI's files runs everything."
+          fi
+
+      - name: Which checks the commit needs
+        id: plan
+        env:
+          EVENT: ${{ inputs.sweep && 'sweep' || inputs.server_sweep && 'server_sweep' || github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          TEST_PATHS: ${{ inputs.test_paths }}
+          REPEAT: ${{ inputs.repeat }}
+          PACK_ONLY: ${{ inputs.pack_only }}
+          BISECT: ${{ inputs.bisect }}
+          # Rust pass and binary reuse: off until you configure scripts/reuse/pass-key.ts and see a
+          # changed Cargo manifest, a changed fixture and a changed workflow command each move its
+          # key. Then set 'true'. Off, both keys are empty: a PR runs the Rust checks whenever their
+          # inputs change, and the pack builds the binaries when Rust didn't run this run.
+          RUST_PASS_REUSE: 'false'
+        run: |
+          set -o pipefail
+          # The pass key: everything the Rust checks read but the release version, the job blocks
+          # that build them included. The binaries' key adds every file that sets the version a
+          # binary embeds: a pass may outlive a release, a binary may not.
+          RUST_KEY='' BIN_KEY=''
+          if [ "$RUST_PASS_REUSE" = true ]; then
+            if RUST_KEY=$(node scripts/reuse/pass-key.ts) && BIN_KEY=$(node scripts/reuse/pass-key.ts --with-versions); then :; else
+              echo "::warning::scripts/reuse/pass-key.ts failed, so no Rust pass or binary is reused."
+              RUST_KEY='' BIN_KEY=''
+            fi
+          fi
+          {
+            echo "plan_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "rust_key=$RUST_KEY"
+            echo "bin_key=$BIN_KEY"
+          } >> "$GITHUB_OUTPUT"
+
+          # The newest commit on main whose run of the given titles passed, and that this one
+          # descends from: the base a sweep plans from. Empty when none, and then everything runs.
+          last_pass() {
+            local sha
+            for sha in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&status=success&per_page=100" \
+              --jq ".workflow_runs[] | select($1) | .head_sha"); do
+              if [[ $sha =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$sha" HEAD 2> /dev/null; then
+                echo "$sha"
+                return 0
+              fi
+            done
+          }
+
+          # A main run that recorded a pass for the Rust key within 30 hours, as its report job
+          # records it: an artifact named for the key, from a run of ci.yml on main that succeeded.
+          # Trust main, not branch caches: a PR's run could upload an artifact of any name, but
+          # GitHub names the branch each came from. 30 h lets a daily sweep arrive up to 6 h late.
+          main_pass() {
+            local since run
+            [ -n "$1" ] || return 1
+            since=$(date -u -d "${2:-30} hours ago" +%Y-%m-%dT%H:%M:%SZ)
+            for run in $(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=rust-pass-$1&per_page=30" \
+              --jq ".artifacts[] | select((.expired | not) and .created_at > \"$since\") |
+                select(.workflow_run.head_branch == \"main\" and .workflow_run.head_repository_id == .workflow_run.repository_id) |
+                .workflow_run.id" 2> /dev/null || true); do
+              case "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '.path + " " + .head_branch + " " + (.conclusion // "")' 2> /dev/null || true)" in
+                ".github/workflows/ci.yml main success") echo "$run"; return 0 ;;
+              esac
+            done
+            return 1
+          }
+
+          # A merge checks workspace types and nothing else.
+          if [ "$EVENT" = push ]; then
+            printf 'packages=[]\nstatic=false\ntypes=true\npack=false\nproof=false\nrust=false\nshards=[]\nshard_count=0\n' | tee -a "$GITHUB_OUTPUT"
+            echo 'selected=["plan","types"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A run by hand that only packs (a bisect's probe of a failed Pack or Proof, or a person
+          # trying a snapshot): the pack, and the proof on its snapshot. The pack takes this commit's
+          # binaries from the cache by bin_key, or builds them itself.
+          if [ "$PACK_ONLY" = true ]; then
+            printf 'packages=[]\nstatic=false\ntypes=false\npack=true\nproof=true\nrust=false\nshards=[]\nshard_count=0\n' | tee -a "$GITHUB_OUTPUT"
+            echo 'selected=["plan","pack","proof"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A run by hand's test_paths must each hold an ordinary test, and an empty selection fails
+          # rather than passing quietly.
+          if [ -n "$TEST_PATHS" ]; then
+            read -ra paths <<< "$TEST_PATHS"
+            for path in "${paths[@]}"; do
+              case "$path" in -* | ./* | /* | *..*) echo "::error::test_paths takes paths from the repo's root."; exit 1 ;; esac
+              [ -e "$path" ] || { echo "::error::No $path at this commit."; exit 1; }
+            done
+            case "$REPEAT" in [1-9] | [1-9][0-9] | 100) ;; *) echo "::error::repeat takes 1 to 100."; exit 1 ;; esac
+          fi
+
+          # What the diff reaches (scripts/affected-checks.ts). A pull request runs only the tests
+          # near its change (--near); the sweep runs everything since the last passing sweep.
+          case "$EVENT" in
+            pull_request) node scripts/affected-checks.ts --near HEAD^1 HEAD > "$RUNNER_TEMP/plan" ;;
+            sweep)
+              base=$(last_pass '.display_title | startswith("CI on main, ")')
+              if [ -n "$base" ] && [ "$base" = "$(git rev-parse HEAD)" ]; then
+                # Nothing new to check: no static, tests, pack or proof. It keeps only what ages
+                # rather than changes: the Rust pass a PR skips by (renewed past 20 h, as below).
+                # Keep any live check here too, such as a browser check against staging.
+                rust=false
+                if [ -n "$RUST_KEY" ] && [ "$GITHUB_REF" = refs/heads/main ] && ! main_pass "$RUST_KEY" 20 > /dev/null; then
+                  rust=true
+                fi
+                echo "::notice::Main hasn't moved since its last passing sweep, so this sweep runs its plan$([ "$rust" = true ] && echo ", and the Rust checks to renew their pass")."
+                echo "base=$base" >> "$GITHUB_OUTPUT"
+                printf 'packages=[]\nstatic=false\ntypes=false\npack=false\nproof=false\nrust=%s\nshards=[]\nshard_count=0\n' "$rust" | tee -a "$GITHUB_OUTPUT"
+                jq -nc --argjson rust "$rust" '["plan"] + (if $rust then ["rust"] else [] end)' | sed 's/^/selected=/' | tee -a "$GITHUB_OUTPUT"
+                exit 0
+              elif [ -n "$base" ]; then
+                echo "base=$base" >> "$GITHUB_OUTPUT"
+                node scripts/affected-checks.ts "$base" HEAD > "$RUNNER_TEMP/plan"
+              else
+                echo "::notice::No passing sweep on main before this commit, so everything runs."
+                printf 'packages=null\n' > "$RUNNER_TEMP/plan"
+              fi
+              ;;
+            # Every test file of <server-package>, covered-only ones too, but only if something
+            # since the last passing server run or sweep reaches it. An unchanged slot skips the test
+            # jobs and pays only for dispatch, plan and result.
+            server_sweep)
+              base=$(last_pass '.display_title == "Server tests on main" or (.display_title | startswith("CI on main, "))')
+              reached=true
+              if [ -n "$base" ] && [ "$base" = "$(git rev-parse HEAD)" ]; then
+                reached=false
+              elif [ -n "$base" ]; then
+                echo "base=$base" >> "$GITHUB_OUTPUT"
+                reach=$(node scripts/affected-checks.ts "$base" HEAD | sed -n 's/^packages=//p')
+                jq -e '. == null or any(.[]; startswith("<server-package>/"))' <<< "${reach:-null}" > /dev/null || reached=false
+              fi
+              if [ "$reached" = false ]; then
+                echo "::notice::Nothing since the last pass reaches <server-package>."
+                printf 'packages=[]\n' > "$RUNNER_TEMP/plan"
+              else
+                printf 'packages=["<server-package>/"]\n' > "$RUNNER_TEMP/plan"
+              fi
+              ;;
+            *) printf 'packages=null\n' > "$RUNNER_TEMP/plan" ;;
+          esac
+          sed '/^test_selection=/d' "$RUNNER_TEMP/plan"
+          grep -e '^packages=' "$RUNNER_TEMP/plan" >> "$GITHUB_OUTPUT"
+          packages=$(sed -n 's/^packages=//p' "$RUNNER_TEMP/plan")
+          ci_jobs=$(sed -n 's/^ci_jobs=//p' "$RUNNER_TEMP/plan")
+          ci_needs=$(sed -n 's/^ci_needs=//p' "$RUNNER_TEMP/plan")
+          ci_job() { jq -e --arg job "$1" 'any(.[]; . == $job)' <<< "${ci_jobs:-[]}" > /dev/null; }
+          ci_needed() { ci_job "$1" || jq -e --arg job "$1" 'any(.[]; . == $job)' <<< "${ci_needs:-[]}" > /dev/null; }
+          # A PR's edit to a job that only main's runs start selects it here, and it still can't
+          # run. Say so, with the run that does. Add a line for each such job you add (deep property
+          # tests, live browser checks, load runs), each with the dispatch that runs it.
+          if [ "$EVENT" = pull_request ] && ci_job test-times; then
+            echo "::notice::This change edits the test-times job, which only sweeps run. Try it on this branch: gh workflow run ci.yml --ref $GITHUB_HEAD_REF -f sweep=true. It saves main's times only on main, so read main's first sweep after the merge too."
+          fi
+          from=HEAD^1
+          [ "$EVENT" = sweep ] && from=${base:-HEAD^1}
+          everything=false
+          [ "$packages" = null ] && everything=true
+
+          # Static checks and lint on every ready run but a server slot and a person's run of named
+          # tests: docs-only changes still get them. A bisect's run of named tests keeps them, as
+          # sweep-bisect.ts checks a failed static job beside one quick test file.
+          static=true
+          [ "$EVENT" = server_sweep ] && static=false
+          [ -n "$TEST_PATHS" ] && [ "$BISECT" != true ] && static=false
+          echo "static=$static" >> "$GITHUB_OUTPUT"
+          # The merge-only types job, on a PR only when the change is to it.
+          types=false
+          ci_needed types && types=true
+          echo "types=$types" >> "$GITHUB_OUTPUT"
+
+          # Packaging only when a PR changes what gets packed: manifests, exports, packed docs,
+          # packaging config or relevant lockfile entries. Ordinary source edits skip it.
+          # TODO: your packed inputs.
+          pack=false
+          case "$EVENT" in
+            pull_request | sweep | workflow_dispatch | merge_group)
+              if [ "$everything" = true ] || ci_needed pack ||
+                ! git diff --quiet "$from" HEAD -- '<packed-package>/package.json' '<packed-package>/README.md' pnpm-lock.yaml; then
+                pack=true
+              fi
+              ;;
+          esac
+          [ -n "$TEST_PATHS" ] && pack=false
+
+          # Proofs on the packed artifact run on a PR only when their own implementation or inputs
+          # change: a broad "everything" fallback no longer drags them in (49 of 78 proof-running
+          # PRs in one sample were there only because of it). The sweep runs them on whatever the
+          # merges since its last pass reach, everything included. TODO: your proof's paths.
+          proof=false
+          if [ "$EVENT" = pull_request ]; then
+            if ci_needed proof || ! git diff --quiet HEAD^1 HEAD -- '<proof-dir>/'; then proof=true; fi
+          elif [ "$EVENT" = sweep ] && [ "$pack" = true ]; then
+            proof=true
+          fi
+          [ "$proof" = true ] && pack=true
+          printf 'pack=%s\nproof=%s\n' "$pack" "$proof" | tee -a "$GITHUB_OUTPUT"
+
+          # Rust when its real inputs change (not package edges: of 232 merges reaching native code
+          # through package edges, only 151 touched its real inputs), or everything is selected. A
+          # PR skips it when main passed the exact key within 30 hours.
+          rust=false
+          if [ -z "$TEST_PATHS" ] && [ "$EVENT" != server_sweep ] &&
+            { [ "$everything" = true ] || ci_needed rust || ! git diff --quiet "$from" HEAD -- '<rust-crate-dir>/'; }; then
+            rust=true
+          fi
+          # Not when the PR edits the Rust job itself: the key doesn't hold the job's steps, so
+          # main's pass says nothing about them.
+          if [ "$EVENT" = pull_request ] && [ "$rust" = true ] && ! ci_job rust && passed=$(main_pass "$RUST_KEY"); then
+            echo "::notice::The Rust key passed on main in run $passed, so the Rust checks are skipped."
+            rust=false
+          fi
+          # The sweep renews a pass older than 20 h, so the next day's PRs always find one.
+          if [ "$EVENT" = sweep ] && [ -n "$RUST_KEY" ] && [ "$GITHUB_REF" = refs/heads/main ] && [ "$rust" = false ] && ! main_pass "$RUST_KEY" 20 > /dev/null; then
+            rust=true
+          fi
+          echo "rust=$rust" | tee -a "$GITHUB_OUTPUT"
+
+          # The run's ordinary test files, by ORDINARY_TESTS. TODO: your own-job exclusions. Suites
+          # this doesn't match (pytest, say) keep jobs of their own that run on every ready run.
+          if [ -n "$TEST_PATHS" ]; then
+            read -ra scope <<< "$TEST_PATHS"
+          elif [ "$everything" = true ] || ci_job tests || [ "$EVENT" = sweep ]; then
+            scope=(.)
+          else
+            mapfile -t scope < <(jq -r '.[]' <<< "$packages")
+          fi
+          : > "$RUNNER_TEMP/ordinary"
+          if [ "${#scope[@]}" -gt 0 ]; then
+            git ls-files -- "${scope[@]}" | grep -E "$ORDINARY_TESTS" | grep -v -E '\.(sandbox|proof)\.test\.tsx?$' > "$RUNNER_TEMP/ordinary" || true
+          fi
+          # A PR leaves out the covered-only files its change doesn't cover, even when it runs every
+          # file. Sweeps always run them.
+          if [ "$EVENT" = pull_request ]; then
+            sed -n 's/^uncovered=//p' "$RUNNER_TEMP/plan" | jq -r '.[]?' > "$RUNNER_TEMP/uncovered"
+            grep -vxF -f "$RUNNER_TEMP/uncovered" "$RUNNER_TEMP/ordinary" > "$RUNNER_TEMP/covered" || true
+            mv "$RUNNER_TEMP/covered" "$RUNNER_TEMP/ordinary"
+          fi
+          files=$(wc -l < "$RUNNER_TEMP/ordinary")
+          server=$(grep -c '^<server-package>/' "$RUNNER_TEMP/ordinary" || true)
+          echo "$files test files, $server of them <server-package>'s"
+          if [ -n "$TEST_PATHS" ] && [ "$files" -eq 0 ]; then echo "::error::No test under $TEST_PATHS."; exit 1; fi
+
+          # Shards from measured time, not file count: Vitest's own split once left one shard about a
+          # quarter longer than another. scripts/shards/test-shards.ts computes one split from each
+          # file's newest time on main and hands it to every shard:
+          #   shards = clamp(ceil(total / (workers_per_shard * target_per_worker)), 1, <most>)
+          # with a per-file process overhead, a per-group startup, and pessimistic estimates for new
+          # files (p90 of the integration package, the median of their kind). The workers, target and
+          # overheads are constants in test-shards.ts: measure yours. Keep each shard under 2 billed
+          # minutes including setup, as billing rounds each job up to whole minutes. Half of each
+          # shard's share is fixed; the rest is a queue of short batches, slowest first, that shards
+          # claim once their own files are done. Its CLI: `<most> <file list> [<times.json>...]`.
+          echo '[]' > "$RUNNER_TEMP/queue"
+          echo '{}' > "$RUNNER_TEMP/shard-files"
+          if [ "$files" -eq 0 ]; then
+            echo '[]' > "$RUNNER_TEMP/shards"
+          elif [ -n "$TEST_PATHS" ] && [ "$REPEAT" -gt 1 ]; then
+            # A runner per repetition, up to ten, each running every file.
+            jq -nc --argjson repeat "$REPEAT" '[range(1; ([$repeat, 10] | min) + 1)]' > "$RUNNER_TEMP/shards"
+          else
+            node scripts/shards/test-shards.ts 16 "$RUNNER_TEMP/ordinary" test-times.json > "$RUNNER_TEMP/split.json"
+            jq -c .shards "$RUNNER_TEMP/split.json" > "$RUNNER_TEMP/shard-files"
+            jq -c .queue "$RUNNER_TEMP/split.json" > "$RUNNER_TEMP/queue"
+            jq -c '[range(1; length + 1)]' "$RUNNER_TEMP/shard-files" > "$RUNNER_TEMP/shards"
+          fi
+          echo "shards=$(cat "$RUNNER_TEMP/shards")" | tee -a "$GITHUB_OUTPUT"
+          echo "shard_count=$(jq length "$RUNNER_TEMP/shards")" | tee -a "$GITHUB_OUTPUT"
+          echo "shard_files=$(cat "$RUNNER_TEMP/shard-files")" >> "$GITHUB_OUTPUT"
+          echo "queue=$(cat "$RUNNER_TEMP/queue")" >> "$GITHUB_OUTPUT"
+          jq -r 'to_entries[] | "shard \(.key): \(.value | length) files"' "$RUNNER_TEMP/shard-files"
+          jq -r '"queue: \(map(length) | add // 0) files in \(length) batches"' "$RUNNER_TEMP/queue"
+
+          # Small selections on 2 vCPU with 2 workers: "small" is integration files + other files / 10
+          # <= 6. In one sample 28 of 40 one-shard runs were tiny, their tests a fraction of a short
+          # job, and on 8 vCPU they'd pay 4x for the minimum minute. Six workers on 8 vCPU, not nine:
+          # nine took over half as long again and added timing failures.
+          if [ "$(jq -n --argjson files "$files" --argjson server "$server" '$server + ($files - $server) / 10 <= 6')" = true ]; then
+            printf 'test_runner=blacksmith-2vcpu-ubuntu-2404\ntest_workers=2\n' | tee -a "$GITHUB_OUTPUT"
+          else
+            printf 'test_runner=blacksmith-8vcpu-ubuntu-2404\ntest_workers=6\n' | tee -a "$GITHUB_OUTPUT"
+          fi
+
+          # The jobs this run selected, for `result`.
+          jq -nc --argjson static "$static" --argjson types "$types" --argjson tests "$([ "$files" -gt 0 ] && echo true || echo false)" \
+            --argjson pack "$pack" --argjson proof "$proof" --argjson rust "$rust" '
+            ["plan"] + (if $static then ["static", "lint"] else [] end) + (if $types then ["types"] else [] end)
+            + (if $tests then ["tests"] else [] end) + (if $pack then ["pack"] else [] end)
+            + (if $proof then ["proof"] else [] end) + (if $rust then ["rust"] else [] end)' |
+            sed 's/^/selected=/' | tee -a "$GITHUB_OUTPUT"
+
+      # One line for CI's records: the changes the plan chose from, and what it chose. A collector
+      # reads these back from the logs (guide section 13), which count against no storage quota. A
+      # failure here leaves the record out, never the checks.
+      - name: The plan's record
+        continue-on-error: true
+        env:
+          BASE: ${{ steps.plan.outputs.base }}
+          EVENT: ${{ inputs.sweep && 'sweep' || inputs.server_sweep && 'server_sweep' || github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          PACKAGES: ${{ steps.plan.outputs.packages }}
+          SELECTED: ${{ steps.plan.outputs.selected }}
+          TEST_PATHS: ${{ inputs.test_paths }}
+        run: |
+          case "$EVENT" in pull_request | push | merge_group) from=HEAD^1 ;; sweep | server_sweep) from=$BASE ;; *) from= ;; esac
+          changed=null
+          if [ -n "$from" ]; then
+            changed=$(git diff --name-only --no-renames -z "$from" HEAD | jq -Rsc 'split("\u0000") | map(select(length > 0))')
+          fi
+          touch "$RUNNER_TEMP/ordinary" "$RUNNER_TEMP/plan"
+          sed -n 's/^test_selection=//p' "$RUNNER_TEMP/plan" > "$RUNNER_TEMP/test-selection.json"
+          default_reason=workflow-default
+          case "$EVENT" in pull_request) default_reason= ;; sweep | server_sweep) default_reason=sweep ;; esac
+          [ -z "$TEST_PATHS" ] || default_reason=manual
+          jq -nc --arg event "$EVENT" --arg pr "$PR" --arg sha "$(git rev-parse HEAD)" --arg base "$BASE" \
+            --argjson changed "$changed" --argjson packages "${PACKAGES:-null}" --argjson jobs "${SELECTED:-[]}" \
+            --arg default "$default_reason" --rawfile ordinary "$RUNNER_TEMP/ordinary" \
+            --slurpfile reasons "$RUNNER_TEMP/test-selection.json" '
+            ($ordinary | split("\n") | map(select(length > 0))) as $files |
+            ($reasons[0] // {}) as $selection |
+            {
+              kind: "plan", event: $event, pr: ($pr | tonumber? // null), sha: $sha,
+              base: (if $base == "" then null else $base end), changed: $changed, packages: $packages,
+              jobs: $jobs, sandbox: []
+            } + if $default == "" and any($files[]; $selection[.] == null) then {} else {
+              test_selection: (reduce $files[] as $file ({}; .[$file] = (if $default != "" then $default else $selection[$file] end)))
+            } end
+            ' | sed 's/^/ci-record /'
+
+  # The build and generated files, beside `lint`. Each check after the build runs even if one
+  # before it failed (`!cancelled()`), so one run reports them all.
+  static:
+    name: Build and generated files
+    needs: plan
+    if: needs.plan.outputs.static == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    # id-token: write, so the build's `vp run` writes to the remote task cache.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Depth 2: on a pull request this is its merge into main, so `No copied code` below can
+      # compare it with its first parent, main's tip.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 2
+      # Before the dependencies, so a task their install runs reads it too.
+      - uses: ./.github/actions/task-cache
+        with:
+          read-token: ${{ secrets.TASK_CACHE_READ_TOKEN }}
+          # As the Worker's project row registers writes: from pushes to main only.
+          write-branch: main
+          branch-writes: 'false'
+      # Installed fresh here, so the lockfile is checked in every run that has this job. A job that
+      # can run without static or types passes `check` when neither runs (tests, pack, proof).
+      - uses: ./.github/actions/dependencies
+        with:
+          check: true
+      # Salt build tasks with a source digest in their command: the remote cache keeps one result
+      # per task key, so without it branches keep overwriting each other's build.
+      - name: Build
+        run: <build-command>
+      - name: Generated files are current
+        if: ${{ !cancelled() }}
+        run: <generated-files-check-command>
+      # Optional: the export guard and the copy check from tools/workspace/. Delete either if you
+      # don't port it. symbols check compares what the pull request adds against main's tip, the
+      # merge commit's first parent, which the depth-2 checkout above holds.
+      - name: Package exports
+        if: ${{ !cancelled() }}
+        run: node tools/workspace/src/bin.ts package-exports
+      - name: No copied code
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        run: node tools/workspace/src/bin.ts symbols check HEAD^1 HEAD
+
+  # Format, lint and types, beside `static`. Type-aware lint builds every project's program, so it
+  # gets 8 vCPU / 32 GB: p95 memory had hit 97% of 16 GB on 4 vCPU. A job inside a minute on 8 bills
+  # what two on 4 do.
+  lint:
+    name: Format, lint and types
+    needs: plan
+    if: needs.plan.outputs.static == 'true'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/task-cache
+        with:
+          read-token: ${{ secrets.TASK_CACHE_READ_TOKEN }}
+          # As the Worker's project row registers writes: from pushes to main only.
+          write-branch: main
+          branch-writes: 'false'
+      # From the dependencies' disk: `static` checks the lockfile in this run.
+      - uses: ./.github/actions/dependencies
+      # Per-project incremental type results, from this branch's last run or main's. The checker
+      # must write them where this restores and saves: WORKSPACE_TYPES_CACHE tells the ported type
+      # driver (tools/workspace/) so. For another checker, use its own setting for the folder, or
+      # delete the restore and save if it keeps no reusable cache.
+      - name: Restore the types' cache
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.cache/types
+          key: lint-types-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: lint-types-${{ runner.os }}-${{ runner.arch }}-
+      - name: Types
+        env:
+          WORKSPACE_TYPES_CACHE: ${{ github.workspace }}/node_modules/.cache/types
+        run: <types-command>
+      - name: Format and lint
+        if: ${{ !cancelled() }}
+        run: <lint-command>
+      - name: Save the types' cache
+        if: always() && steps.cache.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.cache/types
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+  # Each merge's types. Two PRs that each pass alone can break them together, and the sweep comes
+  # once a day. Setup and a warm check fit in one billed minute on 2 vCPU: measure yours.
+  types:
+    name: Types
+    needs: plan
+    if: needs.plan.outputs.types == 'true'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/dependencies
+        with:
+          check: true
+      - name: Restore the types' cache
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: node_modules/.cache/types
+          key: types-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: types-${{ runner.os }}-${{ runner.arch }}-
+      - name: Types
+        env:
+          WORKSPACE_TYPES_CACHE: ${{ github.workspace }}/node_modules/.cache/types
+        run: <types-command>
+      - name: Save the types' cache
+        if: always() && steps.cache.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.cache/types
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+  tests:
+    name: Tests ${{ matrix.shard }}/${{ needs.plan.outputs.shard_count }}
+    needs: plan
+    if: needs.plan.outputs.shards != '[]'
+    # 8 vCPU, or 2 for a small selection, as the plan says.
+    runs-on: ${{ needs.plan.outputs.test_runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    env:
+      # The job's name on the run's page, which each flakes line names (scripts/records/test-record.ts).
+      CI_JOB: Tests ${{ matrix.shard }}/${{ needs.plan.outputs.shard_count }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/task-cache
+        with:
+          read-token: ${{ secrets.TASK_CACHE_READ_TOKEN }}
+          # As the Worker's project row registers writes: from pushes to main only.
+          write-branch: main
+          branch-writes: 'false'
+      # From the dependencies' disk, unless this run checks the lockfile nowhere else: a server
+      # slot and a run by hand of named tests run neither static nor types.
+      - uses: ./.github/actions/dependencies
+        with:
+          check: ${{ needs.plan.outputs.static != 'true' && needs.plan.outputs.types != 'true' }}
+      # The cache's address and token: claims are cache reservations, and the job keeps small
+      # records there (claims, flakes, times) rather than in artifacts.
+      - name: The cache, for the queue's claims and what the job keeps
+        id: cache
+        uses: ./.github/actions/ci-cache
+      # Every claims file kept since the plan's attempt, on a rerun: this shard's own batches run
+      # again, and no batch another shard claimed is claimed again.
+      - name: The batches claimed before
+        if: needs.plan.outputs.queue != '[]' && needs.plan.outputs.plan_attempt != github.run_attempt
+        continue-on-error: true
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          SHARDS: ${{ needs.plan.outputs.shards }}
+          PLAN_ATTEMPT: ${{ needs.plan.outputs.plan_attempt }}
+        run: |
+          mapfile -t keys < <(jq -r --arg run "$GITHUB_RUN_ID" --argjson plan "$PLAN_ATTEMPT" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+            '.[] as $shard | range($plan; $attempt + 1) | "test-claims-\($run)-\($plan)-\($shard)-\(.).txt"' <<< "$SHARDS")
+          node scripts/shards/ci-cache.ts restore "$RUNNER_TEMP/claimed" "${keys[@]}"
+      - name: Tests
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ needs.plan.outputs.shard_count }}
+          SHARD_FILES: ${{ join(fromJSON(needs.plan.outputs.shard_files)[format('{0}', matrix.shard)], ' ') }}
+          LANES: ${{ needs.plan.outputs.test_workers }}
+          PLAN_ATTEMPT: ${{ needs.plan.outputs.plan_attempt }}
+          # The queue, as scripts/shards/test-lanes.ts reads it (TEST_CLAIMS is set below).
+          TEST_QUEUE: ${{ needs.plan.outputs.queue }}
+          TEST_CLAIMS_FILE: ${{ runner.temp }}/claims
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          # Each Vitest's record to a file, printed for the tasks that ran (scripts/records/).
+          CI_RECORD: '1'
+          # Outside the checkout: a file in the repo's root changes the root's listing, which every
+          # cached test task reads, so a flake once keyed every task after it to its file.
+          TEST_FLAKES_FILE: ${{ runner.temp }}/test-flakes.jsonl
+          TEST_PATHS: ${{ inputs.test_paths }}
+          REPEAT: ${{ inputs.repeat }}
+          SWEEP: ${{ inputs.sweep }}
+          FULL: ${{ inputs.full }}
+        run: |
+          # A run by hand that repeats its tests, with no retry: this runner's repetitions are its
+          # number and every shard_count-th after it, each a plain uncached run of every path. The
+          # job fails when any did.
+          if [ -n "$TEST_PATHS" ] && [ "${REPEAT:-1}" -gt 1 ]; then
+            read -ra paths <<< "$TEST_PATHS"
+            failed=0
+            for ((repetition = SHARD; repetition <= REPEAT; repetition += SHARD_COUNT)); do
+              <test-command> "${paths[@]}" || failed=$((failed + 1))
+            done
+            echo "- runner $SHARD: $failed failed repetitions" >> "$GITHUB_STEP_SUMMARY"
+            [ "$failed" -eq 0 ]
+            exit
+          fi
+
+          read -ra files <<< "$SHARD_FILES"
+          batches='[]'
+          if [ "$TEST_QUEUE" != '[]' ]; then
+            if [ "$PLAN_ATTEMPT" = "$GITHUB_RUN_ATTEMPT" ]; then
+              : > "$TEST_CLAIMS_FILE"
+            else
+              # A rerun starts its claims file as what this shard kept in each attempt since the
+              # plan's, runs those batches again, and claims only batches nobody claimed before.
+              cat "$RUNNER_TEMP/claimed/test-claims-$GITHUB_RUN_ID-$PLAN_ATTEMPT-$SHARD-"*.txt 2> /dev/null | sort -u > "$TEST_CLAIMS_FILE" || true
+              batches=$(jq -Rsc 'split("\n") | map(select(length > 0) | split(" ")[0] | tonumber) | unique' "$TEST_CLAIMS_FILE")
+              TEST_CLAIMED=$(cat "$RUNNER_TEMP"/claimed/*.txt 2> /dev/null | jq -Rsc 'split("\n") | map(select(length > 0) | split(" ")[0] | tonumber) | unique')
+              export TEST_CLAIMED
+              unclaimed=$(jq -c --argjson claimed "$TEST_CLAIMED" '[range(length)] - $claimed' <<< "$TEST_QUEUE")
+              [ "$unclaimed" = '[]' ] || echo "::warning::No shard claimed the batches $unclaimed before, so the shards run again claim them."
+            fi
+            # The claims' key prefix: this run and attempt. The first reservation of a key wins; a
+            # claim with no answer runs anyway, since duplicate work beats a lost batch.
+            export TEST_CLAIMS="<project>-test-claim-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          fi
+          mapfile -t queued < <(jq -r --argjson batches "$batches" '. as $queue | $batches[] | $queue[.][]' <<< "$TEST_QUEUE")
+          # The sweep reruns a daily-changing sample of each shard's replayed tasks with no cache,
+          # and fails if one fails or doesn't finish. `full` runs every task, reading and writing no
+          # cache.
+          cache=()
+          [ "$SWEEP" = true ] && cache=(--verify-hits 3)
+          [ "$FULL" = true ] && cache=(--no-cache)
+          # One lane per worker, each starting its next task the moment its last ends, then the
+          # queue's batches, claimed one at a time (round-based scheduling left lanes idle most of
+          # the time). It writes each file's time for the plan's next split.
+          node scripts/shards/test-lanes.ts --lanes "$LANES" --times "$RUNNER_TEMP/times/results.json" \
+            "${cache[@]}" -- "${files[@]}" "${queued[@]}"
+      # The batches this shard claimed, which `result` checks every batch's owner by and a rerun of
+      # this shard runs again. A failed save fails the shard, since `result` would find its batches
+      # unclaimed.
+      - name: Keep this shard's claims
+        if: ${{ always() && needs.plan.outputs.queue != '[]' }}
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          KEY: test-claims-${{ github.run_id }}-${{ needs.plan.outputs.plan_attempt }}-${{ matrix.shard }}-${{ github.run_attempt }}.txt
+        run: node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/claims"
+      # The tests that failed or passed only on their retry, for `report` to file. Only a job that
+      # had one has the file: a shell test, since hashFiles() reads only the workspace, not
+      # runner.temp. A failed save files no flake, and fails nothing.
+      - name: This shard's flakes
+        if: ${{ always() && env.TEST_RETRY != '0' }}
+        continue-on-error: true
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          KEY: test-flakes-${{ github.run_id }}-${{ github.run_attempt }}-tests-${{ matrix.shard }}.jsonl
+        run: |
+          [ -s "$RUNNER_TEMP/test-flakes.jsonl" ] || exit 0
+          node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/test-flakes.jsonl"
+      # Each file's time, for the test-times job. Any sweep or server slot keeps them for its own
+      # run; only main's are merged into the times the next plans read. A replayed file keeps its
+      # time from the run that ran it: replays never count as fresh runs.
+      - name: This shard's test times
+        if: ${{ always() && !cancelled() && (inputs.sweep || inputs.server_sweep) }}
+        continue-on-error: true
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          KEY: test-times-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}.json
+        run: node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/times/results.json"
+
+  # Each test file's newest time, from every shard of a sweep or server slot, merged into the times
+  # kept before, so a run of only some files keeps the others'. Seconds of work, one billed minute on
+  # 2 vCPU. Only main's run saves the result, which the next plans read; a branch's sweep runs the
+  # merge to try a change to this job. Not in `result`: a run whose times aren't kept fails no
+  # check, and the next plans by the times before.
+  test-times:
+    name: Main's test times
+    needs: [plan, tests]
+    if: ${{ always() && !cancelled() && (inputs.sweep || inputs.server_sweep) && needs.tests.result != 'skipped' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: |
+            .github/actions/ci-cache
+            scripts/shards
+          sparse-checkout-cone-mode: false
+      - uses: actions/cache/restore@v6
+        with:
+          path: test-times.json
+          key: test-times-all-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-times-all-
+      - id: cache
+        uses: ./.github/actions/ci-cache
+      - name: Each file's newest time
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          SHARDS: ${{ needs.plan.outputs.shards }}
+        run: |
+          mapfile -t keys < <(jq -r --arg run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+            '.[] as $shard | range(1; $attempt + 1) | "test-times-\($run)-\(.)-\($shard).json"' <<< "$SHARDS")
+          node scripts/shards/ci-cache.ts restore shards "${keys[@]}"
+          mapfile -t results < <(find shards -name '*.json')
+          node scripts/shards/test-shards.ts --merge "${results[@]}" test-times.json > "$RUNNER_TEMP/times.json"
+          mv "$RUNNER_TEMP/times.json" test-times.json
+          echo "Merged ${#results[@]} shards' times: $(jq '[.projects[].files | length] | add // 0' test-times.json) files." | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: github.ref_name == 'main'
+        uses: actions/cache/save@v6
+        with:
+          path: test-times.json
+          key: test-times-all-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # Rust, when its real inputs changed and main holds no recent pass for its key. It builds the
+  # release binaries first and hands them to the pack through the cache, then compiles every test
+  # executable and runs them at once, each its own process, beside the doc tests.
+  #
+  # One profile only: the suite runs against the shipped release profile. We removed a second,
+  # debug-profile run of the same cases, which also removed debug-only overflow checking: a
+  # deliberate coverage tradeoff. Compare profile settings before treating two runs as equivalent,
+  # and keep a separate run where a profile's behaviour matters.
+  rust:
+    name: Rust
+    needs: plan
+    if: needs.plan.outputs.rust == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: <rust-crate-dir>
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/rust-toolchain
+        with:
+          toolchain-file: <rust-crate-dir>/rust-toolchain.toml
+          working-directory: <rust-crate-dir>
+      # Cargo's registry and dependencies, keyed by the lockfile and toolchain. No sccache in CI:
+      # it saved nothing on changed crates.
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: <rust-crate-dir>
+      - name: Format
+        run: cargo fmt --check
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Release binaries built
+        if: ${{ !cancelled() }}
+        run: cargo build --release --locked
+      # A wait makes no file appear on another runner: the pack restores these by this run's exact
+      # key. The key holds the binaries' version-inclusive source key, the run and the attempt.
+      # TODO: <binary-path>, each release binary the pack ships, from the crate's folder.
+      - name: Save the release binaries
+        uses: actions/cache/save@v6
+        with:
+          path: <rust-crate-dir>/target/release/<binary-path>
+          key: rust-bin-${{ needs.plan.outputs.bin_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+      # The pack waits for this step, not the whole job, so packing overlaps the tests.
+      - name: Release binaries saved
+        run: echo "Saved for the pack under rust-bin-${{ needs.plan.outputs.bin_key }}-${{ github.run_id }}-${{ github.run_attempt }}."
+      # `cargo test` runs its test executables one after another, so the slowest crate's unit tests
+      # and then every integration file wait in line. This compiles them all, lists each executable
+      # from cargo's JSON, starts every one at once, each its own process (some tests fail when they
+      # share one, as they would under `cargo test`), runs the doc tests beside them, waits for each
+      # and fails if any failed, printing each one's output whole: the passes folded, failures last.
+      # Scratch goes on a tmpfs: on the runner's disk each fsync waits. Core dumps are off: a test
+      # that aborts a child on purpose otherwise waits for the runner's dump collector each time.
+      - name: Tests
+        if: ${{ !cancelled() }}
+        run: |
+          sudo sysctl -q kernel.core_pattern=core
+          ulimit -c 0
+          sudo mkdir -p /ram
+          sudo mount -t tmpfs -o mode=1777 tmpfs /ram
+          export TMPDIR=/ram
+
+          built=$RUNNER_TEMP/tests.jsonl
+          cargo test --locked --release --no-run --message-format=json-render-diagnostics > "$built"
+          jq -r 'select(.reason == "compiler-artifact" and .profile.test and .executable != null) | "\(.target.src_path)\t\(.executable)"' "$built" | sort > "$RUNNER_TEMP/tests.tsv"
+          if ! [ -s "$RUNNER_TEMP/tests.tsv" ]; then
+            echo "::error::cargo test --no-run built no test executable."
+            exit 1
+          fi
+
+          logs=$RUNNER_TEMP/test-logs
+          mkdir -p "$logs"
+          names=() pids=()
+          while IFS=$'\t' read -r source binary; do
+            name=${source#"$PWD/"}
+            "$binary" > "$logs/${name//\//_}.log" 2>&1 &
+            names+=("$name") pids+=($!)
+          done < "$RUNNER_TEMP/tests.tsv"
+          cargo test --locked --release --doc > "$logs/doc-tests.log" 2>&1 &
+          names+=(doc-tests) pids+=($!)
+
+          failed=()
+          for i in "${!names[@]}"; do
+            name=${names[$i]} log=$logs/${names[$i]//\//_}.log
+            if wait "${pids[$i]}"; then
+              echo "::group::$name: $(grep 'test result:' "$log" | tail -n 1)"
+              cat "$log"
+              echo "::endgroup::"
+            else
+              failed+=("$name")
+            fi
+          done
+          for name in "${failed[@]}"; do
+            echo "::error::$name failed. Its output:"
+            cat "$logs/${name//\//_}.log"
+          done
+          [ ${#failed[@]} -eq 0 ]
+
+  # Packs what ships, when the plan says packed inputs changed. Starts beside `rust`, packs the JS
+  # packages at once, and waits only for Rust's binaries, never its tests, before the native
+  # package. Packs, installs and an upload wait more than they compute, so the smallest runner.
+  # Delete the binary steps if you ship no native binary.
+  pack:
+    name: Pack
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.pack == 'true' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # Its own work plus at most 10 minutes of waiting.
+    timeout-minutes: 16
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/task-cache
+        with:
+          read-token: ${{ secrets.TASK_CACHE_READ_TOKEN }}
+          # As the Worker's project row registers writes: from pushes to main only.
+          write-branch: main
+          branch-writes: 'false'
+      # Checks the lockfile when the run has no static or types job, as a pack-only run doesn't.
+      - uses: ./.github/actions/dependencies
+        with:
+          check: ${{ needs.plan.outputs.static != 'true' && needs.plan.outputs.types != 'true' }}
+      - name: Pack the JS packages
+        run: <pack-command>
+      # This run's binaries, when its Rust job runs: wait for their save, then restore them by
+      # this run's key: this attempt's, or, when only the pack runs again, the attempt that built
+      # them. Never another run's.
+      - name: This run's binaries
+        if: needs.plan.outputs.rust == 'true'
+        uses: ./.github/actions/wait-for-jobs
+        with:
+          jobs: Rust
+          step: Release binaries saved
+      - if: needs.plan.outputs.rust == 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: <rust-crate-dir>/target/release/<binary-path>
+          key: rust-bin-${{ needs.plan.outputs.bin_key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: rust-bin-${{ needs.plan.outputs.bin_key }}-${{ github.run_id }}-
+          fail-on-cache-miss: true
+      # Otherwise a run's binaries of this exact source and version, main's or this branch's. A
+      # Rust pass skipped by its key is no binary: a pass key leaves the version out, the binaries'
+      # key doesn't, since a release can need its components at matching versions.
+      - id: cached-binaries
+        if: needs.plan.outputs.rust != 'true' && needs.plan.outputs.bin_key != ''
+        uses: actions/cache/restore@v6
+        with:
+          path: <rust-crate-dir>/target/release/<binary-path>
+          key: rust-bin-${{ needs.plan.outputs.bin_key }}-none
+          restore-keys: rust-bin-${{ needs.plan.outputs.bin_key }}-
+      # And when no run built them, build them here.
+      - if: needs.plan.outputs.rust != 'true' && steps.cached-binaries.outputs.cache-matched-key == ''
+        uses: ./.github/actions/rust-toolchain
+        with:
+          toolchain-file: <rust-crate-dir>/rust-toolchain.toml
+          working-directory: <rust-crate-dir>
+      - name: Build the release binaries
+        if: needs.plan.outputs.rust != 'true' && steps.cached-binaries.outputs.cache-matched-key == ''
+        working-directory: <rust-crate-dir>
+        run: cargo build --release --locked
+      # Only now, with the binaries on this runner.
+      - name: Pack the native package
+        run: <pack-native-command>
+      # The proof jobs wait for this step by name.
+      - name: Publish the snapshot
+        run: <publish-snapshot-command>
+
+  # A proof on the packed artifact, as users install it. Starts beside the pack, sets up, then waits
+  # for the pack's "Publish the snapshot" step, which roughly halved the time to the proof's start.
+  proof:
+    name: Proof
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.outputs.proof == 'true' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: ./.github/actions/dependencies
+      - name: The pack's snapshot
+        uses: ./.github/actions/wait-for-jobs
+        with:
+          jobs: Pack
+          step: Publish the snapshot
+      - name: The proof
+        run: <proof-command>
+
+  # The one check to require. A skipped check is never a pass: merge only on a successful, non-skipped
+  # result from a ready run on the current head. Skipped on a draft too, so a draft never shows a
+  # passing result for checks that didn't run. GitHub's required-check setting counts a skipped job
+  # as satisfied, and a draft just marked ready shows its skipped result until the new run starts:
+  # so the merge caller (the ci-merge-workflow skill, or your merge script) checks for a successful
+  # `CI result` on the head it merges. With a merge queue, the `merge_group` trigger above runs this
+  # on the queue's commit. Read rights only; the `report` job below does the writing.
+  result:
+    name: CI result
+    needs: [plan, static, lint, types, tests, rust, pack, proof]
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 3
+    # actions: the run's jobs. pull-requests: a PR's body and comments, for its review record.
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      # Every job the plan selected passed. A job it didn't select may be skipped; one it did select
+      # may not, since a skipped selected job ran nothing.
+      - name: Every selected job passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          SELECTED: ${{ needs.plan.outputs.selected || '[]' }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          # The plan's selection must be a list holding "plan", and each job in it one this job
+          # needs: a selected job missing from `needs` would otherwise pass unseen.
+          if ! jq -e 'type == "array" and index("plan") != null and all(.[]; type == "string")' <<< "$SELECTED" > /dev/null; then
+            echo "::error::The plan's selection is missing or malformed: $SELECTED"
+            exit 1
+          fi
+          unknown=$(jq -r --argjson needs "$NEEDS" '.[] | select(. as $job | $needs | has($job) | not)' <<< "$SELECTED")
+          if [ -n "$unknown" ]; then
+            echo "::error::Selected but not in result's needs, so unchecked: $(tr '\n' ' ' <<< "$unknown")"
+            exit 1
+          fi
+          # Both directions of the job list, on every run, not only the jobs this run selected: a job
+          # the plan can select but `needs` leaves out would pass unseen on the run that selects it,
+          # and a job `needs` holds that the plan never selects would pass whenever it's skipped.
+          missing=$(jq -r --argjson needs "$NEEDS" '.[] | select(. as $job | $needs | has($job) | not)' <<< "$SELECTABLE_JOBS")
+          extra=$(jq -r --argjson selectable "$SELECTABLE_JOBS" 'keys[] | select(. as $job | $selectable | index($job) == null)' <<< "$NEEDS")
+          stray=$(jq -r --argjson selectable "$SELECTABLE_JOBS" '.[] | select(. as $job | $selectable | index($job) == null)' <<< "$SELECTED")
+          if [ -n "$missing$extra$stray" ]; then
+            [ -z "$missing" ] || echo "::error::Selectable (SELECTABLE_JOBS) but not in result's needs: $(tr '\n' ' ' <<< "$missing")"
+            [ -z "$extra" ] || echo "::error::In result's needs but not selectable (SELECTABLE_JOBS), so its skip always passes: $(tr '\n' ' ' <<< "$extra")"
+            [ -z "$stray" ] || echo "::error::Selected but not in SELECTABLE_JOBS: $(tr '\n' ' ' <<< "$stray")"
+            exit 1
+          fi
+          bad=$(jq -r --argjson selected "$SELECTED" '
+            to_entries[] | select(.value.result != "success" and
+              (.value.result != "skipped" or (.key as $job | $selected | index($job)) != null or .key == "plan")) |
+            .key' <<< "$NEEDS")
+          if [ -n "$bad" ]; then
+            echo "::error::Not passed, or selected but skipped: $(tr '\n' ' ' <<< "$bad")"
+            exit 1
+          fi
+      # Only the cache script and its action, into their own folder: a full checkout is needed only
+      # to file flakes.
+      - uses: actions/checkout@v7
+        if: ${{ !cancelled() }}
+        timeout-minutes: 1
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+          path: ci-cache
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/ci-cache
+            scripts/shards/ci-cache.ts
+          sparse-checkout-cone-mode: false
+      - name: The cache, for the shards' claims
+        id: cache
+        if: ${{ !cancelled() }}
+        uses: ./ci-cache/.github/actions/ci-cache
+      # Every queued batch had a shard that claimed it, and so ran it, or failed: a batch no shard
+      # claimed would have run nowhere and failed nothing. A batch two shards ran, after an
+      # ambiguous claim, only warns. A cache that stalls fails here, not at the job's timeout.
+      - name: Every queued batch ran on a shard
+        if: ${{ !cancelled() && needs.plan.outputs.queue != '[]' && needs.tests.result != 'skipped' }}
+        timeout-minutes: 1
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          QUEUE: ${{ needs.plan.outputs.queue }}
+          SHARDS: ${{ needs.plan.outputs.shards }}
+          PLAN_ATTEMPT: ${{ needs.plan.outputs.plan_attempt }}
+        run: |
+          mapfile -t keys < <(jq -r --arg run "$GITHUB_RUN_ID" --argjson plan "$PLAN_ATTEMPT" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+            '.[] as $shard | range($plan; $attempt + 1) | "test-claims-\($run)-\($plan)-\($shard)-\(.).txt"' <<< "$SHARDS")
+          node ci-cache/scripts/shards/ci-cache.ts restore claimed "${keys[@]}"
+          # Each shard's batches once, however many attempts kept them; a line may end ` unsure`.
+          claimed=$(for shard in $(jq -r '.[]' <<< "$SHARDS"); do
+            cat "claimed/test-claims-$GITHUB_RUN_ID-$PLAN_ATTEMPT-$shard-"*.txt 2> /dev/null |
+              jq -Rsc 'split("\n") | map(select(length > 0) | split(" ")[0] | tonumber) | unique'
+          done | jq -sc 'add // []')
+          jq -r --argjson claimed "$claimed" '
+            "\(length) batches, claimed \($claimed | length) times",
+            ($claimed | group_by(.) | map(select(length > 1) | .[0]) | if length > 0 then "::warning::Two shards ran the batches \(.)." else empty end)' <<< "$QUEUE"
+          missing=$(jq -c --argjson claimed "$claimed" '[range(length)] - $claimed' <<< "$QUEUE")
+          [ "$missing" = '[]' ] || { echo "::error::No shard claimed the batches $missing, so their files ran nowhere."; exit 1; }
+      # The PR's review is on record (a member's `## Review:` session comment, or a "No review:" line
+      # in its body), as the code-review skill's record reference defines it. Read last,
+      # so a comment posted while checks ran counts; review-recheck.yml reruns only this job when the
+      # record lands after it failed for that alone. Optional: delete these two steps and
+      # review-recheck.yml if you don't gate on review. The checker comes from the base branch, so a
+      # PR can't rewrite the gate it's judged by; until the base has one, the step only warns.
+      # <review-checker>: the repo's copy of review-record.ts, from its root, as .agents/repo/review.md
+      # names it (the installed skill's, as <skills-dir>/code-review/scripts/review-record.ts).
+      - uses: actions/checkout@v7
+        if: always() && github.event_name == 'pull_request'
+        timeout-minutes: 1
+        with:
+          ref: ${{ github.base_ref }}
+          path: review
+          persist-credentials: false
+          sparse-checkout: |
+            <review-checker>
+          sparse-checkout-cone-mode: false
+      - name: The review is on record
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.base_ref }}
+          CHECKER: review/<review-checker>
+        run: |
+          if [ ! -f "$CHECKER" ]; then
+            echo "::warning::$BASE has no review checker yet, so the record is checked from the first PR after it merges."
+            exit 0
+          fi
+          node "$CHECKER"
+
+  # What a run reports beside its verdict: main's pass for the Rust key, each flake's issue, and a
+  # failed sweep's or merge's issue and bisect. A job of its own, so the required `CI result` above
+  # holds read rights only, and these writes never decide a merge. A fork's PR gets a read-only
+  # token, so its flakes aren't filed. Drop the steps you don't adopt; with none left, drop the job.
+  report:
+    name: CI report
+    needs: [plan, tests, rust, result]
+    if: ${{ !cancelled() && needs.result.result != 'skipped' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 3
+    # actions: a sweep's bisect. issues: a failed sweep's or merge's, and each flake's.
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        timeout-minutes: 1
+        with:
+          ref: ${{ needs.plan.outputs.sha || github.sha }}
+          path: ci-cache
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/ci-cache
+            scripts/shards/ci-cache.ts
+          sparse-checkout-cone-mode: false
+      - name: The cache, for the run's flakes
+        id: cache
+        uses: ./ci-cache/.github/actions/ci-cache
+      # Main's pass for the Rust key, which a PR's plan reads to skip the Rust checks. Only from a run
+      # on main of main's own commit; an artifact, since GitHub names the branch each came from. Kept
+      # 2 days, past the 30 hours a PR trusts one. TODO: a merge can also promote its PR's proven
+      # pass when the PR's run tested the same key (pass availability went 23% → 58% → 78%).
+      - name: Main's pass for the Rust key
+        id: rust-pass
+        if: >-
+          github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+          && needs.plan.outputs.sha == github.sha && needs.plan.outputs.rust_key != '' && needs.rust.result == 'success'
+        env:
+          KEY: ${{ needs.plan.outputs.rust_key }}
+        run: |
+          jq -n --arg key "$KEY" --arg run "$GITHUB_RUN_ID" '{key: $key, run: ($run | tonumber)}' > "$RUNNER_TEMP/rust-pass.json"
+      - uses: actions/upload-artifact@v7
+        if: steps.rust-pass.outcome == 'success'
+        with:
+          name: rust-pass-${{ needs.plan.outputs.rust_key }}
+          path: ${{ runner.temp }}/rust-pass.json
+          retention-days: 2
+          overwrite: true
+      # Each test that passed only on its retry gets an issue, or a comment on its issue
+      # ("Flaky: <file> › <test>"), subject to the per-run cap and the job roll-up in
+      # scripts/flakes/flake-issues.ts. The health workflow closes it after at least 7 quiet days and
+      # 50 clean executions (7 for sweep-only and job-level issues). None of it fails the result.
+      - name: The run's flakes
+        if: ${{ !cancelled() && env.TEST_RETRY != '0' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
+          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
+          SHARDS: ${{ needs.plan.outputs.shards || '[]' }}
+        run: |
+          mapfile -t keys < <(jq -r --arg run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+            'range(1; $attempt + 1) as $at | .[] | "test-flakes-\($run)-\($at)-tests-\(.).jsonl"' <<< "$SHARDS")
+          node ci-cache/scripts/shards/ci-cache.ts restore "$RUNNER_TEMP/flakes" "${keys[@]}"
+          if find "$RUNNER_TEMP/flakes" -name '*.jsonl' 2> /dev/null | grep -q . || [ "$GITHUB_RUN_ATTEMPT" != 1 ]; then
+            echo "FILE_FLAKES=true" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/checkout@v7
+        if: ${{ !cancelled() && env.FILE_FLAKES == 'true' }}
+        continue-on-error: true
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - name: File each flake
+        if: ${{ !cancelled() && env.FILE_FLAKES == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          SHA: ${{ needs.plan.outputs.sha || github.sha }}
+          SWEEP: ${{ inputs.sweep }}
+        run: node scripts/flakes/flake-issues.ts "$RUNNER_TEMP/flakes"
+      # No one watches the sweep or a merge's run, so a failure opens one "CI on main failed" issue,
+      # or comments on the open one, naming the merges since the last pass. Listed, not searched:
+      # the search index lags.
+      - name: Report a failed sweep or merge
+        if: needs.result.result == 'failure' && (inputs.sweep || inputs.server_sweep || github.event_name == 'push') && github.ref == 'refs/heads/main'
+        env:
+          BASE: ${{ needs.plan.outputs.base }}
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.plan.outputs.sha || github.sha }}
+        run: |
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          title="CI on main failed"
+          merged="The merge: \`${SHA:0:8}\`."
+          if [ -n "$BASE" ]; then
+            merged="Merged since \`${BASE:0:8}\`: $(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$SHA?per_page=250" --jq '
+              [.commits[] | select(.parents | length > 1) | .commit.message | split("\n")[0]] | join("; ")' || echo unread)."
+          fi
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "Failed again on \`${SHA:0:8}\`: $url
+
+          $merged"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "Failed on \`${SHA:0:8}\`: $url
+
+          $merged
+
+          Find the merge that broke it. The next passing sweep closes this."
+          fi
+      # Only the sweep checks everything, so only it closes the issue.
+      - name: Close a failed sweep's issue
+        if: needs.result.result == 'success' && inputs.sweep && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          title="CI on main failed"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          [ -z "$open" ] || gh issue close "$open" --repo "$GITHUB_REPOSITORY" \
+            --comment "Main's sweep passed on \`${SHA:0:8}\`: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      # A failed first attempt starts the bisect, which reruns first: passing on rerun is a flake,
+      # and no bisect starts. Workflows started with the Actions token's push don't trigger, and
+      # `workflow_run` chains proved unreliable, so it dispatches explicitly. The controller reads
+      # the failed run's title to tell a sweep from a server slot.
+      - name: Bisect a failed sweep or server run
+        if: needs.result.result == 'failure' && (inputs.sweep || inputs.server_sweep) && github.ref == 'refs/heads/main' && github.run_attempt == 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sweep-bisect.yml --repo "$GITHUB_REPOSITORY" --ref main -f run="$GITHUB_RUN_ID"

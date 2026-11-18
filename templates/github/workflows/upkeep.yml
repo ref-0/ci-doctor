@@ -1,0 +1,92 @@
+# Moves dependencies to their newest versions, runs the checks, lists security advisories, and opens
+# or updates one pull request.
+#
+# Runs on GitHub Actions, by hand only: start it when you want an upgrade batch. A schedule is easy
+# to add, but it's recurring spend, so it's the repo owner's call. Configure the check command and
+# branch name. Needs "Allow GitHub Actions to create and approve pull requests" in Settings →
+# Actions → General. Reference implementation from a production monorepo; adapt to your repo.
+#
+# The PR it opens is a normal PR: its ready run selects by the lockfile's changed importers
+# (docs/pages/04-run-only-what-a-change-can-reach.md), so an upgrade of one package's dependency runs that package's tests.
+# Pushes made with the Actions token don't trigger workflows, so mark the PR ready (or push to it)
+# to start its CI.
+name: Upkeep
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: upkeep
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  upkeep:
+    name: Dependency upkeep
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+    env:
+      BRANCH: upkeep/dependencies
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dependencies
+        with:
+          check: true
+
+      - name: Update packages
+        run: |
+          pnpm update --recursive --latest
+          pnpm install
+
+      - name: Check
+        id: check
+        continue-on-error: true
+        run: <check-command>
+
+      - name: Audit
+        run: pnpm audit --json > "$RUNNER_TEMP/audit.json" || true
+
+      - name: Write the report
+        env:
+          CHECK_OUTCOME: ${{ steps.check.outcome }}
+        run: |
+          # The backticks in sed's script are Markdown, not a command.
+          # shellcheck disable=SC2016
+          {
+            echo "## Dependency upkeep"
+            echo
+            echo "Checks: **$CHECK_OUTCOME**."
+            echo
+            echo "### Changed files"
+            git diff --name-only | sed 's/^/- `/; s/$/`/'
+            echo
+            echo "### Security advisories"
+            jq -r '(.advisories // {}) | to_entries | if length == 0 then "None." else
+              (.[] | "- **\(.value.severity)** `\(.value.module_name)`: [\(.value.title)](\(.value.url))") end' \
+              "$RUNNER_TEMP/audit.json" 2> /dev/null || echo "The audit didn't run."
+          } > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Nothing to update."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git add -A
+          git commit -m 'Dependency upkeep'
+          git push --force origin "$BRANCH"
+          if [ "$(gh pr view "$BRANCH" --json state --jq .state 2> /dev/null)" = OPEN ]; then
+            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
+          elif ! gh pr create --draft --base main --head "$BRANCH" --title 'Dependency upkeep' --body-file "$RUNNER_TEMP/body.md"; then
+            echo "::error::Pushed $BRANCH but couldn't open a PR. Turn on 'Allow GitHub Actions to create and approve pull requests' in Settings → Actions → General."
+            exit 1
+          fi

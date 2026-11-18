@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The task cache Worker: Vite+'s remote task cache, shared by CI and maintainers' machines, at
+  // <worker-url>/projects/<project>. Copy this file to wrangler.jsonc and fill in every
+  // <placeholder>. README.md says how to deploy it, add a writer and rotate the read token.
+  //
+  // Reference implementation from a production monorepo; adapt to your repo.
+  "name": "<worker-name>",
+  // Always name the account: a `wrangler login` can see several, and the default may be wrong.
+  "account_id": "<cloudflare-account-id>",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/worker.ts",
+  // true serves it on your account's default Workers subdomain; or set false and add a route on your own domain.
+  "workers_dev": true,
+  "preview_urls": false,
+  // Each store logs one line: its status, who made it and its D1/R2 counts, never a token.
+  "observability": { "enabled": true },
+  // Deletes each result once it's 7 days old, or replaced and 10 minutes past, GC_BATCH_SIZE at a time.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "INDEX",
+      "database_name": "<d1-database-name>",
+      // Printed by `wrangler d1 create <d1-database-name>`.
+      "database_id": "<d1-database-id>",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [{ "binding": "ARTIFACTS", "bucket_name": "<r2-bucket-name>" }],
+  // Per Cloudflare location, applied after a request's credential is checked, so a bad token
+  // can't spend them. In one monorepo, a cold build and check made about 60 reads and 25 stores.
+  // The namespace IDs are any positive integers unique in your account.
+  "ratelimits": [
+    { "name": "READ_LIMITER", "namespace_id": "<rate-limit-id-1>", "simple": { "limit": 600, "period": 60 } },
+    { "name": "STORE_LIMITER", "namespace_id": "<rate-limit-id-2>", "simple": { "limit": 120, "period": 60 } },
+  ],
+  "vars": {
+    // The one namespace, as migrations/0003_project.sql registers it.
+    "NAMESPACE": "<project>",
+    "GC_BATCH_SIZE": "256",
+    // Each credential's name and the SHA-256 of its token, in hex: never a token, so nothing here
+    // is secret and a deploy needs no secret set. scripts/credential.ts fills these in. A writer
+    // reads and writes, a reader only reads. CI's writes need none: they sign with GitHub's OIDC.
+    "WRITERS": {},
+    "READERS": {},
+  },
+}

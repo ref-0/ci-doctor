@@ -1,0 +1,70 @@
+# CI's daily health report, kept in one issue while anything is over budget.
+#
+# Runs on GitHub Actions (2 vCPU Blacksmith), once a day and by hand. The logic lives in
+# scripts/budgets/ci-health.ts, in this playbook, which reads budgets from
+# scripts/budgets/ci-budgets.ts. Reference implementation from a production monorepo; adapt to your
+# repo. Why: the guide's sections 11 and 12.
+#
+# What scripts/budgets/ci-health.ts reports, from the last 24 hours of GitHub's API: PRs' full and small
+# runs against their wall-time budgets, each job's p95 against its budget (p95 + 15%), test shards'
+# p95 against the billing minute each would cross next, the slowest shard against the median one,
+# test files over 90 s, jobs that passed only on a retry, failed sweeps and server slots, and the
+# month's spend projected from the day's against the ceiling in ci-budgets.ts.
+#
+# Report-only until the user approves writes: it prints the summary and touches no issue. With the
+# repository variable CI_HEALTH_ISSUES set to true, it keeps one issue, "CI over its budgets",
+# updating its body daily while anything is over and closing it once all is back under, and closes
+# each flake issue after at least 7 quiet days and 50 clean executions of its file (7 for sweep-only
+# and job-level issues). Set budgets, runner prices and `minimumRuns` first. A skipped cron day only
+# delays an issue. A day's reading takes a few minutes of API
+# calls, within the repo's hourly API allowance, so a few billed minutes on 2 vCPU a day.
+on:
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Every limit times this, for this run only, such as 0.1 to open the issue or 10 to close it. Empty keeps the budgets.
+        default: ''
+
+concurrency:
+  group: ci-health
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    name: Read the day's CI
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Node 24 runs the TypeScript as it is; the report needs nothing installed but gh.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          # setup-node turns this on by itself when package.json names a package manager, and
+          # then fails without one installed: this job installs nothing.
+          package-manager-cache: false
+      # Each test file's newest time on main, as ci.yml's test-times job keeps them.
+      - name: Main's test times
+        uses: actions/cache/restore@v6
+        with:
+          path: test-times.json
+          key: test-times-all-${{ github.run_id }}
+          restore-keys: test-times-all-
+      - name: Report the day, and keep the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCALE: ${{ inputs.scale }}
+          WRITES: ${{ vars.CI_HEALTH_ISSUES == 'true' }}
+        run: |
+          report=(--report)
+          [ "$WRITES" = true ] && report=()
+          node scripts/budgets/ci-health.ts --times test-times.json --scale "$SCALE" "${report[@]}"

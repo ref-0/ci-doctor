@@ -1,0 +1,12 @@
+# Idle worktrees' Rust build folders, cleared each week. Reference implementation from a production
+# monorepo; adapt to your repo. `node rust-target-sweep.ts install` links it and starts its timer.
+[Unit]
+Description=Delete idle worktrees' Rust target folders
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env node <rust-target-sweep-script> --delete
+# node 24+, git and gh must be on PATH; add your Node manager's bin folder if it isn't one of these.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Nice=19

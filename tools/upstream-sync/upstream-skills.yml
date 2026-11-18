@@ -1,0 +1,96 @@
+# Upstream skills: whether the skills you copied from upstream changed there, filed as one issue.
+#
+# What: in the runner's throwaway checkout, runs the skills CLI's update for the skills
+#   `skills-lock.json` locks, reapplies your edits with skills-edits.ts, and compares only the locked
+#   skills' folders and the lock. For each hand-edited copy (adaptations.json's `edited`, such as
+#   test-audit), it diffs upstream since the recorded baseline instead of overwriting it. When
+#   anything changed, it opens an issue, or comments on the one still open. It saves and pushes
+#   nothing, and never merges: a person applies the update locally, reads the diff and runs the docs
+#   budget.
+# Where: GitHub Actions, weekly or by hand: gh workflow run upstream-skills.yml --repo <org>/<repo> --ref main
+# Configure: copy to .github/workflows/; set SKILLS_SCRIPTS to where skills-edits.ts and
+#   adaptations.json live, from the repo's root (every step runs there); pin the skills CLI's version; set the runner label; create the `skills`
+#   label. Only the job's own GITHUB_TOKEN is used: no secret to add.
+# Reference implementation from a production monorepo; adapt to your repo.
+name: Upstream skills
+
+on:
+  schedule:
+    - cron: '17 15 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-skills
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: The copied skills against upstream
+    runs-on: <small-runner-label>
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      SKILLS_SCRIPTS: <path-to>/upstream-sync
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@<pinned-sha> # pin by full commit
+        with:
+          node-version: 24
+          # setup-node turns this on by itself when package.json names a package manager, and
+          # then fails without one installed: this job installs none.
+          package-manager-cache: false
+      - name: The skills CLI's update
+        if: hashFiles('skills-lock.json') != ''
+        run: npx -y skills@<pinned-version> update --project --yes
+      - name: Your edits to each copy
+        if: hashFiles('skills-lock.json') != ''
+        run: node "$SKILLS_SCRIPTS/skills-edits.ts"
+      - name: An issue when anything changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          : > body.md
+          # Only the locked skills' folders and the lock count: the CLI may also copy them into
+          # every agent's folder it finds on the runner.
+          if [ -f skills-lock.json ]; then
+            # An absolute path: a repo-relative one would be resolved as a package name.
+            dir=$(node -p 'require(require("node:path").resolve(process.env.SKILLS_SCRIPTS, "adaptations.json")).skillsDir')
+            paths=(skills-lock.json)
+            for skill in $(node -p 'Object.keys(require(require("node:path").resolve("skills-lock.json")).skills).join("\n")'); do
+              paths+=("$dir/$skill")
+            done
+            git add -A -- "${paths[@]}"
+            if ! git diff --cached --quiet; then
+              { echo "The skills CLI's update would change these files of the locked skills:"; echo; echo '```'; git diff --cached --stat; echo '```'; echo; } >> body.md
+            fi
+          fi
+          # Each hand-edited copy: what upstream changed since the commit it was copied from.
+          while IFS=$'\t' read -r folder repo path baseline; do
+            [ -n "$folder" ] || continue
+            src=$(mktemp -d)
+            git clone --quiet --filter=blob:none "$repo" "$src"
+            changes=$(git -C "$src" diff --stat "$baseline"..HEAD -- "$path")
+            if [ -n "$changes" ]; then
+              { echo "Upstream changed \`$path\` since \`$baseline\`, the baseline of \`$folder\`. Carry over what's outside your documented adaptations, then move the baseline:"; echo; echo '```'; echo "$changes"; echo '```'; echo; } >> body.md
+            fi
+          done < <(node "$SKILLS_SCRIPTS/skills-edits.ts" --edited)
+          if [ ! -s body.md ]; then
+            echo "The copied skills match upstream." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Apply it in a local checkout, read the diff and run the docs budget before opening a PR. ([run]($RUN))" >> body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+          title="Upstream changed the copied skills"
+          open=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body-file body.md
+          else
+            gh issue create --title "$title" --label skills --body-file body.md
+          fi
