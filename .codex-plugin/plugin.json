@@ -37,8 +37,7 @@
     "defaultPrompt": [
       "Make this repo's CI faster and cheaper: start the ci-doctor plan.",
       "Why did this PR's CI check fail?",
-      "Our Actions bill doubled last month. Find out why.",
-      "This test is flaky. Fix it without adding a retry."
+      "Our Actions bill doubled last month. Find out why."
     ],
     "brandColor": "#111111",
     "composerIcon": "./assets/logo-light.svg",
