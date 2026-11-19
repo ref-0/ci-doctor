@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { INSTALL_STEPS } from '../src/install.ts';
+import { INSTALL_STEPS } from '../src/install-steps.ts';
 import { fakeRepo, LOG_LINE, type Routes } from './fixtures.ts';
 import { checkout, CLI, listing, runCli, scratch } from './helpers.ts';
 

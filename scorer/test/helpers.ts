@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import type { Routes } from './fixtures.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const CLI = join(HERE, '..', 'dist', 'cli.js');
+// The built CLI, or the source when CI_DOCTOR_TEST_CLI=src: the repo's build checks run the source, with Node only.
+export const CLI = process.env.CI_DOCTOR_TEST_CLI === 'src' ? join(HERE, '..', 'src', 'cli.ts') : join(HERE, '..', 'dist', 'cli.js');
 const STUB = join(HERE, 'stub', 'gh.cjs');
 const which = (name: string) => execFileSync('which', [name], { encoding: 'utf8' }).trim();
 
