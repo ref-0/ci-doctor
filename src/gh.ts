@@ -60,6 +60,9 @@ export class Gh {
   fromCache = 0;
   oldestCachedAt: number | undefined;
   readonly cache: ApiCache | undefined;
+  private readonly startedAt = Date.now();
+  // One run asks for some answers twice, such as a run's jobs; it reads them once, in memory.
+  private readonly memo = new Map<string, string>();
 
   constructor(cache?: ApiCache) {
     this.cache = cache;
@@ -68,15 +71,25 @@ export class Gh {
   /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
   text(path: string, options: ReadOptions = {}): string | undefined {
     const key = `${options.raw ? 'raw' : 'api'}:${path}`;
+    const seen = options.noCache ? undefined : this.memo.get(key);
+    if (seen !== undefined) return seen;
+
     const hit = options.noCache ? undefined : this.cache?.get(key);
     if (hit) {
-      this.fromCache++;
-      this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.readAt, hit.readAt);
+      // Only answers from an earlier run count toward how stale this one is.
+      if (hit.readAt < this.startedAt) {
+        this.fromCache++;
+        this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.readAt, hit.readAt);
+      }
+      this.memo.set(key, hit.body);
       return hit.body;
     }
 
     const body = this.fetch(path, options);
-    if (body !== undefined && !options.noCache) this.cache?.set(key, body);
+    if (body !== undefined && !options.noCache) {
+      this.memo.set(key, body);
+      this.cache?.set(key, body);
+    }
     return body;
   }
 
