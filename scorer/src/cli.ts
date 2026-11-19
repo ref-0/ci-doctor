@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { CliError, usage } from './errors.ts';
 import { ApiCache, Gh } from './gh.ts';
-import { installText } from './install.ts';
+import { installText } from './install-steps.ts';
 import { apiCacheDir, reportFile } from './paths.ts';
 import { isRepoName, resolveTarget } from './repo.ts';
 import { inventoryText, scoredText } from './report.ts';

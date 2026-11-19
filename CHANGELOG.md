@@ -8,6 +8,11 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### The scorer, `@ref0/ci-doctor`
+
+- `scorer/` holds the scorer as an npm package, not yet published. `npx @ref0/ci-doctor` scores the checkout's repo from its GitHub Actions history, reading everything through `gh`, so a private repo scores the same as a public one. It prints to the terminal and writes no files unless asked. `npx @ref0/ci-doctor agents skills` prints the install steps, which `node scripts/check.ts` keeps in step with this README.
+- **Action:** none.
+
 ### Build checks
 
 - `node scripts/check.ts` runs every build check: the plugin's manifests, the phase excerpts against their sources, links in the repo and in a skills-only copy, a scan for replaced names and paths, the docs budget, and every skill script's tests.

@@ -85,6 +85,7 @@ Install the ci-doctor skills using one method. In Claude Code, run `claude plugi
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release, and what to do about it |
 | [`docs/`](docs/) | The guide and harness notes |
 | [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics, the one-rule checks and the agent-knowledge templates, and the skills for review, merging, test value and proof tiers |
+| [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
 | [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
 | [`templates/`](templates/) | CI workflows and the selection planner |

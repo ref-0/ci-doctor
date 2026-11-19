@@ -16,7 +16,7 @@
  *    release replaced: `code-review`, the hub's five topics as skills, `<root>`, `install.ts`, or
  *    `PROMPT.md`, `docs/prompts/`, `checks/` and `templates/agent-knowledge/` as paths.
  * 6. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
- * 7. **Tests:** every test file under `skills/` and `scripts/` that the skills' scripts and these
+ * 7. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
  *    checks use, each from its own folder. A skipped test fails: each needs its fixtures.
  *
  * Runs: from the repo's root, before pushing. Node 24, `git` and `jq` only. Temporary folders go in
@@ -137,7 +137,7 @@ export const oldNames = (root: string, files = tracked(root)): string[] => {
 
 /** Run each test file from its folder; a failure or a skip is a problem. */
 export const tests = (root: string): { problems: string[]; ran: number; passed: number } => {
-  const files = [...tracked(root).filter((f) => f.startsWith('skills/') && f.endsWith('.test.ts')), ...REPO_TESTS];
+  const files = [...tracked(root).filter((f) => (f.startsWith('skills/') || f.startsWith('scorer/test/')) && f.endsWith('.test.ts')), ...REPO_TESTS];
   const problems: string[] = [];
   let passed = 0;
   for (const file of files) {
@@ -146,7 +146,8 @@ export const tests = (root: string): { problems: string[]; ran: number; passed: 
       continue;
     }
     // The spec reporter, pinned: its summary lines are what the counts below read, whatever NODE_OPTIONS or a TTY would pick.
-    const { NODE_TEST_CONTEXT: _parent, ...env } = process.env; // run as a test of its own, even when this runs under node --test
+    const { NODE_TEST_CONTEXT: _parent, ...inherited } = process.env; // run as a test of its own, even when this runs under node --test
+    const env = { ...inherited, CI_DOCTOR_TEST_CLI: 'src' }; // the scorer's CLI tests run its source: no build, no npm install
     const done = spawnSync(process.execPath, ['--test', '--test-reporter=spec', file.split('/').at(-1) ?? file], { cwd: join(root, dirname(file)), encoding: 'utf8', env });
     const count = (key: string) => Number(new RegExp(`^ℹ ${key} (\\d+)$`, 'm').exec(done.stdout)?.[1] ?? 0);
     passed += count('pass');

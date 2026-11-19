@@ -25,6 +25,8 @@ import { join, relative } from 'node:path';
 import { argv, cwd } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { installText } from '../../scorer/src/install-steps.ts';
+
 /** The marketplace the plugin is listed in, as `ci-doctor@ref0`. */
 export const MARKETPLACE = 'ref0';
 export const REPOSITORY = 'https://github.com/ref-0/ci-doctor';
@@ -142,6 +144,10 @@ export const validate = (root: string): string[] => {
 
   const readme = existsSync(join(root, 'README.md')) ? readFileSync(join(root, 'README.md'), 'utf8') : '';
   for (const line of INSTALL_LINES) if (!readme.includes(line)) problems.push(`README.md: missing the install line "${line}"`);
+  const scorer = installText();
+  for (const line of INSTALL_LINES) if (!scorer.includes(line)) problems.push(`scorer/src/install-steps.ts: missing the install line "${line}", which the README has`);
+  const license = join(root, 'scorer', 'LICENSE');
+  if (!existsSync(license) || readFileSync(license, 'utf8') !== readFileSync(join(root, 'LICENSE'), 'utf8')) problems.push('scorer/LICENSE: must be a copy of LICENSE, since npm packs only scorer/');
 
   const skills = skillNames(root);
   for (const name of skills) {
