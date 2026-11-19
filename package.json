@@ -23,7 +23,7 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build",
-    "test": "npm run build && node --test test/*.test.ts"
+    "test": "npm run build && node --test \"test/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",

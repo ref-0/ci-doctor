@@ -37,7 +37,13 @@ export const sendStanding = async (url: URL, s: Standing) => {
   }
   if (!res.ok) throw new CliError(`The standing endpoint ${url.origin} answered ${res.status}.`);
 
-  // Anything it says back is shown as plain text, without control characters.
-  const said = (await res.text()).replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, 300);
-  return said;
+  // It may answer { "standing": "Top 30% of small repos" }; that text is shown, without control characters.
+  const text = await res.text();
+  let said: unknown;
+  try {
+    said = (JSON.parse(text) as { standing?: unknown }).standing;
+  } catch {
+    said = undefined;
+  }
+  return typeof said === 'string' ? said.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, 300) : '';
 };

@@ -83,7 +83,7 @@ export interface Provenance {
 
 export const provenanceLine = (v: Provenance) => {
   const read = v.fromCache
-    ? `Read through gh: ${v.calls} API calls live and ${v.fromCache} answers from the cache in ${v.cacheDir}, the oldest ${ageInWords(Date.now() - v.oldestCachedAt!)} old.`
+    ? `Read through gh: ${v.calls} API call${v.calls === 1 ? '' : 's'} live and ${v.fromCache} answer${v.fromCache === 1 ? '' : 's'} from the cache in ${v.cacheDir}, the oldest ${ageInWords(Date.now() - v.oldestCachedAt!)} old.`
     : `Read live through gh: ${v.calls} API calls${v.cacheDir ? `, cached in ${v.cacheDir}` : ''}.`;
   const wrote = v.savedTo ? `Saved the report to ${v.savedTo}.` : v.cacheDir ? '' : 'Nothing was written to disk.';
   return [read, 'Job logs were read in memory and not kept.', wrote].filter(Boolean).join(' ');

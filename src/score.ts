@@ -1,6 +1,6 @@
 // CI score: what a repo's GitHub data says about its CI, scored 0–100, with what to fix first.
 // Copied from ci-score/score.ts. The weights, fixes, notes and guide links are unchanged; what changed is the
-// must-fixes': every read goes through `gh` (no raw.githubusercontent.com), a read that fails throws instead of
+// must-fixes': every read goes through `gh` (none from GitHub's unauthenticated raw-file host), a read that fails throws instead of
 // reading as empty, a practice that couldn't be checked is null (unknown) rather than false (absent), job logs are
 // read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
 import { CliError } from './errors.ts';
