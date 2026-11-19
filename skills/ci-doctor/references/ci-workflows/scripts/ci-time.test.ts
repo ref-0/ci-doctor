@@ -1,7 +1,7 @@
 /**
  * Tests for ci-time.ts, on synthetic jobs: no network, no `gh`. The Blacksmith adapter's own tests are
- * in the blacksmith topic's scripts/blacksmith-bill.test.ts, so these run without that skill; the one
- * that loads it skips when it isn't installed beside this one.
+ * in the blacksmith topic's scripts/blacksmith-bill.test.ts; the one here that loads it needs it in
+ * the hub, beside this topic.
  *
  * Runs: `node --test ci-time.test.ts` from this folder (Node 24).
  * Reference implementation from a production monorepo; adapt to your repo.
@@ -125,7 +125,8 @@ describe('the settings', () => {
 describe('the billing adapter', () => {
   const sibling = join(here, '..', '..', 'blacksmith', 'scripts', 'blacksmith-bill.ts');
 
-  it('loads the blacksmith skill installed beside this one', { skip: !existsSync(sibling) && 'no blacksmith skill beside ci-workflows' }, async () => {
+  it('loads the blacksmith topic\'s adapter from the hub', async () => {
+    ok(existsSync(sibling), `${sibling}: the blacksmith topic's adapter is missing`);
     const adapter = await loadAdapter('blacksmith');
     equal(typeof adapter.billed, 'function');
     equal(typeof adapter.cpu, 'function');
@@ -136,6 +137,7 @@ describe('the billing adapter', () => {
     const done = spawnSync(process.execPath, [join(here, 'ci-time.ts'), '--repo', 'o/r', '--bill', 'blacksmith', '--adapter-dir', empty], { encoding: 'utf8' });
     equal(done.status, 1);
     match(done.stderr, /--bill blacksmith: no blacksmith-bill\.ts found/);
+    rmSync(empty, { recursive: true, force: true });
   });
 });
 

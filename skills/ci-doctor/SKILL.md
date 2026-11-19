@@ -79,4 +79,4 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 
 ## Outside the skills
 
-Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, and the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci.ref0.dev](https://ci.ref0.dev), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag this plugin's version names.
+Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci.ref0.dev](https://ci.ref0.dev), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag this plugin's version names.

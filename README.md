@@ -98,7 +98,13 @@ Releases are tags. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newe
 
 ## Contributing
 
-Run `node scripts/plugin/validate.ts` after changing a manifest or a skill's folder: the plugin's manifests must agree, and each skill must be one Codex and Claude Code load.
+Before pushing, run the build checks from the repo's root:
+
+```sh
+node scripts/check.ts
+```
+
+They check that the plugin's manifests agree and each skill loads as one skill, that the hub's phase excerpts match their sources, every link in the repo and in a copy of `skills/` alone, that nothing names what a release replaced, the docs budget, and every skill script's tests, where a skipped test fails. They need Node 24, `git` and `jq`. After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first.
 
 ## License
 
