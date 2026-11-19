@@ -52,12 +52,14 @@ Build a short **stack map**:
   - git hooks;
   - symbol search and duplicate-code tooling;
   - pinned runtimes and package-manager policies;
-  - each root task's command, inputs, outputs and cache directory.
+  - each root task's command, inputs, outputs and cache directory;
+  - whether a check holds the package graph and each package's layers (the graphs below).
 
-  [`tools/workspace/`](../../../../tools/workspace/README.md) has reference implementations, one command at a time. Map each command (`types`, `symbols`, `package-exports`, `check`) to applies / already done / does not fit. For plain TypeScript, start from the existing `tsc`, its project graph and the task runner's ordering, and keep the compiler, lint and generation steps as they are unless a named duplicate pass or bottleneck justifies a change. The Oxlint and Vite+ lint split is conditional on using them; skip the Effect patching unless the repo uses Effect. For a non-TypeScript repo, use its README's contracts instead.
+  [`tools/workspace/`](../../../../tools/workspace/README.md) has reference implementations, one command at a time. Map each command (`types`, `symbols`, `package-exports`, `package-graph`, `check`) to applies / already done / does not fit. For plain TypeScript, start from the existing `tsc`, its project graph and the task runner's ordering, and keep the compiler, lint and generation steps as they are unless a named duplicate pass or bottleneck justifies a change. The Oxlint and Vite+ lint split is conditional on using them; skip the Effect patching unless the repo uses Effect. For a non-TypeScript repo, use its README's contracts instead.
+- **Graphs** (guide section 21). Map all five, package dependencies, export paths, layers inside packages, workspace tasks and CI jobs, each with where it's declared, whether a check holds it and one measured width, as the [graphs](../graphs/TOPIC.md) topic's table says. Before approval, count them only by reading.
 - **Agent knowledge:** where the agents' instructions live (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, a skills folder, a wiki), and which file the active harness actually loads.
 
-Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide sections 2–17 by heading, each with when it applies and when to skip it. Read a section only for a technique that applies and bears on the measured limiter. Mark each such technique:
+Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide sections 2–17 and 21 by heading, each with when it applies and when to skip it. Read a section only for a technique that applies and bears on the measured limiter. Mark each such technique:
 
 - **Applies:** say where it would go, by file path.
 - **Applies with changes:** say what changes for this stack. For example, "time-based shards: a static per-shard file list run by the installed runner", or "remote cache: Turborepo's existing remote cache, audited first, not a custom Worker".
