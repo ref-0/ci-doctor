@@ -2,7 +2,7 @@
 What: how to change CI without making it slower, costlier or less trustworthy, on any provider.
 Where: read by a coding agent before it edits workflows, selection, shards, tiers or caches.
 Configure: write your repo's facts file, `.agents/repo/ci.md`, from the hub's references/agent-knowledge/repo-facts/ci.md;
-set the config block at the top of scripts/ci-time.ts.
+write `.agents/repo/ci-time.json` from repo-facts/ci-time.json for scripts/ci-time.ts.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 

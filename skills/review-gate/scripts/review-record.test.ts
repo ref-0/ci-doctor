@@ -7,7 +7,9 @@
  */
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +17,7 @@ import {
   type Change,
   changesOf,
   coveredBy,
+  DEFAULTS,
   isProductionSource,
   isTestCode,
   largeChange,
@@ -22,6 +25,7 @@ import {
   memberComments,
   netProductionLines,
   readSession,
+  readSettings,
   reviewerAssociations,
   verdict,
 } from './review-record.ts';
@@ -157,7 +161,7 @@ describe('whose comments count', () => {
     comment('Bot', 'MEMBER', 'a bot'),
   ];
 
-  // This playbook's template, or the installed workflow at .agents/skills/code-review/scripts/.
+  // This playbook's template, or the installed workflow at .agents/skills/review-gate/scripts/.
   const recheckPath = ['../../../templates/github/workflows/review-recheck.yml', '../../../../.github/workflows/review-recheck.yml']
     .map((path) => fileURLToPath(new URL(path, import.meta.url)))
     .find((path) => existsSync(path));
@@ -179,5 +183,33 @@ describe('whose comments count', () => {
       .filter((line) => line !== '')
       .map((line) => JSON.parse(line) as string);
     deepStrictEqual(bodies, ['owner', 'member', 'collaborator']);
+  });
+});
+
+describe('the settings', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const template = join(here, '..', '..', 'ci-doctor', 'references', 'agent-knowledge', 'repo-facts', 'review-record.json');
+
+  it('has a template that holds every default', () => {
+    deepStrictEqual(readSettings(template), DEFAULTS);
+  });
+
+  it('keeps the defaults without a settings file, applies a key it knows and refuses one it does not', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'review-record-'));
+    try {
+      deepStrictEqual(readSettings(join(dir, 'none.json')), DEFAULTS);
+      writeFileSync(join(dir, 'ok.json'), JSON.stringify({ largeChange: 500 }));
+      deepStrictEqual(readSettings(join(dir, 'ok.json')), { ...DEFAULTS, largeChange: 500 });
+      writeFileSync(join(dir, 'bad.json'), JSON.stringify({ largechange: 500 }));
+      let refused = '';
+      try {
+        readSettings(join(dir, 'bad.json'));
+      } catch (error) {
+        refused = String(error);
+      }
+      ok(/unknown settings largechange/.test(refused));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

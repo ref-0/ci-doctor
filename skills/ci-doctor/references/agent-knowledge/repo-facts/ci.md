@@ -1,6 +1,6 @@
 <!--
 What: the facts about one repo's CI that the shared skills read: its entry points, selection, tiers, runners, caches, runs by hand, flakes and merges.
-Where: copy to `.agents/repo/ci.md` in your repo. The ci-workflows, ci-runners, blacksmith, ci-merge-workflow and speed-up-tests skills point here.
+Where: copy to `.agents/repo/ci.md` in your repo. The ci-doctor hub's topics and the ci-merge-workflow skill point here.
 Configure: replace every <placeholder>. The commented "Example" blocks are the source repo's values; delete them once yours are in.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
@@ -20,7 +20,7 @@ What the shared skills read about this repo's CI. Each workflow's header says ho
 <!-- Example:
 - `ci.yml` runs on every pull request to `main` that isn't a draft; each push after marking it ready runs again.
 - Its `CI result` job is the gate. It also reads the review record, a `No review:` line in the body or a review
-  comment, as the code-review skill's `scripts/review-record.ts` parses it.
+  comment, as the review-gate skill's `scripts/review-record.ts` parses it.
 - Each container test job's summary, on the run's page, has its Vitest totals and every failing test.
 -->
 

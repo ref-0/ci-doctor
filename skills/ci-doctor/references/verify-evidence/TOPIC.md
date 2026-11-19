@@ -39,4 +39,4 @@ After:
 
 - A CI baseline or a before/after: where the records are and the test-specific rules are in [measuring](../speed-up-tests/references/measuring.md), history from the API in [CI history data](../speed-up-tests/references/ci-history-data.md), and the check [measure CI before changing it](../checks/ci-measure-before-changing-it.md).
 - A campaign's report: the [report template](../agent-knowledge/report.md) carries these fields.
-- A spike or research result that decides what gets built: give it an experiment and a skeptic reviewer, as [`code-review`](../../../code-review/SKILL.md) says.
+- A spike or research result that decides what gets built: give it an experiment and a skeptic reviewer, as [`review-gate`](../../../review-gate/SKILL.md) says.

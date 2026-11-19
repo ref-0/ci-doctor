@@ -8,6 +8,13 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### `review-gate`, and settings in the repo's own files
+
+- `code-review` is now `review-gate`, in its folder, its name and every mention. In Claude Code it's `/ci-doctor:review-gate`, apart from the built-in `/code-review`.
+- A link between two of `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers` says to follow it only if the repo adopted that skill; otherwise the repo's own process applies.
+- `ci-time.ts` reads its settings from `.agents/repo/ci-time.json`, and `review-record.ts` from `.agents/repo/review-record.json`, in place of the config blocks people edited. Their templates are in the hub's `references/agent-knowledge/repo-facts/`. CI's review step reads the base branch's copy, through `REVIEW_SETTINGS`.
+- **Action:** rename `code-review` to `review-gate` in your `AGENTS.md`, `.agents/repo/review.md` and your gate's `<review-checker>` path. Move the values you set in `ci-time.ts`'s config block and `review-record.ts`'s CONFIG block into those two files, then replace your copies of the scripts with this release's, unedited. In `ci.yml`'s review step, add `.agents/repo/review-record.json` to the sparse checkout and set `REVIEW_SETTINGS`, as the template does.
+
 ### One hub skill, `ci-doctor`
 
 - `PROMPT.md` and `docs/prompts/` moved into the new `skills/ci-doctor/` skill: the rules and `progress.md` in its `SKILL.md`, the phases in `references/phases/`, and what the repo carries, a reading route and what not to build in `references/playbook.md`. `PROMPT.md` points at the skill.

@@ -38,5 +38,5 @@ In the source repo:
 ## Pointed at from
 
 - [`test-audit`](../../../test-audit/SKILL.md), on fixtures that supply the expected ordering.
-- [The tests reviewer](../../../code-review/references/tests-reviewer.md), on waits.
+- [The tests reviewer](../../../review-gate/references/tests-reviewer.md), on waits.
 - [`speed-up-tests`](../speed-up-tests/TOPIC.md).

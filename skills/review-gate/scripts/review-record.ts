@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * review-record.ts: whether a pull request's review is on record, as the code-review skill says.
+ * review-record.ts: whether a pull request's review is on record, as the review-gate skill says.
  * CI's result job runs it on a pull request's run; an agent runs it locally to count a change, or to
  * check a session comment before posting it.
  *
@@ -29,7 +29,7 @@
  *   files off the list.
  *
  * It checks the record's format and reviewer types. It doesn't check that a session covers the head
- * CI tested: before merging, the code-review skill compares the reviewed head with the current one.
+ * CI tested: before merging, the review-gate skill compares the reviewed head with the current one.
  *
  * Only members' comments count: a person whose author association is one of
  * `reviewerAssociations` (OWNER, MEMBER or COLLABORATOR), as review-recheck.yml requires before it
@@ -38,7 +38,7 @@
  *
  * Runs: in CI's result job (no install: Node 24 and `gh` only), and locally. Tests:
  * `node --test review-record.test.ts`.
- * Configure: the CONFIG block: your review types, which of them every covered change considers,
+ * Configure: the repo's `.agents/repo/review-record.json` (SETTINGS below): your review types, which of them every covered change considers,
  * what counts as test code and production source, the thresholds, the effort and the list's path.
  * Reference implementation from a production monorepo; adapt to your repo.
  */
@@ -48,72 +48,78 @@ import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------------------------
-// CONFIG
+// SETTINGS: the repo's, in `.agents/repo/review-record.json`
 // ---------------------------------------------------------------------------------------------
+// The repo owns that file, so updating this script never touches its values. Its template is the
+// ci-doctor hub's references/agent-knowledge/repo-facts/review-record.json. It's read from
+// REVIEW_SETTINGS, or from `.agents/repo/review-record.json` in the folder this runs in; CI reads
+// the base branch's copy, as it does the review list. A key it leaves out keeps the default below.
 
-/** The review types the repo accepts, in lowercase. A session naming another fails, by its name. */
-export const reviewTypes: ReadonlyArray<string> = [
-  'stress test',
-  'red team',
-  'system design',
-  'bounded verification',
-  'fuzzing',
-  'storage',
-  'program design',
-  'tests',
-  'code quality',
-  'experiment',
-  'skeptic',
-];
+/** The defaults: the source repo's values, as examples. */
+export const DEFAULTS = {
+  /** The review types the repo accepts, in lowercase. A session naming another fails, by its name. */
+  reviewTypes: [
+    'stress test',
+    'red team',
+    'system design',
+    'bounded verification',
+    'fuzzing',
+    'storage',
+    'program design',
+    'tests',
+    'code quality',
+    'experiment',
+    'skeptic',
+  ] as ReadonlyArray<string>,
+  /** The types every session names, as run or as not run with why, on a change the list covers. */
+  consideredTypes: ['stress test', 'system design', 'red team', 'storage', 'program design', 'bounded verification', 'fuzzing'] as ReadonlyArray<string>,
+  /**
+   * Test code, as globs in the review list's form, where `*` crosses folders and a `!` line takes a
+   * path off: a pull request that changes it needs a tests reviewer.
+   */
+  testCode: ['*.test.ts', '*.test.tsx', '*/testing/*', '*/tests/*', 'scripts/test-*.ts', '!*.gen.*'] as ReadonlyArray<string>,
+  /** Production source: these extensions, outside tests, fixtures, generated files and models, as regular expressions. */
+  productionExtensions: String.raw`\.(ts|tsx|rs)$`,
+  notProduction: String.raw`(\.test\.|\.fuzz\.|\/tests?\/|_test\.rs|\/testing\/|\/fixtures\/|\.gen\.|\/verification\/)`,
+  /** Net lines of production source from which a change is large and needs a code quality reviewer: at least this many. */
+  largeChange: 300,
+  /** Lines in covered files, or in test code, up to which a `No review: low risk` line covers them. */
+  lowRiskLines: 20,
+  /** The effort every counted session runs at. */
+  requiredEffort: 'high',
+  /** The review list: globs of the paths whose changes need a review, read from the base branch. */
+  reviewPaths: '.agents/repo/review-paths.txt',
+  /** The base branch when CI doesn't pass BASE. */
+  defaultBase: 'main',
+  /**
+   * The comment author associations whose sessions count. Keep this the same as review-recheck.yml's
+   * list, so a comment that reruns the check is one that can satisfy it.
+   */
+  reviewerAssociations: ['OWNER', 'MEMBER', 'COLLABORATOR'] as ReadonlyArray<string>,
+};
+export type Settings = typeof DEFAULTS;
 
-/** The types every session names, as run or as not run with why, on a change the list covers. */
-export const consideredTypes: ReadonlyArray<string> = [
-  'stress test',
-  'system design',
-  'red team',
-  'storage',
-  'program design',
-  'bounded verification',
-  'fuzzing',
-];
+/** The repo's settings over the defaults; a key the defaults don't have is an error. */
+export const readSettings = (path = env.REVIEW_SETTINGS ?? '.agents/repo/review-record.json'): Settings => {
+  if (!existsSync(path)) return DEFAULTS;
+  const given = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  const unknown = Object.keys(given).filter((key) => !(key in DEFAULTS));
+  if (unknown.length) throw new Error(`${path}: unknown settings ${unknown.join(', ')}`);
+  return { ...DEFAULTS, ...given } as Settings;
+};
 
-/**
- * Test code, as globs in the review list's form, where `*` crosses folders and a `!` line takes a
- * path off: a pull request that changes it needs a tests reviewer.
- */
-export const testCode: ReadonlyArray<string> = [
-  '*.test.ts',
-  '*.test.tsx',
-  '*/testing/*',
-  '*/tests/*',
-  'scripts/test-*.ts',
-  '!*.gen.*',
-];
-
-/** Production source: these extensions, outside tests, fixtures, generated files and models. */
-export const productionExtensions = /\.(ts|tsx|rs)$/;
-export const notProduction = /(\.test\.|\.fuzz\.|\/tests?\/|_test\.rs|\/testing\/|\/fixtures\/|\.gen\.|\/verification\/)/;
-
-/** Net lines of production source from which a change is large and needs a code quality reviewer: at least this many. */
-export const largeChange = 300;
-
-/** Lines in covered files, or in test code, up to which a `No review: low risk` line covers them. */
-export const lowRiskLines = 20;
-
-/** The effort every counted session runs at. */
-export const requiredEffort = 'high';
-
-/** The review list: globs of the paths whose changes need a review, read from the base branch. */
-export const reviewPaths = '.agents/repo/review-paths.txt';
-
-/** The base branch when CI doesn't pass BASE. */
-export const defaultBase = 'main';
-
-/**
- * The comment author associations whose sessions count. Keep this the same as review-recheck.yml's
- * list, so a comment that reruns the check is one that can satisfy it.
- */
-export const reviewerAssociations: ReadonlyArray<string> = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+const SETTINGS = readSettings();
+export const reviewTypes = SETTINGS.reviewTypes;
+export const consideredTypes = SETTINGS.consideredTypes;
+export const testCode = SETTINGS.testCode;
+export const productionExtensions = new RegExp(SETTINGS.productionExtensions);
+export const notProduction = new RegExp(SETTINGS.notProduction);
+export const largeChange = SETTINGS.largeChange;
+export const lowRiskLines = SETTINGS.lowRiskLines;
+export const requiredEffort = SETTINGS.requiredEffort;
+export const reviewPaths = SETTINGS.reviewPaths;
+export const defaultBase = SETTINGS.defaultBase;
+export const reviewerAssociations = SETTINGS.reviewerAssociations;
 
 // ---------------------------------------------------------------------------------------------
 
@@ -193,7 +199,7 @@ const refusal = (entry: string, label: string, form: string) => {
   const named = /^([a-z][a-z -]*):\s*\S/i.exec(entry)?.[1]?.trim().toLowerCase();
   if (named === undefined || reviewTypes.includes(named)) return undefined;
 
-  return `the ${label} "${entry}" names the type "${named}", which isn't one this repo accepts: add it to reviewTypes in review-record.ts, or use one of ${reviewTypes.join(', ')} as "${form}"`;
+  return `the ${label} "${entry}" names the type "${named}", which isn't one this repo accepts: add it to reviewTypes in .agents/repo/review-record.json, or use one of ${reviewTypes.join(', ')} as "${form}"`;
 };
 
 /** A session comment, read. */

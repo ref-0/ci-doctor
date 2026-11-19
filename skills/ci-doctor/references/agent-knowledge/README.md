@@ -12,11 +12,13 @@ The [skills](../../../README.md) are shared between repos. What's true of one re
 | Template | Copy to | Read by |
 | --- | --- | --- |
 | [`AGENTS-snippet.md`](AGENTS-snippet.md) | The instruction file your harness loads at the start, such as `AGENTS.md` for Codex or `CLAUDE.md` for Claude Code; [harnesses](../../../../docs/harnesses.md) covers each | Every agent the harness starts |
-| [`repo-facts/ci.md`](repo-facts/ci.md) | `.agents/repo/ci.md` | `ci-workflows`, `ci-runners`, `blacksmith`, `ci-merge-workflow`, `speed-up-tests` |
-| [`repo-facts/speed-up-tests.md`](repo-facts/speed-up-tests.md) | `.agents/repo/speed-up-tests.md` | `speed-up-tests` |
-| [`repo-facts/review.md`](repo-facts/review.md) | `.agents/repo/review.md`, where the repo adopts `code-review`; its list goes in `.agents/repo/review-paths.txt`, as below | `code-review` |
+| [`repo-facts/ci.md`](repo-facts/ci.md) | `.agents/repo/ci.md` | The `ci-doctor` hub's topics, and `ci-merge-workflow` |
+| [`repo-facts/ci-time.json`](repo-facts/ci-time.json) | `.agents/repo/ci-time.json`: the workflow, shard prefixes, gate job, runner labels' vCPUs and prices. A key you leave out keeps the script's default | `ci-time.ts`, in the hub's `ci-workflows` topic |
+| [`repo-facts/speed-up-tests.md`](repo-facts/speed-up-tests.md) | `.agents/repo/speed-up-tests.md` | The hub's `speed-up-tests` topic |
+| [`repo-facts/review.md`](repo-facts/review.md) | `.agents/repo/review.md`, where the repo adopts `review-gate`; its list goes in `.agents/repo/review-paths.txt`, as below | `review-gate` |
+| [`repo-facts/review-record.json`](repo-facts/review-record.json) | `.agents/repo/review-record.json`, with `review-gate`: the review types, test code, thresholds, effort and the list's path. A key you leave out keeps the script's default | `review-record.ts`, locally and in CI's gate, from the base branch |
 | [`repo-facts/proof-tiers.md`](repo-facts/proof-tiers.md) | `.agents/repo/proof-tiers.md`, where the repo has models or property tests | `proof-tiers` |
-| [`progress.md`](progress.md) | Next to the plan before approval; then where the authorization record says, such as `.agents/ci-doctor/progress.md` | Every session working the plan, first thing ([PROMPT](../../SKILL.md#pick-up-where-the-last-session-stopped)) |
+| [`progress.md`](progress.md) | Next to the plan before approval; then where the authorization record says, such as `.agents/ci-doctor/progress.md` | Every session working the plan, first thing ([`ci-doctor`](../../SKILL.md#pick-up-where-the-last-session-stopped)) |
 | [`ledger.md`](ledger.md) | Wherever a campaign keeps its state | A slow-test campaign's coordinator |
 | [`report.md`](report.md) | Next to the ledger, one per run, as `report-<date>.md` | The coordinator, and whoever reads its proposals |
 | [`brief.md`](brief.md) | One per engineer, next to the shared rules | An engineer in a campaign |
@@ -24,14 +26,14 @@ The [skills](../../../README.md) are shared between repos. What's true of one re
 
 Each template keeps the source repo's values as commented examples. Delete them once yours are in. When a fact in these files and the code disagree, the code is right: fix the file in the same change.
 
-The templates hold no relative links into the playbook, since they move when copied: a path into it is written `<root>/…` or `<skills-dir>/…`, as text to fill in, and a skill is named, not linked, since the harness loads it.
+The templates hold no relative links into the playbook, since they move when copied: a path into it is written `<skills-dir>/…`, as text to fill in, and a skill is named, not linked, since the harness loads it.
 
 ## The review list
 
-With `code-review`, as its own step:
+With `review-gate`, as its own step:
 
 1. Create `.agents/repo/review-paths.txt` from the example in [`repo-facts/review.md`](repo-facts/review.md): one glob a line for the systems review.md names.
-2. Check that `reviewPaths` in the checker's CONFIG block is that path.
+2. Check that `reviewPaths` in `.agents/repo/review-record.json` is that path, or left out for the default.
 3. Run `BASE=<base> node <review-checker> --count` on a branch that changes a listed file: its last line names the files the list covers. CI reads the base branch's copy, so the list gates PRs once it's merged.
 
 ## Check the copies
@@ -57,7 +59,7 @@ Once copied, run the playbook's link checker, `scripts/docs/check-links.ts`, fro
 | `<objective>`, `<value>`, `<factor>`, `<share>`, `<denominator…>`, `<from–to>` | A report's objective, threshold, drift and evidence fields. |
 | `<records-command>`, `<scripts-dir>`, `<config-module>`, `<production-config>`, `<test-harness-config>`, `<symbol-search>` | Where the speed-up-tests facts live. |
 | `<app-dir>` | An app or package folder. |
-| `<root>`, `<skills-dir>`, `<review-checker>`, `<base>`, `<briefs-folder>` | The pinned playbook copy, the harness's skills folder, the review checker's path, a PR's target branch and where a campaign's briefs live. |
+| `<skills-dir>`, `<review-checker>`, `<base>`, `<briefs-folder>` | Where the harness installed the skills, the review checker's path, a PR's target branch and where a campaign's briefs live. |
 | `<report-file>`, `<target-branches>`, `<watcher>`, `<register>` | A run's report, the branches with ready-run CI, the spend watcher's facts and the tried-and-dropped register, in ci.md and the ledger. |
 | `<container-tests-off>` | In ci.md's dispatch examples: your input that skips container tests, if your workflow has one (`-f <input>=false`); drop it otherwise. The template `ci.yml` declares none, and GitHub rejects a dispatch that passes an undeclared input. |
 | `<epic>`, `<main-sha>`, `<pr>`, `<engineer>`, `<threshold>`, `<date>`, `<n>`, `<s>`, `<file>`, `<name>` | A campaign's issue, base, PRs, owners and numbers. |

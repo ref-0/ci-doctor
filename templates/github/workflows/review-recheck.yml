@@ -3,7 +3,7 @@
 #
 # Runs on GitHub Actions (2 vCPU Blacksmith), on PR comments and PR body edits. Configure the review
 # record's markers below (`## Review:` comments by members, or a "No review:" body line) to match
-# what ci.yml's review step accepts: `review-record.ts` in the code-review skill, whose
+# what ci.yml's review step accepts: `review-record.ts` in the review-gate skill, whose
 # references/record.md defines the record. With no review gate, delete this workflow and
 # that step. Reference implementation from a production monorepo; adapt to your repo. Why:
 # docs/pages/03-workflow-anatomy.md.

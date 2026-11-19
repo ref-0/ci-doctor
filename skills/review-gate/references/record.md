@@ -1,13 +1,13 @@
 <!--
 What: the review session comment, line by line, as the gate's checker reads it, with examples and the local check.
 Where: read by an agent when a review session ends, before it marks the PR ready.
-Configure: the accepted types, considered types, thresholds and effort in scripts/review-record.ts's CONFIG block; your gate's call to it.
+Configure: the accepted types, considered types, thresholds and effort in `.agents/repo/review-record.json`, from the hub's references/agent-knowledge/repo-facts/review-record.json; your gate's call to it.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # The review record
 
-Part of the [`code-review`](../SKILL.md) skill. A session ends with one comment on the PR, which [`scripts/review-record.ts`](../scripts/review-record.ts) reads in CI's result job. Copy the first line and the table's columns; don't reword them.
+Part of the [`review-gate`](../SKILL.md) skill. A session ends with one comment on the PR, which [`scripts/review-record.ts`](../scripts/review-record.ts) reads in CI's result job. Copy the first line and the table's columns; don't reword them.
 
 ```text
 ## Review: <model>, <effort>, <k> reviewers, <n> rounds, <end>
@@ -68,4 +68,4 @@ node <review-checker> --comment session.md --covered
 
 The gate runs the same file with `PR`, `GITHUB_REPOSITORY`, `GITHUB_SHA` and `GH_TOKEN` set, and `BASE` for a target other than `main`, such as a stacked PR's parent. It checks the record's format and reviewer types, not that a session covers the tested head: [the skill](../SKILL.md#4-post-the-record) says how to check that before merging. It fails a ready PR whose record is missing or wrong; a rerun-the-result workflow reruns only that job when the record lands after it failed for that alone. Only a member's session comment counts (author association OWNER, MEMBER or COLLABORATOR, the same list the rerun workflow checks), so an outsider's comment on a public repo can't satisfy the gate.
 
-CI's result job runs this script from the base branch's copy, so a change to it gates PRs only once it merges; until the base has it, the step warns and passes. Keep the script's CONFIG block, your review list and review.md's accepted types in step: a type the skill adds and the script lacks fails by name.
+CI's result job runs this script, and reads its settings, from the base branch's copy, so a change to it gates PRs only once it merges; until the base has it, the step warns and passes. Keep the script's settings file, your review list and review.md's accepted types in step: a type the skill adds and the script lacks fails by name.
