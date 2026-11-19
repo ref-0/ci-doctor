@@ -22,7 +22,7 @@ Harnesses change fast. Each row below was checked against its docs in November 2
 
 ## Skills folder and instruction file
 
-Where each harness looks for skills and which instruction file it loads at the start. Install skills into that folder (`<skills-dir>` in [`skills/README.md`](../skills/README.md#install)) and put the [agent-knowledge snippet](../templates/agent-knowledge/README.md) in that file.
+Where each harness looks for skills and which instruction file it loads at the start. Skills copied by hand go into that folder (`<skills-dir>` in [`skills/README.md`](../skills/README.md#install)); a plugin install keeps its own copy and put the [agent-knowledge snippet](../templates/agent-knowledge/README.md) in that file.
 
 | Harness | Repo skills folder (`<skills-dir>`) | User skills folder | Instruction file |
 | --- | --- | --- | --- |

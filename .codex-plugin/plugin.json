@@ -1,0 +1,48 @@
+{
+  "name": "ci-doctor",
+  "version": "0.1.0",
+  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+  "author": {
+    "name": "ref0",
+    "url": "https://ref0.dev"
+  },
+  "homepage": "https://ci.ref0.dev",
+  "repository": "https://github.com/ref-0/ci-doctor",
+  "license": "MIT",
+  "keywords": [
+    "ci",
+    "github-actions",
+    "continuous-integration",
+    "ci-cost",
+    "flaky-tests",
+    "slow-tests",
+    "test-sharding",
+    "code-review",
+    "merge",
+    "blacksmith",
+    "agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ci-doctor",
+    "shortDescription": "Fast, cheap, trustworthy CI",
+    "longDescription": "Make CI faster, cheaper and more trustworthy on any provider. Your agent maps the repo, measures CI from its history and writes a plan you approve before anything changes. Day to day, it reads failed runs, changes workflows, sizes runners against the bill, fixes slow and flaky tests without losing what they prove, and, where the repo adopts them, gates review and merging.",
+    "developerName": "ref0",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://ci.ref0.dev",
+    "defaultPrompt": [
+      "Make this repo's CI faster and cheaper: start the ci-doctor plan.",
+      "Why did this PR's CI check fail?",
+      "Our Actions bill doubled last month. Find out why.",
+      "This test is flaky. Fix it without adding a retry."
+    ],
+    "brandColor": "#111111",
+    "composerIcon": "./assets/logo-light.svg",
+    "logo": "./assets/logo-light.svg",
+    "screenshots": []
+  }
+}

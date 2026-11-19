@@ -1,0 +1,37 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "ref0",
+  "description": "ref0's agent plugins for fast, cheap and trustworthy CI.",
+  "owner": {
+    "name": "ref0",
+    "url": "https://ref0.dev"
+  },
+  "plugins": [
+    {
+      "name": "ci-doctor",
+      "displayName": "ci-doctor",
+      "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+      "source": "./",
+      "keywords": [
+        "ci",
+        "github-actions",
+        "continuous-integration",
+        "ci-cost",
+        "flaky-tests",
+        "slow-tests",
+        "test-sharding",
+        "code-review",
+        "merge",
+        "blacksmith",
+        "agents"
+      ],
+      "category": "Developer Tools",
+      "tags": [
+        "ci",
+        "testing",
+        "devops",
+        "cost"
+      ]
+    }
+  ]
+}
