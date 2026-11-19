@@ -8,5 +8,5 @@
   },
   "nodeFiles": { "@pip/compiler": ["src/generate.ts"] },
   "layers": { "packages/cli/src": [["base"], ["terminal", "client"], ["commands"], ["main"]] },
-  "layerExceptions": { "packages/cli/src": { "terminal/output.ts": ["commands/marks"] } }
+  "layerExceptions": { "packages/cli/src": { "terminal/output.ts": ["commands/help"] } }
 }

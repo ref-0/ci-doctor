@@ -166,7 +166,7 @@ describe('folder layers', () => {
   const layered: Declared = {
     graph: {},
     layers: { 'packages/cli/src': [['base'], ['terminal', 'client'], ['commands'], ['main']] },
-    layerExceptions: { 'packages/cli/src': { 'terminal/output.ts': ['commands/marks'] } },
+    layerExceptions: { 'packages/cli/src': { 'terminal/output.ts': ['commands/help'] } },
   };
 
   const layerMessages = (files: ReadonlyArray<SourceFile>, graph = layered) => layerProblems(graph, files).map(({ message }) => message);
@@ -178,7 +178,7 @@ describe('folder layers', () => {
         file('packages/cli/src/commands/run.ts', './flags.ts'),
         file('packages/cli/src/main.ts', './commands/run.ts'),
         file('packages/cli/src/base/quote.test.ts', '../commands/run.ts'),
-        file('packages/cli/src/terminal/output.ts', '../commands/marks.ts'),
+        file('packages/cli/src/terminal/output.ts', '../commands/help.ts'),
       ]),
       [],
     );
@@ -195,7 +195,7 @@ describe('folder layers', () => {
         'terminal and client sit in one layer of packages/cli/src, so neither imports the other. Move what it needs down, or join the two from a place above both.',
         'base sits below commands in packages/cli/src, so it imports nothing of it. Move what it needs down, to where both can import it.',
         'watch is in no layer of packages/cli/src. Add it to the layer it belongs in.',
-        "packages/cli/src's exception for terminal/output.ts importing commands/marks is no longer needed. Delete it.",
+        "packages/cli/src's exception for terminal/output.ts importing commands/help is no longer needed. Delete it.",
       ],
     );
   });
