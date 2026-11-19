@@ -4,12 +4,16 @@
 
 ## Drafts and concurrency
 
+**Applies when:** PR workflows run while a PR is a draft, or a draft event or an old rerun can cancel the newest head's run. **Skip when:** Every job already skips drafts and concurrency groups keep ready PRs, drafts, reruns, manual runs and merges apart.
+
 - The workflow listens for `opened`, `synchronize`, `reopened` and `ready_for_review`. Every job skips while the PR is a draft, so marking it ready starts its first real run.
 - Concurrency groups keep ready PRs, drafts, reruns, manual runs and merge commits apart, so a draft event or an old rerun can't cancel the newest head's useful run. Manual groups include their inputs.
 - A running sweep finishes; it isn't cancelled. GitHub keeps one waiting run per concurrency group, so a newer one can replace a waiting one. That's fine for us, because the next sweep plans from the last *passing* commit. If every dispatch must run, add a separate queue policy and state its limit ([GitHub's concurrency rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
 - A skipped check is never a pass for us, though GitHub's required checks treat one as passing (section 3). Merge only on the current head's non-skipped aggregate result.
 
 ## A selector built from a real dependency graph
+
+**Applies when:** A pnpm workspace's TypeScript tests, named `.test.ts` or `.test.tsx`, run in full on every PR. **Skip when:** Tests in other languages or named another way, whose jobs keep running in full until a selector maps them, and a Turborepo or Nx repo, which starts with its own affected run.
 
 A plan job on 2 vCPU decides what a diff reaches in seconds, with **no workspace install**: it uses Node built-ins, plus one integrity-checked YAML parser for workflow diffs. It knows a pnpm workspace's TypeScript tests (`.test.ts`, `.test.tsx`). Tests in other languages, or named another way, aren't in its inventory, so keep their existing jobs running in full until a selector maps them.
 
@@ -29,6 +33,8 @@ A plan job on 2 vCPU decides what a diff reaches in seconds, with **no workspace
 
 ## Turborepo and Nx: their own affected runs first
 
+**Applies when:** The repo uses Turborepo or Nx and selects nothing today. **Skip when:** The repo uses neither.
+
 A repo on Turborepo or Nx already has package-level selection built in: `turbo run <task> --affected` and `nx affected -t <task>`. When the repo selects nothing today, turn that on before writing a selector. Both compare against a base commit, so check that CI fetches enough history to reach it and passes the right base for a PR (check the installed version's docs: the flags and defaults have changed between releases).
 
 - **It's package-level.** A change selects every task of its package and of the packages depending on it, through the tool's own graph. Edges that graph can't see still need declaring: root config, files read from disk across packages, generated code. Unknown inputs should select everything, as above.
@@ -36,6 +42,8 @@ A repo on Turborepo or Nx already has package-level selection built in: `turbo r
 - **Don't replace a finer selector with it.** Where the repo already selects by test file, keep that: a package graph replacing semantic selection missed tests in 74 of 100 replayed PRs (above). Our planner in [`templates/plan/`](../../templates/plan/README.md) reads pnpm workspaces only, so in a Turborepo or Nx repo it's for a later pilot, not a first step.
 
 ## "Near" selection for an integration-heavy server
+
+**Applies when:** Every integration test boots the whole server, so the import graph says everything reaches everything, and main's sweeps run the full set as the safety net. **Skip when:** The import graph already narrows the selection, or no sweep on main covers what "near" leaves out.
 
 Every server integration test boots the whole Worker, so the import graph says *everything reaches everything*. A plain changed-files traversal picked 494 of 1,035 files for one model edit. The selector instead combines:
 
@@ -48,6 +56,8 @@ This is a deliberate risk trade: "near" can't prove that no whole-Worker side ef
 
 ## CI file changes run only the jobs they touch
 
+**Applies when:** A selector exists and a workflow or composite-action edit selects every job. **Skip when:** There is no selector yet, or CI file edits already run only the jobs they touch.
+
 For workflow and composite-action edits, the plan **parses both revisions as YAML** and compares meaningful blocks, so comments and formatting don't count.
 
 - **Downstream jobs:** a changed job selects itself plus everything that waits on it, through `needs` or the custom wait action. Changed actions select their callers.
@@ -57,6 +67,8 @@ For workflow and composite-action edits, the plan **parses both revisions as YAM
 
 ## Other narrowing
 
+**Applies when:** Real-container tests, packaging or a Rust service run on every PR whatever it changes. **Skip when:** None of those runs on every PR.
+
 - **Real-container tests** are selected shallowly. A PR runs a container file only when it's edited directly, or when its own runtime imports, dynamic imports or file URLs reference an edited input. Type-only imports don't count, and there's no recursive expansion through workspace packages. Bundled or config-driven inputs get explicit coverage declarations, and the sweep uses the broader reach of the whole accumulated diff. This rule belongs in the planner ([`templates/plan/`](../../templates/plan/README.md#container-test-reach)).
 - **Packaging** runs only when a PR changes what gets packed: manifests, exports, packed docs, packaging config or relevant lockfile entries. Ordinary source edits skip snapshots and native binaries. The exceptions are an all-tests fallback and proof or replay jobs that need a snapshot.
 - **The Rust service** builds and tests on a PR only when its real inputs change, or when a broad fallback selects everything. The sweep also refreshes an aging pass with no input change. Contract source alone doesn't trigger it, unless generated Rust types or shared vectors change. Package edges had exaggerated the dependency: of 232 merges reaching native code through package edges, only 151 touched its real inputs.
@@ -65,6 +77,8 @@ For workflow and composite-action edits, the plan **parses both revisions as YAM
 - **Manual runs** take an exact ref, test paths, one sandbox file, a name filter and a repeat count. An empty selection fails instead of passing quietly. The snapshot-pin guard (section 5) lets a snapshot through only on a manual dispatch naming exactly one file, in `heavy_file` or `test_paths`; that the branch is a draft is workflow policy, which the guard can't see.
 
 ## Verify the selector like production code
+
+**Applies when:** A selector, or a change to one, is proposed. **Skip when:** Selection isn't changing.
 
 Selector tests build small Git histories and check real output, covering:
 

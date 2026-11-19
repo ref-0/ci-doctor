@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { checkFile, checkMentions, slug } from './check-links.ts';
+
+const roots: string[] = [];
+after(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
 
 const repo = () => {
   const root = mkdtempSync(join(tmpdir(), 'check-links-'));
+  roots.push(root);
   mkdirSync(join(root, 'docs/pages'), { recursive: true });
   writeFileSync(join(root, 'docs/pages/06-reuse.md'), '# 6. Reuse\n\n## Task runners and their remote caches\n\n## Notes\n\n## Notes\n');
   return root;

@@ -2,6 +2,8 @@
 
 # 11. Flakes
 
+**Applies when:** CI's records show tests that failed and then passed, or jobs that passed on rerun. **Skip when:** The records show no failed-then-passed tests or jobs.
+
 - **Retry once, in-process.** A recovered test leaves the run green but is **recorded as a flake**. Local runs and repeat runs that prove a fix use **no retry**. Turning the retry on changes what the gate accepts, so adopt it as its own approved change, apart from adding records, and keep a test-level retry, a failed-job rerun and an infrastructure failure as three different things in reports.
 - **One issue per flaky test, filed by CI.** The aggregate job reads flake records across attempts and opens or updates one issue per test.
   - It also counts a job that failed then passed on rerun.

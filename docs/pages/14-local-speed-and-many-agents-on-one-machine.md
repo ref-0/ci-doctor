@@ -6,6 +6,8 @@ Agents wait on local checks far more often than on CI, so local feedback got the
 
 ## Fast local feedback
 
+**Applies when:** Agents or people wait on local checks. **Skip when:** Local checks already run only what covers the change.
+
 - **The narrowest check that covers the change.**
   - While working: run one test file by path (`vp test run <file> -t '<name>'`) and format and lint just the changed files.
   - Before pushing: run `check`, `build` and `test:cached`.
@@ -32,6 +34,8 @@ Agents wait on local checks far more often than on CI, so local feedback got the
 
 ## The local runner contract
 
+**Applies when:** A local runner runs a selected list of tests, such as `test:cached` or one you write. **Skip when:** Local runs take no selection.
+
 `test:cached` is a selection plus a runner. A runner that just takes the selected list can report green when tests didn't run. Ours does all of the following. [`scripts/local/`](../../scripts/local/) ships only the selection, so make sure whatever runner you write or use meets every point:
 
 - **Form stable groups from the whole ordinary suite, then filter,** so a group's key doesn't depend on the selection. Local grouping is separate from CI's.
@@ -46,6 +50,8 @@ Agents wait on local checks far more often than on CI, so local feedback got the
 Let the repo supply its own database and generated-file setup; the contract doesn't need our stack.
 
 ## Sharing one machine
+
+**Applies when:** Several agents or worktrees run tests on one shared machine. **Skip when:** Each machine runs one checkout.
 
 - **Machine-wide test slots.** Every local test file takes a lock from a shared pool (`flock`, held by a child process). The default cap is `max(2, floor(availableParallelism / 4))`, a quarter of the cores rounded down and at least 2, unless `TEST_SLOTS` overrides it, and it covers all worktrees and agents.
   - **Every caller must use the same project name, slot directory and cap.** A caller with a higher cap takes the low-numbered slots a lower-cap caller uses, so the bound no longer holds. Set the cap once in the machine's shared launch environment, and never raise it in one thread.

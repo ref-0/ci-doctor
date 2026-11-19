@@ -2,6 +2,8 @@
 
 # 13. Records: evidence of what ran
 
+**Applies when:** CI can't show which test files ran, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its time on each run.
+
 A green check can hide a file that never ran. So:
 
 - **The plan logs** its selected inputs and tests.
@@ -18,6 +20,8 @@ A green check can hide a file that never ran. So:
 - **Retention follows usefulness:** CI binaries pass between jobs through the Actions cache, and release binaries are artifacts kept 1 day; pass artifacts 2 days, proof diagnostics 7 days and uploaded only on failure, financial receipts 90 days. Trusted pass provenance and these retained artifacts still depend on artifact quota.
 
 ## Collecting from the API without losing runs
+
+**Applies when:** A baseline, audit or report is built from the provider's API. **Skip when:** The evidence comes only from the repo's own records.
 
 Any baseline, audit or report you build from the provider's API (Phase 2) follows the completeness and estimator contract in [`skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md`](../../skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md). In short: split search windows below the API's caps and page every list; keep every attempt; join runs to PRs by explicit relations, not branch names; keep main's and release costs apart; name the quantile estimator and the timestamps used; pair deploys by build identity; and count what you didn't read. An unread outcome is never a zero wait, a zero cost or a success.
 

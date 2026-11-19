@@ -10,6 +10,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 ## The commands
 
+**Applies when:** A TypeScript workspace, adopting one command at a time where a named duplicate pass or a measured bottleneck justifies it. **Skip when:** The repo's existing commands show neither: keep them as they are.
+
 | Command | What it does | Reuse |
 |---|---|---|
 | `prepare` (on install) | Patches the compiler integration, generates bundles and schemas, sets the git hooks path | Generation writes only changed files |
@@ -21,6 +23,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 | `symbols:find` / `symbols:check` (`node tools/workspace/src/bin.ts symbols …`) | Search existing code before writing a function / refuse new exact copies. From [`tools/workspace/`](../../tools/workspace/), not from any CLI in README's setup list | Per-file parse cache |
 
 ## One type check, no duplicate passes
+
+**Applies when:** A framework's diagnostics or type-aware lint run as a separate compiler pass. **Skip when:** One type pass already covers them.
 
 - **One type pass.** Run any framework's diagnostics inside the authoritative type check, using the editor's diagnostic policy from the same `tsconfig`, so a separate framework-only compiler pass is unnecessary. Folding them in removed a separate `tsc` pass that had cost 10–15 s locally ([If you use Effect](#if-you-use-effect) has ours).
 - **Type-aware lint gets a faster backend.** Oxlint gets its type-aware rules from tsrs-lint. Vite+ expects a `tsgolint` binary and has no backend switch yet, so a pnpm override links that package name to a tiny local adapter package whose only export is a symlink to tsrs-lint. The whole adapter, for a layout with it at `lint/tsgolint/`:
@@ -52,10 +56,14 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 ## Every file in a project, enforced
 
+**Applies when:** One consolidated type check covers the workspace through project references. **Skip when:** Each project is checked on its own.
+
 - **One root `tsconfig.json`** with no files, referencing every app, library, script and tooling project. Strict base options, including `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
 - **A type-coverage guard** lists tracked `.ts` files and fails if any isn't in a project the root reaches, or if lint ignores a hand-written one. Without it, one consolidated check is unsafe: adding missing coverage exposed 44 hidden errors in one program, and lint ignoring the custom-rule folder had hidden 57.
 
 ## Type results follow content across worktrees
+
+**Applies when:** Several worktrees type-check the same projects on one machine. **Skip when:** Each machine has one checkout.
 
 - **Cache successful projects, not verdicts.** The key covers the contents of every file the previous program listed (`--listFiles`), compiler args, the lockfile, workspace settings, manifests and tsconfigs, and the project's included paths. Paths are relative and hashing uses contents, not mtimes.
 - **One machine-wide cache keeps up to 32 versions per project,** so branches sit side by side. Writes are atomic, nothing is saved if inputs changed during the check, and a broken install can't spread its errors to other worktrees.
@@ -75,6 +83,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 ## Type-aware lint where it pays
 
+**Applies when:** The linter has type-aware rules, and local checks run them on every file while many agents check at once. **Skip when:** The linter has no type-aware rules.
+
 - **Locally: types, then untyped lint everywhere, then type-aware lint on changed files** since the merge base, including uncommitted edits. This is lighter on memory when many agents check at once: the local check took ~11 s and 2.3 GiB, against ~8 GB for full type-aware lint.
 - **CI runs type-aware lint on every file,** because a type change can produce a finding in an untouched consumer.
 - **Settings for the two passes,** with Oxlint:
@@ -91,10 +101,14 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 ## Keep lint config out of the test config
 
+**Applies when:** Lint settings live in the config the tests load, so a lint edit invalidates test transforms and cached test keys. **Skip when:** Tests already load their own config.
+
 - **Tests load a dedicated test config.** The root config imports it and loads lint settings dynamically, and the lint module may set only `fmt`, `lint` and `run`, anything else fails. Otherwise a lint-rule edit invalidates every Vitest transform and every cached test key: one lint edit had rewritten 452 transforms.
 - **Invoke the tool by a stable relative path** (`node node_modules/vite-plus/bin/vp`), because the task runner keyed its own absolute executable path.
 
 ## Custom lint rules that guard the shortcuts
+
+**Applies when:** The repo takes shortcuts a rule can guard: build tasks with explicit inputs, seeded property tests, restricted runtimes, package boundaries. **Skip when:** It takes none of them.
 
 - **Complete build inputs.** Production and staging build tasks must list transitive workspace source, manifests and tsconfigs. Before this rule, a deliberately broken dependency source *replayed a successful build*. We use explicit inputs because automatic read tracking hit `spawn EBUSY` on our dev platform.
 - **Seeded property tests.** Property tests must use the shared seeded options, so PR runs reproduce, while the sweep picks fresh seeds.
@@ -103,6 +117,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 - **Shared rules live in a published tool** that each repo consumes, with the repo's own domain rules on top. Its tests install the *packed tarball* into a temp consumer, which checks what users actually get.
 
 ## No build before checking or testing
+
+**Applies when:** Workspace packages must be built before checks or tests can import them. **Skip when:** They already resolve to source.
 
 Each package exports **source first** under a custom condition, then built types and JS:
 
@@ -122,6 +138,8 @@ Each package exports **source first** under a custom condition, then built types
 
 ## Generated files
 
+**Applies when:** Checks, tests or builds consume generated files. **Skip when:** Nothing is generated.
+
 - **Generate in dependency order and write only on change,** so downstream caches stay warm. An unchanged run takes ~0.5 s locally. We tried caching generation and removed it: the replay cost 1–2 s.
 - **List every generated artifact:** its source inputs, whether it's tracked, and the command that proves it's fresh. Check tracked outputs against their source, and check ignored bundles with a source-equivalence test.
 - **Call generation explicitly** after editing a generator or dependencies, and before its consumers, such as cached tests and the builds and deploys that need it. Hooks only supplement those callers: they miss editor changes, and an install that's already current doesn't rerun preparation.
@@ -129,6 +147,8 @@ Each package exports **source first** under a custom condition, then built types
 - **Test with a truly fresh checkout.** Initial preparation must succeed with no generated outputs present. Local "cold" runs kept old generated files and hid a bootstrap import bug.
 
 ## Find existing code before writing more
+
+**Applies when:** Agents write code in the repo; the saving is a warm local one, not a measured CI one. **Skip when:** No agents write code here.
 
 Agents duplicate code readily, so we gave them two tools:
 
@@ -138,12 +158,16 @@ Agents duplicate code readily, so we gave them two tools:
 
 ## Pin everything, share the tool
 
+**Applies when:** Node, pnpm or shared tool versions float, or the static workflow stops at its first failing command. **Skip when:** They are pinned and every command reports.
+
 - **Exact versions from pnpm's `catalog:`,** with overrides keeping Vite, Vitest and Node types aligned.
 - **Node pinned** in `.node-version`, `devEngines` (which can download it) and `engines`; pnpm pinned by `packageManager`.
 - **`verifyDepsBeforeRun: false`** (section 14).
 - **A reusable static workflow** in the shared repo runs each supplied command, format, lint, types and doc budget, **even if an earlier one failed**, so one run reports every finding.
 
 ## If you use Effect
+
+**Applies when:** The stack uses Effect. **Skip when:** It doesn't.
 
 Skip this subsection if your stack doesn't use [Effect](https://effect.website). With it, we did three things:
 

@@ -36,14 +36,14 @@ Build a short **stack map**:
   - unknown inputs and unsupported discovery run every affected suite, falling back to the full gate;
   - a later selector pilot maps Python projects and their dependents, `pyproject.toml`, lockfiles, `conftest.py`, plugins, fixtures, generated and schema edges, and cross-language subprocesses;
   - before narrowing, replay adding, deleting and renaming tests in each language, and shared config edits, and compare the selected **and executed** inventories per suite (guide section 4).
-- **Caching:** what's cached today, by which key, whether a local or remote task cache exists, and which task runner it belongs to ([guide section 6's table](../excerpts/phase-1.md#task-runners-and-their-remote-caches)). For any shared cache, list **every writer and every release or deploy path that consumes its results**, and the trust policy the user picks (guide section 6, "Trust").
-- **Shipping:** every path that ships: npm packages, Python wheels and sdists, container or direct deploys, manual promotions. For each, what gates it and what production deploys from, mapped to guide section 5's release checklist. Note any native binaries with embedded versions or version-pairing rules (guide section 6). A repo without a usable release gate keeps its PR coverage.
+- **Caching:** what's cached today, by which key, whether a local or remote task cache exists, and which task runner it belongs to ([guide section 6's table](../excerpts/phase-1.md#task-runners-and-their-remote-caches)). For any shared cache, list **every writer and every release or deploy path that consumes its results**, and the trust policy the user picks ([guide section 6, "Trust"](../excerpts/phase-1.md#trust)).
+- **Shipping:** every path that ships: npm packages, Python wheels and sdists, container or direct deploys, manual promotions. For each, what gates it and what production deploys from, mapped to [guide section 5's release checklist](../excerpts/phase-1.md#releasing-what-the-sweep-checked). Note any native binaries with embedded versions or version-pairing rules (guide section 6). A repo without a usable release gate keeps its PR coverage.
 - **Local dev loop:**
   - what agents and people run before pushing, and how long it takes cold and warm, from CI's logs, the repo's docs and what people report. Before approval, run no local installs, tests or linters to time them;
-  - whether tests can run near the diff, and whether the local runner meets guide section 14's runner contract. The local cached-test driver isn't ported; if you recommend one, it's written to the contract in [`scripts/local/README.md`, section 3](../../../../scripts/local/README.md#3-testcached-the-near-tests-as-cached-groups);
+  - whether tests can run near the diff, and whether the local runner meets [guide section 14's runner contract](../excerpts/phase-1.md#the-local-runner-contract). The local cached-test driver isn't ported; if you recommend one, it's written to the contract in [`scripts/local/README.md`, section 3](../../../../scripts/local/README.md#3-testcached-the-near-tests-as-cached-groups);
   - whether builds, lint and types replay from a cache;
   - whether packages need building before tests can import them;
-  - whether several agents share one machine (guide section 14).
+  - whether several agents share one machine ([guide section 14](../excerpts/phase-2.md#sharing-one-machine)).
 - **Workspace tooling** (guide section 9). Map each of these, or mark it not applicable with a reason:
   - the type checker, linter and formatter, how type-aware lint runs, and custom lint rules;
   - reachable type projects and whether every source file is in one (only for a repo with a project graph, such as TypeScript's);
@@ -57,7 +57,7 @@ Build a short **stack map**:
   [`tools/workspace/`](../../../../tools/workspace/README.md) has reference implementations, one command at a time. Map each command (`types`, `symbols`, `package-exports`, `check`) to applies / already done / does not fit. For plain TypeScript, start from the existing `tsc`, its project graph and the task runner's ordering, and keep the compiler, lint and generation steps as they are unless a named duplicate pass or bottleneck justifies a change. The Oxlint and Vite+ lint split is conditional on using them; skip the Effect patching unless the repo uses Effect. For a non-TypeScript repo, use its README's contracts instead.
 - **Agent knowledge:** where the agents' instructions live (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, a skills folder, a wiki), and which file the active harness actually loads.
 
-Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide sections 2–17 by heading, and read a section only for a technique that bears on the measured limiter. Mark each such technique:
+Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide sections 2–17 by heading, each with when it applies and when to skip it. Read a section only for a technique that applies and bears on the measured limiter. Mark each such technique:
 
 - **Applies:** say where it would go, by file path.
 - **Applies with changes:** say what changes for this stack. For example, "time-based shards: a static per-shard file list run by the installed runner", or "remote cache: Turborepo's existing remote cache, audited first, not a custom Worker".

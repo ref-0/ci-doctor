@@ -2,6 +2,8 @@
 
 # 12. Budgets, health and spend
 
+**Applies when:** The plan sets job or run budgets, a spend cap or a health report, or a baseline compares spend across windows. **Skip when:** None of those is proposed or measured.
+
 - **A budget for every reachable job.** A script evaluates the workflow's expressions for a ready PR, matrices and reusable callers included. Tests fail on a reachable job with no budget, a budget for a removed job, or an oversized runner. Budgets are **measured p95 + 15%, rounded up to 5 s**, citing their source runs.
   - Raise a budget for useful work, never to silence the report.
 - **Run budgets:** full PR run ≤ 5 min, small run ≤ 3 min, any ordinary shard test file ≤ 90 s (container files have their own 10-minute file timeout, section 8), and a shard p95 warning at 110 s before the 120 s billing step.

@@ -18,11 +18,11 @@ From the CI provider's API and logs, with no new runs.
   - **Per-vCPU providers such as Blacksmith:** rounded minutes × vCPUs, at their rate.
   - Report raw runner minutes, a list-price projection, and actual usage against any included allowance, as three separate numbers. Actual spend comes only from authorized billing reports; say "unavailable" when you can't read them.
   - Attribute only measured jobs to logical categories. Count cache storage and other provider costs separately.
-  - Follow guide section 12's audit rules: equal complete windows, job renames reconciled, and any current cap read from its configuration.
+  - Follow [guide section 12's audit rules](../excerpts/phase-2.md#audit-spend-over-comparable-windows): equal complete windows, job renames reconciled, and any current cap read from its configuration.
 - **Per-file test time,** if the runner reports it. Vitest needs a reporter ([the reporter](../excerpts/phase-2.md#1-the-reporter)); pytest can write JUnit XML and per-phase durations ([Python tests](../excerpts/phase-2.md#python-tests)). Label case durations as durations, not file wall time. If there are no file timings, the plan's first step proposes recording them (guide section 13), and the slow-file inventory is marked pending.
 - **Flake history:** tests that failed then passed on the same commit. Keep test-level retries, failed-job reruns and infrastructure failures apart.
 - **Selection waste:** how many PR runs ran everything, and why.
-- **Local contention,** if agents share a machine: slot waits logged apart from test time, with the denominator named (guide section 14).
+- **Local contention,** if agents share a machine: slot waits logged apart from test time, with the denominator named ([guide section 14](../excerpts/phase-2.md#sharing-one-machine)).
 
 **How to collect it.** Follow the guide's [read-only collection recipe](../excerpts/phase-2.md#collecting-from-the-api-without-losing-runs) and [`ci-history-data.md`](../speed-up-tests/references/ci-history-data.md): page everything, split date windows below the API's caps, keep every attempt, cover every workflow in the current gate, include non-PR events for spend, and count what you couldn't read. The `ci-time.ts` script in the `ci-workflows` topic is a spot-check of recent runs, not this baseline.
 
