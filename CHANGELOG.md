@@ -8,6 +8,13 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### One hub skill, `ci-doctor`
+
+- `PROMPT.md` and `docs/prompts/` moved into the new `skills/ci-doctor/` skill: the rules and `progress.md` in its `SKILL.md`, the phases in `references/phases/`, and what the repo carries, a reading route and what not to build in `references/playbook.md`. `PROMPT.md` points at the skill.
+- The skills `ci-workflows`, `ci-runners`, `blacksmith`, `speed-up-tests` and `verify-evidence` are now topics of the hub, at `skills/ci-doctor/references/<topic>/TOPIC.md`, with their references and scripts beside them. Reading a PR's CI result moved from `ci-merge-workflow` into the hub's `triage` topic, with `ci-result.md`.
+- `checks/` moved to `skills/ci-doctor/references/checks/`, and `templates/agent-knowledge/` to `skills/ci-doctor/references/agent-knowledge/`.
+- **Action:** delete installed copies of the five old skills. Point any link or script path at the new folders: `ci-time.ts` is at `skills/ci-doctor/references/ci-workflows/scripts/`, `blacksmith-bill.ts` at `skills/ci-doctor/references/blacksmith/scripts/`. A `progress.md` keeps working: resume at the phase it records.
+
 ### The repo is a plugin
 
 - The repo installs as a plugin in Claude Code, Codex, VS Code and Cursor, with `npx skills add` for other agents: manifests in `.claude-plugin/`, `.codex-plugin/` and `.cursor-plugin/`, a root `plugin.json`, and marketplaces listing `ci-doctor@ref0`. The README's Installing says how, per harness, with a prompt to paste into your agent.

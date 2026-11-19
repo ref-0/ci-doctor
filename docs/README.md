@@ -12,7 +12,7 @@ Over about six weeks we reshaped CI around one idea: **pay for a check only wher
 
 It's long on purpose. Each section says what we do, how it works, and why. **About the numbers:** counts, percentages and configured thresholds are real. Our CI timings are given as relative changes ("about half", "a quarter faster"), with one exception: the labelled example median and p90 in section 19. Local measurements from a development machine are labelled *local*; they aren't CI numbers. Treat all of them as **examples of effect** in one workload, not benchmarks or targets for yours: most come from history and replays, not controlled comparisons. Anything we tried and dropped is at the end, so you don't repeat it.
 
-> **Want your agent to apply this?** Point it at [`PROMPT.md`](../PROMPT.md). It maps each technique to your repo, measures your CI, and writes a **plan for you to review** before it changes anything.
+> **Want your agent to apply this?** Point it at the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill. It maps each technique to your repo, measures your CI, and writes a **plan for you to review** before it changes anything.
 
 ## Contents
 
@@ -37,4 +37,4 @@ It's long on purpose. Each section says what we do, how it works, and why. **Abo
 19. [How we got here](pages/19-how-we-got-here.md)
 20. [Thresholds cheat sheet](pages/20-thresholds-cheat-sheet.md)
 
-Also: [harnesses](harnesses.md), for parallel agents and schedules in each harness, and [`prompts/`](prompts/), the agent's phases, which [`PROMPT.md`](../PROMPT.md) starts.
+Also: [harnesses](harnesses.md), for parallel agents and schedules in each harness, and [the agent's phases](../skills/ci-doctor/references/phases/), which the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill starts.

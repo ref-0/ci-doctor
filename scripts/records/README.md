@@ -18,13 +18,13 @@ Why logs and not artifacts, and why agents never run the bulk collection: [guide
 | `ci-wait-hints.ts` | Lists files past 10 s with counts of sleeps, timeouts, polls, retries, fake clocks and literal periods, in TSV batches by area for parallel review. | By hand, in a checkout |
 | `ci-wait-hints.test.ts` | Tests for the hint counts, the areas, the timing and the batches. `node --test ci-wait-hints.test.ts` | Anywhere |
 
-The per-job CI time spot-check (`ci-time.ts`) belongs to the `ci-workflows` skill: see [`skills/ci-workflows/scripts/`](../../skills/ci-workflows/scripts/). It reads a recent sample of runs, from each run's latest attempt only, and prints two clocks: "checks", from the first job's start to the last non-gate job's end, and "to gate", from the first job's start to the gate's end, where there is one. Neither counts queueing before the first job. It names the job that ended last, which isn't necessarily the limiter. Its cost is started minutes times each label's vCPUs (`RUNNERS`), or billed vCPU-minutes with `--bill blacksmith`, which counts every attempt; a money total prints only when `PRICES` (label pattern, price per started minute) prices every job. Its file timings are log matches of unknown freshness. Use it to look around, not as a baseline; the baseline and the archive come from complete collection, here and in guide section 13.
+The per-job CI time spot-check (`ci-time.ts`) belongs to the `ci-workflows` skill: see [`skills/ci-workflows/scripts/`](../../skills/ci-doctor/references/ci-workflows/scripts/). It reads a recent sample of runs, from each run's latest attempt only, and prints two clocks: "checks", from the first job's start to the last non-gate job's end, and "to gate", from the first job's start to the gate's end, where there is one. Neither counts queueing before the first job. It names the job that ended last, which isn't necessarily the limiter. Its cost is started minutes times each label's vCPUs (`RUNNERS`), or billed vCPU-minutes with `--bill blacksmith`, which counts every attempt; a money total prints only when `PRICES` (label pattern, price per started minute) prices every job. Its file timings are log matches of unknown freshness. Use it to look around, not as a baseline; the baseline and the archive come from complete collection, here and in guide section 13.
 
 ## Wire it in
 
 ### 1. The reporter
 
-Set this up only once the user approves the plan ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)). Adding records changes nothing about what the gate accepts: keep the repo's current failure and retry behaviour in the same change.
+Set this up only once the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). Adding records changes nothing about what the gate accepts: keep the repo's current failure and retry behaviour in the same change.
 
 In your Vitest config, add the reporter when CI asks for records. Vitest times every import anyway; the limit only says how many it reports per file, one more than the record keeps because the file itself is among them.
 

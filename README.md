@@ -19,7 +19,7 @@ Your agent maps your stack, measures your CI's median and p90, and writes a plan
 
 ## Installing
 
-The plugin holds the nine skills in [`skills/`](skills/README.md): `ci-workflows`, `ci-runners`, `blacksmith`, `code-review`, `ci-merge-workflow`, `speed-up-tests`, `test-audit`, `verify-evidence` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
+The plugin holds five skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and day-to-day CI work, and `code-review`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
 
 ### Claude Code
 
@@ -81,14 +81,13 @@ Install the ci-doctor skills using one method. In Claude Code, run `claude plugi
 
 | Path | What |
 |---|---|
-| [`PROMPT.md`](PROMPT.md) | Instructions for your agent |
+| [`PROMPT.md`](PROMPT.md) | Points your agent at the `ci-doctor` skill |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release, and what to do about it |
-| [`docs/`](docs/) | The guide, the agent's phase-by-phase prompts, and harness notes |
-| [`skills/`](skills/README.md) | Agent skills for CI, slow tests, review and merging |
-| [`checks/`](checks/README.md) | One-rule checks the skills link to |
+| [`docs/`](docs/) | The guide and harness notes |
+| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics, the one-rule checks and the agent-knowledge templates, and the skills for review, merging, test value and proof tiers |
 | [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
-| [`templates/`](templates/) | CI workflows, the selection planner and agent-knowledge templates |
+| [`templates/`](templates/) | CI workflows and the selection planner |
 | [`cache/remote/`](cache/remote/README.md) | Vite+ remote cache on Cloudflare |
 
 Everything is a reference implementation with `<placeholders>`. Adapt it; don't copy it unchanged.

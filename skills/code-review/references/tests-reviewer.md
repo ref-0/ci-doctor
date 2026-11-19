@@ -27,9 +27,9 @@ Trace the changed tests through their production owners, fixtures, helpers and s
 - **Banned fixes.** Flag a retry, a timeout raised alone, a skip, or a production API widened for a test.
 - **The environment.** Check assumptions about the runner's `/etc/gitconfig`, `HOME`, keyrings and network. Git fixtures set `GIT_CONFIG_NOSYSTEM`, so a runner's `safe.directory = *` can't change the result.
 - **Shared helpers.** When a shared test helper's signature changes, find the open PRs that call it: two PRs once collided at one helper, and a third fixed it.
-- **Waits.** Each wait observes the effect itself: it awaits the effect's own event or promise where there is one, and otherwise polls the observed state with a bound, failing with what it saw. [Wait for the effect](../../../checks/wait-for-the-effect.md) has the rule.
+- **Waits.** Each wait observes the effect itself: it awaits the effect's own event or promise where there is one, and otherwise polls the observed state with a bound, failing with what it saw. [Wait for the effect](../../ci-doctor/references/checks/wait-for-the-effect.md) has the rule.
 - **Value.** Apply [test-audit's authoring gate](../../test-audit/SKILL.md#authoring-gate). Name the behaviour, the credible regression and the proof no other test supplies. Reject a test-only production seam. For a deleted test, show where its coverage remains.
-- **Evidence.** A flake fix needs the test repeated with no retry, plus a mutation that reopens the race and fails the test. A passing retry proves no fix. [Make the test fail first](../../../checks/make-the-test-fail-first.md) has the rule.
+- **Evidence.** A flake fix needs the test repeated with no retry, plus a mutation that reopens the race and fails the test. A passing retry proves no fix. [Make the test fail first](../../ci-doctor/references/checks/make-the-test-fail-first.md) has the rule.
 
 ## The report
 

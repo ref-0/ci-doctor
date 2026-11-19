@@ -6,7 +6,7 @@ description: "Keep a bounded model check or a property test honest: writing one,
 <!--
 What: the rules that keep the two deep proofs honest: bounded models of ordering, and property tests of inputs.
 Where: read by a coding agent writing or maintaining either, or moving one between CI's tiers.
-Configure: your repo's `.agents/repo/proof-tiers.md`, from templates/agent-knowledge/repo-facts/proof-tiers.md.
+Configure: your repo's `.agents/repo/proof-tiers.md`, from the ci-doctor hub's references/agent-knowledge/repo-facts/proof-tiers.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
@@ -14,7 +14,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Two kinds of proof cost more than an ordinary test, so they often run deeper in a slower tier than a pull request: a **bounded model** checks every order of a model's steps up to a bound, and a **property test** checks the real code against many generated inputs. Either can pass while proving nothing: a rule weakened until it passes, a bound cut until nothing happens, a generator that never reaches the edge. Moving a proof to a slower tier must keep it honest, so the rules here hold in every tier.
 
-A stack with neither can skip this skill. Read the repo's `.agents/repo/proof-tiers.md` first (template: [`repo-facts/proof-tiers.md`](../../templates/agent-knowledge/repo-facts/proof-tiers.md)): its models and covered files, its property library, seeds and commands. Use whatever model checker or property library the stack already has; nothing here needs a particular one.
+A stack with neither can skip this skill. Read the repo's `.agents/repo/proof-tiers.md` first (template: [`repo-facts/proof-tiers.md`](../ci-doctor/references/agent-knowledge/repo-facts/proof-tiers.md)): its models and covered files, its property library, seeds and commands. Use whatever model checker or property library the stack already has; nothing here needs a particular one.
 
 ## Which proof
 
@@ -34,11 +34,11 @@ A stack with neither can skip this skill. Read the repo's `.agents/repo/proof-ti
 
 ## Moving one to a slower tier
 
-Follow [the tiers](../ci-workflows/references/tiers.md). Keep a cheap run on the pull requests that touch what it covers, keep its breaks running there, and say in the PR which bound or count moved and how long a fault it would catch can now sit on `main`.
+Follow [the tiers](../ci-doctor/references/ci-workflows/references/tiers.md). Keep a cheap run on the pull requests that touch what it covers, keep its breaks running there, and say in the PR which bound or count moved and how long a fault it would catch can now sit on `main`.
 
 ## Related
 
-- [`speed-up-tests`](../speed-up-tests/SKILL.md): a slow proof's waits.
+- [`speed-up-tests`](../ci-doctor/references/speed-up-tests/TOPIC.md): a slow proof's waits.
 - [How CI runs them](references/properties.md#how-ci-runs-them): seeds on a PR and in the sweep.
 - [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md): reading a property failure in a PR's run.
 - [`test-audit`](../test-audit/SKILL.md): whether a test is worth keeping.

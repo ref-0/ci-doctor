@@ -15,7 +15,7 @@ A compiled component, a Rust crate in the repo this comes from, is slow to build
 
 ## Wire it in
 
-Set this up only once the user approves the plan ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)). [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) ships pass reuse **off** (`RUST_PASS_REUSE: 'false'`), and has no merge promotion, only a TODO in its `report` job. Keep reuse off until you've configured `pass-key.ts` and seen a changed manifest (a Cargo feature, say), a changed outside fixture and a changed workflow command each move the key. Use the computed `key` and `binary` at every lookup and save, never a handwritten list.
+Set this up only once the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) ships pass reuse **off** (`RUST_PASS_REUSE: 'false'`), and has no merge promotion, only a TODO in its `report` job. Keep reuse off until you've configured `pass-key.ts` and seen a changed manifest (a Cargo feature, say), a changed outside fixture and a changed workflow command each move the key. Use the computed `key` and `binary` at every lookup and save, never a handwritten list.
 
 The plan job computes the key and looks for a pass. The component's jobs then run only when it finds none. A job after the result records a pass on main. If a merge has neither a current main pass nor a promotable pull request pass, its run simply runs the component's checks.
 

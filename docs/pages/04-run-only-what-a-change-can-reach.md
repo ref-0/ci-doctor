@@ -75,4 +75,4 @@ Selector tests build small Git histories and check real output, covering:
 
 Replay proposed selector changes over historical diffs before shipping them, and label reconstructed bases as reconstructions.
 
-Check that the selector would catch real failures with the [past-regression procedure](../../skills/ci-workflows/references/selection.md#replay-past-regressions).
+Check that the selector would catch real failures with the [past-regression procedure](../../skills/ci-doctor/references/ci-workflows/references/selection.md#replay-past-regressions).

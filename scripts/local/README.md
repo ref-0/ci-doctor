@@ -35,7 +35,7 @@ Make the folders the install steps below write to: `mkdir -p ~/.local/bin ~/.con
 
 ## Wire it in
 
-Each piece is set up only once the user approves the plan, and a timer is a new scheduled job that needs its own yes ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)).
+Each piece is set up only once the user approves the plan, and a timer is a new scheduled job that needs its own yes ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ### 1. Test slots
 

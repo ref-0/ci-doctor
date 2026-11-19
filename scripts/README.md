@@ -6,7 +6,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 ## Read-only, once, for a baseline
 
-Usable during the survey, before the plan is approved ([PROMPT's read-only rule](../PROMPT.md#before-approval-read-only)), because they only read what already exists. Keep each read bounded, and leave an API-call reserve for everyone else on the login.
+Usable during the survey, before the plan is approved ([PROMPT's read-only rule](../skills/ci-doctor/SKILL.md#before-approval-read-only)), because they only read what already exists. Keep each read bounded, and leave an API-call reserve for everyone else on the login.
 
 | Script | What it reads | Note |
 | --- | --- | --- |
@@ -15,11 +15,11 @@ Usable during the survey, before the plan is approved ([PROMPT's read-only rule]
 | [`budgets/ci-health.ts`](budgets/README.md#2-the-daily-report) `--report` | The last day's runs, through `gh` | Prints a report and touches no issue. Configure its job names first |
 | [`docs/docs-budget.ts`](docs/README.md), [`docs/type-coverage.ts`](docs/README.md) | Tracked files | Static reads. `type-coverage.ts` calls the repo's installed `tsc`; skip it if nothing is installed |
 
-The baseline itself comes from GitHub's API: the guide's [read-only collection recipe](../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says how. The `ci-time.ts` spot-check lives with the [`ci-workflows`](../skills/ci-workflows/SKILL.md) skill.
+The baseline itself comes from GitHub's API: the guide's [read-only collection recipe](../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says how. The `ci-time.ts` spot-check lives with the [`ci-workflows`](../skills/ci-doctor/references/ci-workflows/TOPIC.md) skill.
 
 ## Opt-in pieces, after approval
 
-Each changes the repo, CI, a schedule or a machine. Install one only when the plan's [authorization record](../docs/prompts/phase-3-set-targets-and-write-the-plan.md#the-authorization-record) covers it.
+Each changes the repo, CI, a schedule or a machine. Install one only when the plan's [authorization record](../skills/ci-doctor/references/phases/phase-3-set-targets-and-write-the-plan.md#the-authorization-record) covers it.
 
 | Folder | What it adds |
 | --- | --- |

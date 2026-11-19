@@ -15,7 +15,7 @@ Three static checks. One keeps the docs agents load within byte budgets, so bloa
 
 ## Wire it in
 
-Add these once the user approves the plan ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)).
+Add these once the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ```yaml
 # In CI's static job, after the install
