@@ -290,6 +290,9 @@ const jobStats = (jobs: Job[]) => {
 // ---------- logs: the slowest test files ----------
 
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+// What a test file or test's name may hold. Anything else on a matching line is someone's log text, which can
+// carry secrets or terminal escapes, so it's never kept, printed or saved.
+const TEST_NAME = /^[\w.:@+\/\[\]-]+(?: [\w.:@+\/\[\]-]+)?$/;
 const TEST_LINE: [RegExp, (m: RegExpMatchArray) => { file: string; sec: number }][] = [
   // Vitest: ✓ [project] path/to/file.test.ts (12 tests) 345ms
   [/[✓✗×❯]\s+(?:\S+\s+)?(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\s+\(\d+ tests?[^)]*\)\s+([\d.]+)(ms|s)\b/, (m) => ({ file: m[1]!, sec: +m[2]! / (m[3] === 'ms' ? 1000 : 1) })],
@@ -297,8 +300,8 @@ const TEST_LINE: [RegExp, (m: RegExpMatchArray) => { file: string; sec: number }
   [/\b(?:PASS|FAIL)\s+(?:\S+\s+)?(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\s+\(([\d.]+) ?s\)/, (m) => ({ file: m[1]!, sec: +m[2]! })],
   // Go: ok  	pkg/path	1.234s
   [/^\s*(?:ok|FAIL)\s+(\S+)\s+([\d.]+)s\b/, (m) => ({ file: m[1]!, sec: +m[2]! })],
-  // nextest: PASS [   1.234s] crate::test
-  [/\b(?:PASS|FAIL|SLOW)\s+\[\s*([\d.]+)s\]\s+(.+)$/, (m) => ({ file: m[2]!.replace(/^\([^)]*\)\s*/, "").trim(), sec: +m[1]! })],
+  // nextest: PASS [   1.234s] crate::test, or PASS [   1.234s] (1/9) crate::bin/x test::name
+  [/\b(?:PASS|FAIL|SLOW)\s+\[\s*([\d.]+)s\]\s+(?:\(\d+\/\d+\)\s+)?([\w.:\/-]+(?: [\w.:\/-]+)?)\s*$/, (m) => ({ file: m[2]!, sec: +m[1]! })],
   // pytest --durations: 1.23s call     tests/test_x.py::test_y
   [/^\s*([\d.]+)s\s+(?:call|setup|teardown)\s+(\S+)/, (m) => ({ file: m[2]!.split('::')[0]!, sec: +m[1]! })],
 ];
@@ -316,10 +319,10 @@ const slowTests = (gh: Gh, repo: string, jobs: { id: number; name: string }[]) =
       const clean = line.replace(ANSI, '').replace(/^\S+Z\s/, '');
       for (const [re, f] of TEST_LINE) {
         const m = clean.match(re);
-        if (m) {
-          files.push({ ...f(m), job: job.name });
-          break;
-        }
+        if (!m) continue;
+        const timed = f(m);
+        if (TEST_NAME.test(timed.file) && timed.file.length <= 200 && Number.isFinite(timed.sec)) files.push({ ...timed, job: job.name });
+        break;
       }
     }
   }

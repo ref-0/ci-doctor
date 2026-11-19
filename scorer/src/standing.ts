@@ -18,8 +18,10 @@ export const standingUrl = (flag: string | undefined, env = process.env.CI_DOCTO
   try {
     url = new URL(named);
   } catch {
-    throw usage(`--standing-url isn't a URL: ${named}`);
+    throw usage("--standing-url isn't a URL.");
   }
+  // A query, fragment or sign-in in the URL would carry more than the two fields, or print a secret in an error.
+  if (url.search || url.hash || url.username || url.password) throw usage('--standing-url takes no query, fragment or credentials: only the score and size are sent.');
   const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) throw usage('--standing-url must be https (http only on this machine).');
   return url;
@@ -33,7 +35,7 @@ export const sendStanding = async (url: URL, s: Standing) => {
   try {
     res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: standingBody(s), redirect: 'error' });
   } catch (e) {
-    throw new CliError(`Couldn't send the standing to ${url.origin}: ${(e as Error).message}`);
+    throw new CliError(`Couldn't send the standing to ${url.origin}: ${(e as Error).message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')}`);
   }
   if (!res.ok) throw new CliError(`The standing endpoint ${url.origin} answered ${res.status}.`);
 

@@ -45,11 +45,9 @@ export const remotes = (root: string): { name: string; url: string }[] => {
     throw new CliError(`Couldn't read this checkout's remotes: ${String((e as { stderr?: string }).stderr ?? e).trim()}`);
   }
 
-  return out
-    .split('\n')
-    .map((line) => line.match(/^remote\.(.+)\.url (.+)$/))
-    .filter((m) => !!m)
-    .map((m) => ({ name: m[1]!, url: m[2]!.trim() }));
+  const names = [...new Set(out.split('\n').map((line) => line.match(/^remote\.(.+)\.url /)?.[1]).filter((n) => n !== undefined))];
+  // get-url applies url.<base>.insteadOf, so a remote spelled as a shorthand resolves to where Git really fetches.
+  return names.map((name) => ({ name, url: git(root, ['remote', 'get-url', name]).trim() }));
 };
 
 export const resolveTarget = (cwd: string): Target => {

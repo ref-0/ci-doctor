@@ -25,17 +25,19 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - the default branch's file tree, its workflow files and its `package.json`, `nx.json` and `.github/dependabot.yml`;
 - merged and opened PRs from the last 7 days, through GitHub's search.
 
+Every call names `github.com`, whatever `GH_HOST` says, and turns `gh`'s own telemetry off (`GH_TELEMETRY=false`). Any `gh` version with `gh api` works.
+
 This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 78 calls. Each workflow file is one more call, up to 40.
 
-**Unknown isn't absent.** When it couldn't check a practice, such as when GitHub cuts a big repo's file tree short or the repo has more than 40 workflow files, that practice shows as `unknown`, with the reason, and no fix is suggested for it. A read that fails for any other reason, such as a 5xx after one retry, a lost connection or a missing permission, stops the run with exit code 1, rather than scoring on partial data.
+**Unknown isn't absent.** When it couldn't check a practice, such as when GitHub cuts a big repo's file tree short or the repo has more than 40 workflow files, that practice shows as `unknown`, with the reason, and no fix is suggested for it. Statistics GitHub is still computing, such as the weekly commit counts, leave the pace unknown for that run. A read that fails for any other reason, such as a 5xx after one retry, a lost connection, a rate limit or a missing permission, stops the run with exit code 1, rather than scoring on partial data.
 
 ## What it writes and sends
 
 By default it prints to the terminal and nothing else: no cache, no report files, no network requests besides `gh`'s.
 
-- **Job logs** are read in memory, and only the derived test timings are kept. They're never written to disk, even with `--cache`.
+- **Job logs** are read in memory, and only the derived test timings are kept, with test names that hold only name characters: nothing else from a log line is printed or saved. They're never written to disk, even with `--cache`.
 - **`--cache`** keeps API answers for up to 24 hours and reuses them. **`--save`** writes the report as JSON. Both go to your user cache folder, never npm's cache: `$XDG_CACHE_HOME/ci-doctor` or `~/.cache/ci-doctor` on Linux, `~/Library/Caches/ci-doctor` on macOS, `%LOCALAPPDATA%\ci-doctor` on Windows, or `CI_DOCTOR_CACHE_DIR`. Each gh account gets its own folder, so one account never sees another's answers. The output says how many answers came from the cache and how old the oldest was.
-- **`--standing`** is the only thing that ever sends anything. It sends a JSON body holding the score and the size class, `{"score":81,"size":"medium"}`, and nothing else: no repo name, account or measurements. It sends to the endpoint `--standing-url` or `CI_DOCTOR_STANDING_URL` names, over https. ci.ref0.dev doesn't take standings yet, so there's no default. An unscored run sends nothing.
+- **`--standing`** is the only thing that ever sends anything. It sends a JSON body holding the score and the size class, `{"score":81,"size":"medium"}`, and nothing else: no repo name, account or measurements. It sends to the endpoint `--standing-url` or `CI_DOCTOR_STANDING_URL` names, over https, and refuses a URL with a query, fragment or credentials in it. ci.ref0.dev doesn't take standings yet, so there's no default. An unscored run sends nothing.
 
 ## Options
 

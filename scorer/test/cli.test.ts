@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -109,6 +110,48 @@ describe('remotes', () => {
   });
 });
 
+describe('how gh is called', () => {
+  it('pins github.com whatever GH_HOST says, with telemetry off (the stub fails any call without both)', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), env: { GH_HOST: 'ghe.example.com' } });
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(r.calls.length > 10);
+  });
+
+  it('works with gh before 2.97, which has no --allow-escape-sequences', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), env: { GH_STUB_MODE: 'old' } });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(typeof json(r.stdout).score, 'number');
+    assert.equal(r.calls.filter((c) => c.includes('--allow-escape-sequences')).length, 1);
+  });
+
+  it('reads a GitHub remote spelled through insteadOf', async () => {
+    const dir = checkout({ origin: `gh:${PUBLIC}` });
+    execFileSync('git', ['config', 'url.git@github.com:.insteadOf', 'gh:'], { cwd: dir });
+    const r = await runCli(['--json'], { cwd: dir, routes: fakeRepo({ repo: PUBLIC }) });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(json(r.stdout).repo, PUBLIC);
+  });
+});
+
+describe('statistics GitHub is still computing', () => {
+  it('leave the pace unknown, and are not cached', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    // gh prints nothing and exits 0 on GitHub's 202.
+    routes[`repos/${PUBLIC}/stats/participation`] = { status: 200, text: '' };
+    const cacheDir = join(scratch(), 'cache');
+    const r = await runCli(['--repo', PUBLIC, '--json', '--cache'], { routes, env: { CI_DOCTOR_CACHE_DIR: cacheDir } });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(json(r.stdout).profile.pace, null);
+    for (const f of listing(cacheDir)) assert.notEqual(JSON.parse(readFileSync(f, 'utf8')).body, '', `${f} keeps an empty answer`);
+
+    const thin = fakeRepo({ repo: PUBLIC, heads: 3 });
+    thin[`repos/${PUBLIC}/stats/participation`] = { status: 200, text: '' };
+    const unscored = await runCli(['--repo', PUBLIC], { routes: thin });
+    assert.equal(unscored.code, 0, unscored.stderr);
+    assert.match(unscored.stdout, /pace –× the year/);
+  });
+});
+
 describe('too little history', () => {
   it('says unscored with the reason, and still shows the practices', async () => {
     const r = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC, heads: 3 }) });
@@ -116,6 +159,7 @@ describe('too little history', () => {
     assert.equal(r.code, 0, r.stderr);
     assert.match(r.stdout, /^pip\/public-app: unscored\. Only \d PR pushes in the window ran the main workflows; 5 are needed\./);
     assert.match(r.stdout, /Superseded PR runs cancelled\s+yes/);
+    assert.match(r.stdout, /^Repo: ~\d+k? lines \(TypeScript \d+%/m);
     assert.doesNotMatch(r.stdout, /<ci-report/);
   });
 
@@ -215,6 +259,16 @@ describe('a failed read', () => {
     assert.equal(paths(r.calls).filter((p) => p === path).length, 2);
   });
 
+  it("fails on a rate limit, even where a 403 would mean there's no log", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    for (const key of Object.keys(routes)) if (key.endsWith('/logs')) routes[key] = { status: 403, message: 'API rate limit exceeded for user ID 1' };
+    const r = await runCli(['--repo', PUBLIC], { routes });
+
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /rate limit/);
+    assert.equal(r.stdout, '');
+  });
+
   it("isn't retried when it's a 4xx", async () => {
     const routes = fakeRepo({ repo: PUBLIC });
     routes[`repos/${PUBLIC}/languages`] = { status: 422, message: 'Unprocessable' };
@@ -288,6 +342,14 @@ describe('--standing', () => {
     const plain = await runCli(['--repo', PUBLIC, '--standing', '--standing-url', 'http://example.com/x'], {});
     assert.equal(plain.code, 2);
     assert.match(plain.stderr, /must be https/);
+
+    for (const url of ['https://example.com/x?repo=pip/public-app', 'https://example.com/x#frag', 'https://user:hunter2@example.com/x']) {
+      const extra = await runCli(['--repo', PUBLIC, '--standing', '--standing-url', url], {});
+      assert.equal(extra.code, 2, url);
+      assert.match(extra.stderr, /takes no query, fragment or credentials/);
+      assert.doesNotMatch(extra.stderr, /hunter2/);
+      assert.deepEqual(extra.calls, []);
+    }
   });
 });
 
@@ -323,6 +385,29 @@ describe('files', () => {
     assert.match(second.stdout, /\d+ API calls live and \d+ answers from the cache in .*, the oldest (under a minute|1 minute) old\./);
     // Only the account check, the logs, and the commits (keyed to the moment 28 days back) go out again.
     assert.ok(paths(second.calls).every((p) => p === 'user' || /\/logs$/.test(p) || /\/commits\?/.test(p)), paths(second.calls).join('\n'));
+  });
+});
+
+describe('job logs', () => {
+  it('keep only test names and timings: other text on a matching line goes nowhere', async () => {
+    const SECRET = 'ghp_synthetic0secret0for0tests';
+    const routes: Routes = fakeRepo({ repo: PUBLIC });
+    const log = [
+      LOG_LINE,
+      `2026-11-19T10:00:01.0000000Z     FAIL [  14.000s] deploy token ${SECRET} rejected by the registry`,
+      `2026-11-19T10:00:02.0000000Z     PASS [  13.000s] \x1b]0;${SECRET}\x07 app::bin/app tests::slow`,
+      '2026-11-19T10:00:03.0000000Z     PASS [  11.500s] (3/9) app::bin/app tests::slow_one',
+    ].join('\n');
+    for (const key of Object.keys(routes)) if (key.endsWith('/logs')) routes[key] = { status: 200, text: `${log}\n` };
+    const cacheDir = join(scratch(), 'cache');
+    const r = await runCli(['--repo', PUBLIC, '--cache', '--save'], { routes, env: { CI_DOCTOR_CACHE_DIR: cacheDir } });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /app::bin\/app tests::slow_one 11\.5 s/);
+    assert.doesNotMatch(r.stdout + r.stderr, new RegExp(`${SECRET}|\x1b\\]`));
+    const files = listing(cacheDir);
+    assert.ok(files.some((f) => f.includes('reports')));
+    for (const f of files) assert.ok(!readFileSync(f, 'utf8').includes(SECRET), `${f} holds log text`);
   });
 });
 
