@@ -63,6 +63,8 @@ export class Gh {
   private readonly startedAt = Date.now();
   // One run asks for some answers twice, such as a run's jobs; it reads them once, in memory.
   private readonly memo = new Map<string, string>();
+  // gh 2.97 and later escape control characters unless told not to; logs and files are wanted as they are.
+  private escapesFlag = true;
 
   constructor(cache?: ApiCache) {
     this.cache = cache;
@@ -86,7 +88,8 @@ export class Gh {
     }
 
     const body = this.fetch(path, options);
-    if (body !== undefined && !options.noCache) {
+    // An empty body is a 202 still being computed; keeping it would hide the real answer next time.
+    if (body !== undefined && body.trim() !== '' && !options.noCache) {
       this.memo.set(key, body);
       this.cache?.set(key, body);
     }
@@ -95,7 +98,8 @@ export class Gh {
 
   json(path: string, options: ReadOptions = {}): any {
     const text = this.text(path, options);
-    if (text === undefined) return undefined;
+    // GitHub answers 202 with no body while it computes statistics: unknown for now, like an absent answer.
+    if (text === undefined || text.trim() === '') return undefined;
 
     try {
       return JSON.parse(text);
@@ -112,14 +116,21 @@ export class Gh {
   }
 
   private fetch(path: string, options: ReadOptions): string | undefined {
-    const args = ['api', '--allow-escape-sequences', ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []), path];
+    // --hostname pins every read to github.com, which the remote named, whatever GH_HOST says.
+    const args = () => [
+      'api',
+      '--hostname=github.com',
+      ...(this.escapesFlag ? ['--allow-escape-sequences'] : []),
+      ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
+      path,
+    ];
     const run = () => {
       this.calls++;
-      return execFileSync('gh', args, {
+      return execFileSync('gh', args(), {
         encoding: 'utf8',
         maxBuffer: 512 << 20,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' },
+        env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
         windowsHide: true,
       });
     };
@@ -133,8 +144,17 @@ export class Gh {
         if (err.status === 4) throw new CliError(NOT_SIGNED_IN);
 
         const stderr = String(err.stderr ?? '').trim();
+        // gh before 2.97 has no --allow-escape-sequences, and prints answers as they came; ask again without it.
+        if (this.escapesFlag && /unknown flag: --allow-escape-sequences/.test(stderr)) {
+          this.escapesFlag = false;
+          attempt--;
+          continue;
+        }
+
         const status = statusOf(stderr);
-        if (status !== undefined && options.absentOn?.includes(status)) return undefined;
+        // A rate limit or a 429 says nothing about whether the answer exists, so it's never read as absent.
+        const throttled = status === 429 || /rate limit/i.test(stderr);
+        if (status !== undefined && !throttled && options.absentOn?.includes(status)) return undefined;
         if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
 
         // A 5xx or a dropped connection gets one more try; a 4xx won't change.
@@ -142,7 +162,7 @@ export class Gh {
         if (transient && attempt < 2) continue;
 
         const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '') || `gh exited ${err.status}`;
-        const hint = /rate limit/i.test(stderr)
+        const hint = throttled
           ? " GitHub's rate limit for this account ran out; try again once it resets."
           : status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
         throw new CliError(`Couldn't read ${path}: ${said}.${hint}`);

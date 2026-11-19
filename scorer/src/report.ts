@@ -10,11 +10,14 @@ const pkgText = (pk: Record<string, number>) =>
   Object.entries(pk).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k === 'npm' ? 'npm package' : k === 'cargo' ? 'crate' : k === 'go' ? 'Go module' : 'Python project'}${n === 1 ? '' : 's'}`).join(', ') || 'one package';
 
 /** The block a person pastes into their agent, as ci-score's report has it. */
+const profileLine = (r: Report) =>
+  `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} people (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs}% by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`;
+
 export const promptBlock = (r: Report) =>
   [
     `<ci-report repo="${r.repo}" date="${r.date}">`,
     `Score ${r.score}/100, grade ${r.grade}: speed ${r.parts.speed}, reliability ${r.parts.reliability}, efficiency ${r.parts.efficiency} (${r.size}: ${r.headsPerWeek} PR pushes a week)`,
-    `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} people (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs}% by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`,
+    profileLine(r),
     `PR wait p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (pushes that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all pushes p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
     `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr ?? NaN)} job-min across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedMinutesPerMergedPr}); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
     r.jobs && `Last to finish: "${r.wait.lastToFinish[0]?.[0]}", ${r.jobs.jobs} jobs, ${m(r.jobs.jobMinutes)} job-min; run ${m(r.jobs.spanMin)} min; longest job "${r.jobs.longest.name}" ${m(r.jobs.longest.minutes)} min; setup ${p(r.jobs.setupShare)} of job time`,
@@ -98,7 +101,7 @@ export const scoredText = (r: Report, v: Provenance) => {
   return [
     head,
     window,
-    r.score === null ? '' : promptBlock(r),
+    r.score === null ? profileLine(r) : promptBlock(r),
     practicesBlock(r.practices),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),

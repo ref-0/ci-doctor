@@ -35,11 +35,17 @@ export const REPOSITORY = 'https://github.com/ref-0/ci-doctor';
 export const INSTALL_LINES = [
   `claude plugin marketplace add ref-0/ci-doctor`,
   `claude plugin install ci-doctor@${MARKETPLACE}`,
+  'Start a new session',
+  'reload-plugins',
   `codex plugin marketplace add ref-0/ci-doctor`,
   `codex plugin add ci-doctor@${MARKETPLACE}`,
+  'Start a new Codex session after installing',
+  'chat.plugins.enabled',
   'Chat: Install Plugin From Source',
   'From GitHub Repository',
   `npx skills add ${REPOSITORY}`,
+  'Select your agent when it asks',
+  'newest release tag',
 ];
 
 type Json = Record<string, unknown>;
