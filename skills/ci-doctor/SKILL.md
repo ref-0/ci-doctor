@@ -14,7 +14,7 @@ This work spans many sessions, and a session can be compacted part-way. One file
 - **No `progress.md`:** if the user asked for the plan (make CI faster, cut its cost, a CI review, or a pasted `<ci-report>`), ask once whether an earlier session left one, then start at [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md). Otherwise, use the [topic map](#topic-map).
 - **A `progress.md`:** read it before anything else, and resume at the phase and step it records, even right after approval: Phases 4–6 run from there. Trust it, the repo's history and CI's records over your own memory of earlier work. If its playbook version differs from this skill's, read [the changelog](../../CHANGELOG.md) between the two before going on.
 - **Keep it current.** Rewrite it at the end of each phase and before a session ends. Before approval it lives next to the plan, in the scratch location the user approved; if the plan stays in chat, give the user its contents to keep. After approval, it lives where the authorization record says.
-- **If you can't write it,** as when a sandbox keeps `.agents/` or `.git` read-only: ask the user to make its folder writable, or keep the progress in your answer, in the template's fields, for the user to save.
+- **If you can't write it,** as when a sandbox keeps `.agents/` or `.git` read-only: ask the user to make its folder writable, and until then keep the progress in your answer, in the template's fields, for the user to save. Not in a temporary folder, which the next session won't find.
 
 ## Before approval: read only
 
