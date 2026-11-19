@@ -30,6 +30,10 @@ export interface Manifest {
   name: string | undefined;
   /** Every dependency it names, of any kind, but those on its own workspace's packages by path or protocol. */
   deps: string[];
+  /** Every dependency it names, those by path or protocol included: the package graph's edges are the ones on its workspace. */
+  links: string[];
+  /** A package.json's `exports`: how many entries it declares and whether one is the root `.`; false with none. */
+  exports?: { entries: number; root: boolean } | false;
   /** Text other tools are named in: package.json scripts, or the whole TOML file. */
   text: string;
 }
@@ -37,6 +41,15 @@ export interface Manifest {
 const pyName = (s: string) => s.toLowerCase().replace(/[-_.]+/g, '-');
 const unquote = (s: string) => s.trim().replace(/^["']|["']$/g, '');
 const uncomment = (line: string) => line.replace(/\s+#.*$|^\s*#.*$/, '');
+
+/** `exports` as a string, an array or a conditions object is the root alone; an object of `.`-keys is a subpath map. */
+export const exportsOf = (exports: unknown): Manifest['exports'] => {
+  if (exports === undefined || exports === null) return false;
+  if (typeof exports !== 'object' || Array.isArray(exports)) return { entries: 1, root: true };
+  const keys = Object.keys(exports);
+  if (!keys.some((k) => k.startsWith('.'))) return { entries: keys.length ? 1 : 0, root: keys.length > 0 };
+  return { entries: keys.length, root: keys.includes('.') };
+};
 
 const npmManifest = (path: string, text: string): Manifest => {
   let pkg: any;
@@ -46,16 +59,20 @@ const npmManifest = (path: string, text: string): Manifest => {
     pkg = {};
   }
   const deps: string[] = [];
+  const links: string[] = [];
   for (const kind of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'])
-    for (const [name, version] of Object.entries(pkg?.[kind] ?? {}))
+    for (const [name, version] of Object.entries(pkg?.[kind] ?? {})) {
+      links.push(name);
       if (!/^(workspace|link|file|portal):/.test(String(version))) deps.push(name);
+    }
   const scripts = Object.values(pkg?.scripts ?? {}).map(String).join('\n');
-  return { path, ecosystem: 'npm', name: typeof pkg?.name === 'string' ? pkg.name : undefined, deps, text: scripts };
+  return { path, ecosystem: 'npm', name: typeof pkg?.name === 'string' ? pkg.name : undefined, deps, links, exports: exportsOf(pkg?.exports), text: scripts };
 };
 
 /** Cargo.toml's dependency tables, by line: `[dependencies]`, `[dev-dependencies.x]`, `[target.'cfg(…)'.build-dependencies]`. */
 const cargoManifest = (path: string, text: string): Manifest => {
   const deps: string[] = [];
+  const links: string[] = [];
   let name: string | undefined;
   let table = '';
   let tableDep: string | undefined;
@@ -67,7 +84,10 @@ const cargoManifest = (path: string, text: string): Manifest => {
       table = header[1]!.trim();
       const one = table.match(/^(?:target\..+\.)?(?:dev-|build-)?dependencies\.("?)([\w-]+)\1$/);
       tableDep = one?.[2];
-      if (tableDep) deps.push(tableDep);
+      if (tableDep) {
+        deps.push(tableDep);
+        links.push(tableDep);
+      }
       continue;
     }
     if (table === 'package') name ??= line.match(/^name\s*=\s*["']([^"']+)["']/)?.[1];
@@ -77,10 +97,11 @@ const cargoManifest = (path: string, text: string): Manifest => {
     const m = line.match(/^("?)([\w-]+)\1\s*(?:\.\s*workspace\s*)?=\s*(.*)$/);
     if (!m) continue;
     const renamed = m[3]!.match(/package\s*=\s*["']([^"']+)["']/)?.[1];
+    links.push(renamed ?? m[2]!);
     if (/\bpath\s*=/.test(m[3]!)) continue;
     deps.push(renamed ?? m[2]!);
   }
-  return { path, ecosystem: 'cargo', name, deps: deps.filter((d) => !internal.has(d)), text };
+  return { path, ecosystem: 'cargo', name, deps: deps.filter((d) => !internal.has(d)), links, text };
 };
 
 /** pyproject.toml: PEP 621's arrays, dependency groups, optional dependencies, uv's dev dependencies and Poetry's tables. */
@@ -125,7 +146,7 @@ const pythonManifest = (path: string, text: string): Manifest => {
     if (key && /^tool\.poetry\.(?:group\.[^.]+\.)?(?:dev-)?dependencies$/.test(table) && key !== 'python') deps.push(pyName(key));
     if (key && table === 'tool.uv.sources' && /workspace\s*=\s*true|path\s*=/.test(line)) internal.add(pyName(key));
   }
-  return { path, ecosystem: 'python', name: name && pyName(name), deps: deps.filter((d) => !internal.has(d)), text };
+  return { path, ecosystem: 'python', name: name && pyName(name), deps: deps.filter((d) => !internal.has(d)), links: deps, text };
 };
 
 const goManifest = (path: string, text: string): Manifest => {
@@ -138,14 +159,16 @@ const goManifest = (path: string, text: string): Manifest => {
     const req = block ? line.match(/^(\S+)\s+v\S+(.*)$/) : line.match(/^require\s+(\S+)\s+v\S+(.*)$/);
     if (req && !/\/\/\s*indirect/.test(req[2]!)) deps.push(req[1]!);
   }
-  return { path, ecosystem: 'go', name: text.match(/^module\s+(\S+)/m)?.[1], deps, text };
+  return { path, ecosystem: 'go', name: text.match(/^module\s+(\S+)/m)?.[1], deps, links: deps, text };
 };
 
+// A Gemfile names no package of its own, so it has no place in the package graph.
 const rubyManifest = (path: string, text: string): Manifest => ({
   path,
   ecosystem: 'ruby',
   name: undefined,
   deps: [...text.matchAll(/^\s*gem\s+["']([^"']+)["'](?![^\n]*\bpath:)/gm)].map((m) => m[1]!),
+  links: [],
   text,
 });
 
@@ -213,6 +236,86 @@ export const LINT_FORMAT: Tool[] = [
   { name: 'golangci-lint', files: /(^|\/)\.golangci\.(ya?ml|toml|json)$/, commands: /golangci-lint/ },
   { name: 'RuboCop', deps: { ruby: ['rubocop'] }, files: /(^|\/)\.rubocop\.yml$/ },
 ];
+
+// ---------- the package graph ----------
+
+/** How many packages depend on the most depended-on ones, kept in the report. */
+export const TOP_FAN_IN = 5;
+
+/**
+ * The workspace's packages and their dependencies on each other. A package is its manifest, named by its name or,
+ * without one, its path; Gemfiles name no package and stay out. Edges go to the workspace's named packages only.
+ * The repo's numbers are null (unknown) unless every manifest was read: a missing one could add packages or edges.
+ */
+export const packageGraph = (manifests: Manifest[], complete: boolean) => {
+  const nodes = manifests.filter((m) => m.ecosystem !== 'ruby');
+  const idOf = (m: Manifest) => m.name ?? m.path;
+  const byName = new Map<string, string>();
+  for (const m of nodes) if (m.name !== undefined && !byName.has(`${m.ecosystem}:${m.name}`)) byName.set(`${m.ecosystem}:${m.name}`, idOf(m));
+
+  const packages = nodes.map((m) => {
+    const internal = [...new Set(m.links.map((d) => byName.get(`${m.ecosystem}:${d}`)).filter((d): d is string => d !== undefined && d !== idOf(m)))].sort();
+    return {
+      name: idOf(m),
+      path: m.path,
+      ecosystem: m.ecosystem,
+      internal,
+      ...(m.ecosystem === 'npm' ? { exports: m.exports ?? false } : {}),
+    };
+  });
+  if (!complete) return { packages, count: null, edges: null, cycles: null, maxDepth: null, topFanIn: null };
+
+  // Strongly connected components (Tarjan's), so a cycle counts once and depth is measured between them.
+  const out = new Map<string, string[]>();
+  for (const p of packages) out.set(p.name, [...new Set([...(out.get(p.name) ?? []), ...p.internal])]);
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const component = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+  const visit = (v: string) => {
+    index.set(v, index.size);
+    low.set(v, index.get(v)!);
+    stack.push(v);
+    onStack.add(v);
+    for (const w of out.get(v) ?? []) {
+      if (!index.has(w)) {
+        visit(w);
+        low.set(v, Math.min(low.get(v)!, low.get(w)!));
+      } else if (onStack.has(w)) low.set(v, Math.min(low.get(v)!, index.get(w)!));
+    }
+    if (low.get(v) !== index.get(v)) return;
+    const members: string[] = [];
+    for (let w = stack.pop()!; ; w = stack.pop()!) {
+      onStack.delete(w);
+      component.set(w, components.length);
+      members.push(w);
+      if (w === v) break;
+    }
+    components.push(members.sort());
+  };
+  for (const v of out.keys()) if (!index.has(v)) visit(v);
+
+  // Depth: the longest chain of dependencies from a package, across components; Tarjan's emits dependencies first.
+  const depth: number[] = [];
+  components.forEach((members, c) => {
+    const next = new Set(members.flatMap((v) => out.get(v)!.map((w) => component.get(w)!)).filter((d) => d !== c));
+    depth[c] = Math.max(0, ...[...next].map((d) => depth[d]! + 1));
+  });
+
+  const fanIn = new Map<string, number>();
+  for (const p of packages) for (const d of p.internal) fanIn.set(d, (fanIn.get(d) ?? 0) + 1);
+
+  return {
+    packages,
+    count: packages.length,
+    edges: packages.reduce((a, p) => a + p.internal.length, 0),
+    cycles: components.filter((c) => c.length > 1).sort((a, b) => b.length - a.length || a[0]!.localeCompare(b[0]!)),
+    maxDepth: Math.max(0, ...depth),
+    topFanIn: [...fanIn].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, TOP_FAN_IN),
+  };
+};
 
 // ---------- the stack ----------
 
@@ -365,6 +468,7 @@ export const stackOf = ({ source, manifestPaths, workflows, languages, packages,
     libraries: listed(libraries, manifestsComplete),
     runners: runners ?? null,
     agentFiles: listed(agentFiles, treeComplete),
+    graph: packageGraph(manifests, manifestsComplete),
     /** Why any field above is null, or may hold less than the repo has. */
     unknown,
   };
