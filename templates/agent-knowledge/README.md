@@ -36,7 +36,7 @@ With `code-review`, as its own step:
 
 ## Check the copies
 
-Once copied, run `node <root>/skills/install.ts --check .agents/repo <briefs-folder>`: every link and anchor in them must resolve.
+Once copied, run the playbook's link checker, `scripts/docs/check-links.ts`, from the repo's root on `.agents/repo <briefs-folder>`: every link and anchor in them must resolve.
 
 ## Placeholders
 

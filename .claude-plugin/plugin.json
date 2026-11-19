@@ -1,0 +1,26 @@
+{
+  "name": "ci-doctor",
+  "displayName": "ci-doctor",
+  "version": "0.1.0",
+  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+  "author": {
+    "name": "ref0",
+    "url": "https://ref0.dev"
+  },
+  "homepage": "https://ci.ref0.dev",
+  "repository": "https://github.com/ref-0/ci-doctor",
+  "license": "MIT",
+  "keywords": [
+    "ci",
+    "github-actions",
+    "continuous-integration",
+    "ci-cost",
+    "flaky-tests",
+    "slow-tests",
+    "test-sharding",
+    "code-review",
+    "merge",
+    "blacksmith",
+    "agents"
+  ]
+}

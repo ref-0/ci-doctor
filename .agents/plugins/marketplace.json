@@ -1,0 +1,20 @@
+{
+  "name": "ref0",
+  "interface": {
+    "displayName": "ref0"
+  },
+  "plugins": [
+    {
+      "name": "ci-doctor",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ref-0/ci-doctor.git"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

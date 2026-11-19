@@ -1,0 +1,36 @@
+{
+  "name": "ref0",
+  "owner": {
+    "name": "ref0"
+  },
+  "metadata": {
+    "description": "ref0's agent plugins for fast, cheap and trustworthy CI."
+  },
+  "plugins": [
+    {
+      "name": "ci-doctor",
+      "source": "./",
+      "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+      "keywords": [
+        "ci",
+        "github-actions",
+        "continuous-integration",
+        "ci-cost",
+        "flaky-tests",
+        "slow-tests",
+        "test-sharding",
+        "code-review",
+        "merge",
+        "blacksmith",
+        "agents"
+      ],
+      "category": "Developer Tools",
+      "tags": [
+        "ci",
+        "testing",
+        "devops",
+        "cost"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 <!--
 What: nine agent skills for CI on GitHub Actions, its runners (on any provider; Blacksmith recommended on GitHub Actions), review, the tests CI runs and the evidence behind them, and how to install them and keep them fresh.
-Where: installed with install.ts into the skills folder your agent harness reads, once the user approves.
+Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
 Configure: write your repo's facts files from templates/agent-knowledge/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
@@ -31,27 +31,20 @@ The rules each skill relies on are one page each in [`checks/`](../checks/README
 
 ## Install
 
-Install after the user approves the plan, and only the skills they approved. Until then, read them here.
+Install the plugin, as [the README's Installing](../README.md#installing) says for each harness. It installs every skill at once. Installing is the user's own act, outside the plan's read-only rule.
 
-| Skill | Install when |
+The plan the user approves says which skills the repo **adopts**, and the repo's facts files record it. A skill the repo didn't adopt stays installed but defers to the repo's own process.
+
+| Skill | Adopt when |
 | --- | --- |
 | `ci-workflows`, `ci-runners`, `ci-merge-workflow`, `speed-up-tests`, `test-audit`, `verify-evidence` | The plan adopts the CI, merge or test work they cover. |
 | `blacksmith` | The repo runs on Blacksmith, or the user approved a move there. |
 | `proof-tiers` | The repo has bounded models or property tests. |
 | `code-review` | The user approved its review procedure and gate. Otherwise keep the repo's own review process. |
 
-1. **Keep the whole playbook at one pinned place, `<root>`:** a clone at a tag or commit, a submodule, or a vendored copy such as `.agents/ci-doctor/`. Skills link into all of it (checks, docs, templates, scripts, tools and sibling skills), so copy all of it. Don't edit it in place; update by moving the pin, after reading [the changelog](../CHANGELOG.md) between the two tags.
-2. **Copy the approved skills into the folder your harness reads,** such as `.claude/skills` for Claude Code or `.agents/skills` for Codex and others ([harnesses](../docs/harnesses.md#skills-folder-and-instruction-file) lists the ones we know; check your harness's docs). From the repo's root:
-
-   ```sh
-   node <root>/skills/install.ts --root <root> --into <skills-dir> <s> <s> ...
-   ```
-
-   It copies each skill and points every link that leaves it at the same file in `<root>`, so a skill you left out stays readable there without the harness loading it. Then it checks every link and heading anchor in what it installed, and fails on any that doesn't resolve. It never overwrites a folder it didn't write. Run it once for each harness folder. `--manifest <s>` prints the files outside a skill that it links to.
-3. **For every repo on a machine,** keep `<root>` in your home, such as `~/.agents/ci-doctor`, and install into the harness's home folder, such as `~/.claude/skills`. Where the harness lets a repo's own skill of the same name win, say so in that repo's `AGENTS.md`. Install again after moving the pin, so each repo's copy gets the fix while its facts stay in its own `.agents/repo/`.
-4. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the installed skills read, from the [templates](../templates/agent-knowledge/README.md). Add the [`AGENTS.md` snippet](../templates/agent-knowledge/AGENTS-snippet.md) to the instruction file your harness loads.
-5. **Configure the scripts the approved skills use:** `ci-time.ts`'s config block, or its flags (`node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `code-review`, `review-record.ts`'s CONFIG block, wired into the gate as [the record](code-review/references/record.md) says.
-6. **Check the result:** `node <root>/skills/install.ts --check <skills-dir> .agents/repo`. Run the skills' tests from `<root>`: `node --test install.test.ts` here, `node --test ci-time.test.ts` in `ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `code-review/scripts/` with `code-review`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
+1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](../templates/agent-knowledge/README.md). Add the [`AGENTS.md` snippet](../templates/agent-knowledge/AGENTS-snippet.md) to the instruction file your harness loads.
+2. **Configure the scripts the adopted skills use:** `ci-time.ts`'s config block, or its flags (`node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `code-review`, `review-record.ts`'s CONFIG block, wired into the gate as [the record](code-review/references/record.md) says.
+3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `code-review/scripts/` with `code-review`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
 
 ## Keeping them fresh
 
@@ -68,9 +61,7 @@ Install after the user approves the plan, and only the skills they approved. Unt
 | Placeholder | Meaning |
 | --- | --- |
 | `<org>/<repo>` | Your GitHub repository. |
-| `<root>` | The pinned copy of the whole playbook, such as `.agents/ci-doctor`. |
-| `<skills-dir>` | The skills folder your harness reads, where `install.ts` puts the approved skills, such as `.claude/skills`. |
-| `<s>` | One skill's folder name. |
+| `<skills-dir>` | Where your harness installed the skills: the plugin's copy, or a skills folder such as `.claude/skills`. |
 | `<run-id>`, `<job-id>`, `<pr>`, `<n>`, `<k>` | A run, a job, a pull request, a count, a reviewer count. |
 | `<full-head-sha>`, `<head-sha>`, `<main-sha>`, `<short sha>` | A PR's head, in full or short, and main's. |
 | `<branch>`, `<parent-branch>`, `<body-file>` | A PR's branch, the branch it stacks on, and a file holding its body. |
