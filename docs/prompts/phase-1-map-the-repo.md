@@ -31,6 +31,7 @@ Build a short **stack map**:
   Then map the edges that cross ecosystems, in both directions: shared schemas, generated clients, subprocesses and test fixtures. Keep the existing workspace commands; propose replacing one only when a measured bottleneck or coverage gap warrants it.
 - **Test runners and discovery:** each runner (Vitest, Jest, pytest, go test, cargo test…), how it finds tests (`.test.ts`, `.spec.ts`, `test_*.py`, root integration suites), and how tests are split across machines today.
 - **Selection:** how the repo decides which tests a change runs, and every edge an import graph can't see: disk reads, generated code, bundles, config. The ported planner in [`templates/plan/`](../../templates/plan/README.md) knows pnpm packages and `.test.ts`/`.test.tsx` files only. So:
+  - with Turborepo or Nx and no selection today, the first step is its own affected run, verified by replay ([guide section 4](../pages/04-run-only-what-a-change-can-reach.md#turborepo-and-nx-their-own-affected-runs-first)), not our planner;
   - the first integration keeps every existing job, Python and other suites included, and the repo's own test discovery;
   - unknown inputs and unsupported discovery run every affected suite, falling back to the full gate;
   - a later selector pilot maps Python projects and their dependents, `pyproject.toml`, lockfiles, `conftest.py`, plugins, fixtures, generated and schema edges, and cross-language subprocesses;

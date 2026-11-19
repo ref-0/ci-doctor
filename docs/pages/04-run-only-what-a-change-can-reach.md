@@ -27,6 +27,14 @@ A plan job on 2 vCPU decides what a diff reaches in seconds, with **no workspace
 - **Lockfile changes** select packages whose resolved installs changed, then their consumers. Root dependencies, the package manager and global settings select everything. Gotcha: pnpm hoisting can hide undeclared edges.
 - **Unknown code, removed packages, test orchestration and shared config** select everything. That's the conservative default.
 
+## Turborepo and Nx: their own affected runs first
+
+A repo on Turborepo or Nx already has package-level selection built in: `turbo run <task> --affected` and `nx affected -t <task>`. When the repo selects nothing today, turn that on before writing a selector. Both compare against a base commit, so check that CI fetches enough history to reach it and passes the right base for a PR (check the installed version's docs: the flags and defaults have changed between releases).
+
+- **It's package-level.** A change selects every task of its package and of the packages depending on it, through the tool's own graph. Edges that graph can't see still need declaring: root config, files read from disk across packages, generated code. Unknown inputs should select everything, as above.
+- **Verify it like a selector:** replay recent PRs and compare what it ran against what they needed ([below](#verify-the-selector-like-production-code)).
+- **Don't replace a finer selector with it.** Where the repo already selects by test file, keep that: a package graph replacing semantic selection missed tests in 74 of 100 replayed PRs (above). Our planner in [`templates/plan/`](../../templates/plan/README.md) reads pnpm workspaces only, so in a Turborepo or Nx repo it's for a later pilot, not a first step.
+
 ## "Near" selection for an integration-heavy server
 
 Every server integration test boots the whole Worker, so the import graph says *everything reaches everything*. A plain changed-files traversal picked 494 of 1,035 files for one model edit. The selector instead combines:

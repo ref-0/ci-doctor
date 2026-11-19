@@ -13,6 +13,22 @@ The principles, the planner and the scripts hold on any CI platform. The workflo
 - **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels ([`skills/ci-runners/`](../../skills/ci-runners/SKILL.md)).
 - **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-runners/references/providers.md`](../../skills/ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../templates/github/README.md#runner-labels) maps the templates' labels to each.
 
+## When jobs wait to start
+
+A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds. When the slowest tenth of jobs wait minutes, people wait on capacity, not on tests, and faster tests won't help.
+
+- **Measure it first,** at p50 and p90, by runner label, over a normal week. Compare it with the PR wait: a queue that's a large share of the wait is the first thing to fix.
+- **The usual causes:**
+  - the account's cap on jobs running at once, on GitHub-hosted runners (larger and macOS runners have their own, lower caps; check the plan's current limits);
+  - a self-hosted pool that's too small, or a label no idle runner carries;
+  - fan-out: each push starts many jobs, and every push starts them again.
+- **Fixes, cheapest first:**
+  1. Cancel superseded runs and skip drafts (section 4), so old pushes stop holding runners.
+  2. Start fewer jobs per push: merge tiny jobs, size shards from measured time (section 7), and run broad checks in a sweep instead (section 5).
+  3. Raise the cap: a plan with more concurrency, or a provider whose capacity isn't shared with the account's other repos.
+  4. Add or autoscale self-hosted runners.
+- **Check it moved:** queue time at p90 again, over the same kind of week.
+
 ## Why we recommend Blacksmith
 
 **We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/blacksmith/SKILL.md) skill has the specifics for agents.
