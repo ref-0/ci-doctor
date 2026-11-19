@@ -105,15 +105,17 @@ export const describe = (text: string): { title: string; description: string } =
   const heading = body.findIndex((l) => /^#\s/.test(l));
   const title = plain(body[heading]?.replace(/^#\s+/, '') ?? '');
 
-  // The first paragraph after the heading, skipping headings, tables, HTML, quotes and a lone link such as "[Guide](../README.md)".
+  // The first paragraph after the heading, skipping headings, tables, HTML, quotes, a lone link such as
+  // "[Guide](../README.md)", and a technique's "**Applies when:**" line, which says when, not what.
   const rest = body.slice(heading + 1);
-  const start = rest.findIndex((l) => l.trim() !== '' && !/^\s*(#|\||<|>|\[[^\]]*\]\([^)]*\)\s*$)/.test(l));
+  const start = rest.findIndex((l) => l.trim() !== '' && !/^\s*(#|\||<|>|\[[^\]]*\]\([^)]*\)\s*$|\*\*(?:Applies|Skip) when:\*\*)/.test(l));
   const end = rest.findIndex((l, i) => i > start && l.trim() === '');
   const paragraph = start === -1 ? '' : rest.slice(start, end === -1 ? undefined : end).join(' ').replace(/^\s*(?:[-*]|\d+\.)\s+/, '');
   // A bold lead that is a sentence of its own, "**Cache by real inputs.** …", keeps the sentence after it.
   const lead = /^\*\*[^*]+\.\*\*/.test(paragraph);
   const sentences = plain(paragraph).match(/.+?(?:[.!?](?=\s|$)|$)/g) ?? [];
-  const first = sentences.slice(0, lead ? 2 : 1).join('').trim();
+  // A sentence that introduces a list, "This is a field report from …:", ends as a sentence.
+  const first = sentences.slice(0, lead ? 2 : 1).join('').trim().replace(/:$/, '.');
   return { title, description: fromFront ?? fromComment ?? (first || title) };
 };
 
@@ -129,9 +131,12 @@ export const guidePages = (root: string, files: ReadonlySet<string>): string[] =
 
 /** `llms.txt`, from the served files. */
 export const llms = (root: string, files: ReadonlySet<string>): string => {
+  // A guide page's title says what it is; its first paragraph is often a technique's lead or a table's note,
+  // which reads wrong out of place, so guide pages get the title alone.
   const entry = (path: string) => {
     const { title, description } = describe(readFileSync(join(root, path), 'utf8'));
-    return `- [${title || path}](${url(path)}): ${description}`;
+    const page = /^docs\/pages\/[^/]+\.md$/.test(path);
+    return `- [${title || path}](${url(path)})${page ? '' : `: ${description}`}`;
   };
   const readme = readFileSync(join(root, 'README.md'), 'utf8');
   const summary = plain(/<\/h1>\s*\n+([^\n]+)/.exec(readme)?.[1] ?? describe(readme).description);
