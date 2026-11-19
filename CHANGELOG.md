@@ -8,6 +8,12 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### Build checks
+
+- `node scripts/check.ts` runs every build check: the plugin's manifests, the phase excerpts against their sources, links in the repo and in a skills-only copy, a scan for replaced names and paths, the docs budget, and every skill script's tests.
+- A skill script's test no longer skips when its fixture is missing: `review-record.test.ts` needs `review-recheck.yml`, and `ci-time.test.ts` the hub's `blacksmith` adapter. `ci-time.ts` finds that adapter in the hub, not in a sibling skill.
+- **Action:** none for a repo that installed the plugin. If you copied `review-record.test.ts` or `ci-time.test.ts`, copy this release's.
+
 ### `review-gate`, and settings in the repo's own files
 
 - `code-review` is now `review-gate`, in its folder, its name and every mention. In Claude Code it's `/ci-doctor:review-gate`, apart from the built-in `/code-review`.

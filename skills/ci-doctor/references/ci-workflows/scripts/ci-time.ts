@@ -378,12 +378,12 @@ export function newestLargeRun(worked: readonly WorkflowRun[], jobs: ReadonlyMap
   return null;
 }
 
-/** A billing adapter by name, from --adapter-dir or the skill of that name installed beside this one. */
+/** A billing adapter by name, from --adapter-dir or the hub's topic of that name, beside this one. */
 export async function loadAdapter(name: string, folder?: string): Promise<Adapter> {
   const here = dirname(fileURLToPath(import.meta.url));
   const file = join(folder ? resolve(folder) : resolve(here, '..', '..', name, 'scripts'), `${name}-bill.ts`);
   if (!existsSync(file)) {
-    stderr.write(`--bill ${name}: no ${name}-bill.ts found; install the ${name} skill beside ci-workflows, or pass --adapter-dir\n`);
+    stderr.write(`--bill ${name}: no ${name}-bill.ts found in the ci-doctor hub's ${name} topic; pass --adapter-dir\n`);
     exit(1);
   }
   return (await import(pathToFileURL(file).href)) as Adapter;

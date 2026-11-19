@@ -166,14 +166,16 @@ describe('whose comments count', () => {
     .map((path) => fileURLToPath(new URL(path, import.meta.url)))
     .find((path) => existsSync(path));
 
-  it('matches the associations review-recheck.yml reruns for', { skip: recheckPath === undefined ? 'no review-recheck.yml found' : false }, () => {
-    const recheck = readFileSync(recheckPath ?? '', 'utf8');
+  it('matches the associations review-recheck.yml reruns for', () => {
+    ok(recheckPath, 'review-recheck.yml is at neither path: run this from the ci-doctor repo, or from a repo that installed the workflow');
+    const recheck = readFileSync(recheckPath, 'utf8');
     const listed = /contains\(fromJSON\('(\[[^\]]*\])'\), github\.event\.comment\.author_association\)/.exec(recheck);
     ok(listed, 'review-recheck.yml lists the associations it reruns for');
     deepStrictEqual([...(JSON.parse(listed[1] ?? '[]') as ReadonlyArray<string>)].sort(), [...reviewerAssociations].sort());
   });
 
-  // gh's --jq runs this filter. jq runs the same language; without it on PATH, this case skips.
+  // gh's --jq runs this filter. jq runs the same language; without it on PATH, this case skips, and
+  // the build checks count a skip as a failure.
   const jq = spawnSync('jq', ['--version'], { encoding: 'utf8' });
   it('keeps only members\' comments, and no bot\'s', { skip: jq.status === 0 ? false : 'jq is not on PATH' }, () => {
     const done = spawnSync('jq', ['-r', memberComments], { input: JSON.stringify(page), encoding: 'utf8' });
