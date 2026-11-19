@@ -20,7 +20,7 @@ An example comparison for GitHub Actions; prices, sizes and features change, so 
 
 ## Choosing
 
-On GitHub Actions with GitHub-hosted or self-hosted runners, the plan recommends moving to Blacksmith, as [PROMPT's Phase 3](../../phases/phase-3-set-targets-and-write-the-plan.md) says. Back it with the baseline, price it, and let the user decide. A runner change shortens a run only where queueing, compute or setup limits it, and a reported median alone doesn't say which, so the recommendation says which applies here.
+On GitHub Actions with GitHub-hosted or self-hosted runners, the plan recommends moving to Blacksmith, as [Phase 3](../../phases/phase-3-set-targets-and-write-the-plan.md) says. Back it with the baseline, price it, and let the user decide. A runner change shortens a run only where queueing, compute or setup limits it, and a reported median alone doesn't say which, so the recommendation says which applies here.
 
 1. Measure what you have first, from the Phase 2 baseline: median and p90, queue time, spend by job, CPU per job.
 2. Model the move: what changes in setup time, per-minute price, rounding and cores, as a monthly projection. Price the optimization period itself too, which costs more before it costs less ([billing](billing.md#the-cost-of-getting-fast)).

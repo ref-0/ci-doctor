@@ -9,7 +9,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`ci-workflows`](../TOPIC.md) topic. Read before designing, implementing or merging a workflow change.
 
-What to verify, and the measurements behind it, are in this repo's [`checks/`](../../checks/README.md):
+What to verify, and the measurements behind it, are in the hub's [checks](../../checks/README.md):
 
 | When | Check |
 | --- | --- |

@@ -30,16 +30,16 @@ Build a short **stack map**:
 
   Then map the edges that cross ecosystems, in both directions: shared schemas, generated clients, subprocesses and test fixtures. Keep the existing workspace commands; propose replacing one only when a measured bottleneck or coverage gap warrants it.
 - **Test runners and discovery:** each runner (Vitest, Jest, pytest, go test, cargo test…), how it finds tests (`.test.ts`, `.spec.ts`, `test_*.py`, root integration suites), and how tests are split across machines today.
-- **Selection:** how the repo decides which tests a change runs, and every edge an import graph can't see: disk reads, generated code, bundles, config. The ported planner in [`templates/plan/`](../../../../templates/plan/README.md) knows pnpm packages and `.test.ts`/`.test.tsx` files only. So:
-  - with Turborepo or Nx and no selection today, the first step is its own affected run, verified by replay ([guide section 4](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#turborepo-and-nx-their-own-affected-runs-first)), not our planner;
+- **Selection:** how the repo decides which tests a change runs, and every edge an import graph can't see: disk reads, generated code, bundles, config. The ported planner in [`templates/plan/`](../../../../templates/plan/README.md) ([its rules and limits](../excerpts/phase-1.md#selection-planner)) knows pnpm packages and `.test.ts`/`.test.tsx` files only. So:
+  - with Turborepo or Nx and no selection today, the first step is its own affected run, verified by replay ([guide section 4](../excerpts/phase-1.md#turborepo-and-nx-their-own-affected-runs-first)), not our planner;
   - the first integration keeps every existing job, Python and other suites included, and the repo's own test discovery;
   - unknown inputs and unsupported discovery run every affected suite, falling back to the full gate;
   - a later selector pilot maps Python projects and their dependents, `pyproject.toml`, lockfiles, `conftest.py`, plugins, fixtures, generated and schema edges, and cross-language subprocesses;
   - before narrowing, replay adding, deleting and renaming tests in each language, and shared config edits, and compare the selected **and executed** inventories per suite (guide section 4).
-- **Caching:** what's cached today, by which key, whether a local or remote task cache exists, and which task runner it belongs to ([guide section 6's table](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches)). For any shared cache, list **every writer and every release or deploy path that consumes its results**, and the trust policy the user picks (guide section 6, "Trust").
+- **Caching:** what's cached today, by which key, whether a local or remote task cache exists, and which task runner it belongs to ([guide section 6's table](../excerpts/phase-1.md#task-runners-and-their-remote-caches)). For any shared cache, list **every writer and every release or deploy path that consumes its results**, and the trust policy the user picks (guide section 6, "Trust").
 - **Shipping:** every path that ships: npm packages, Python wheels and sdists, container or direct deploys, manual promotions. For each, what gates it and what production deploys from, mapped to guide section 5's release checklist. Note any native binaries with embedded versions or version-pairing rules (guide section 6). A repo without a usable release gate keeps its PR coverage.
 - **Local dev loop:**
-  - what agents and people run before pushing, and how long it takes cold and warm;
+  - what agents and people run before pushing, and how long it takes cold and warm, from CI's logs, the repo's docs and what people report. Before approval, run no local installs, tests or linters to time them;
   - whether tests can run near the diff, and whether the local runner meets guide section 14's runner contract. The local cached-test driver isn't ported; if you recommend one, it's written to the contract in [`scripts/local/README.md`, section 3](../../../../scripts/local/README.md#3-testcached-the-near-tests-as-cached-groups);
   - whether builds, lint and types replay from a cache;
   - whether packages need building before tests can import them;
@@ -57,13 +57,13 @@ Build a short **stack map**:
   [`tools/workspace/`](../../../../tools/workspace/README.md) has reference implementations, one command at a time. Map each command (`types`, `symbols`, `package-exports`, `check`) to applies / already done / does not fit. For plain TypeScript, start from the existing `tsc`, its project graph and the task runner's ordering, and keep the compiler, lint and generation steps as they are unless a named duplicate pass or bottleneck justifies a change. The Oxlint and Vite+ lint split is conditional on using them; skip the Effect patching unless the repo uses Effect. For a non-TypeScript repo, use its README's contracts instead.
 - **Agent knowledge:** where the agents' instructions live (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules`, a skills folder, a wiki), and which file the active harness actually loads.
 
-Then go through guide sections 2–17. Mark each technique that bears on the measured limiter:
+Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide sections 2–17 by heading, and read a section only for a technique that bears on the measured limiter. Mark each such technique:
 
 - **Applies:** say where it would go, by file path.
 - **Applies with changes:** say what changes for this stack. For example, "time-based shards: a static per-shard file list run by the installed runner", or "remote cache: Turborepo's existing remote cache, audited first, not a custom Worker".
 - **Already done:** say where.
 - **Doesn't fit:** give the reason, for example "no integration harness", "no Rust", or "single package".
 
-Collapse the rest into a short applicability note: a line per section is enough. Also read guide sections 18–19. They're history, not instructions, but for each dropped idea that the plan comes near, say whether the condition that ruled it out holds here.
+Collapse the rest into a short applicability note: a line per section is enough. Also read [what was tried and dropped](../excerpts/phase-1.md#18-tried-and-dropped). It's history, not instructions, but for each dropped idea that the plan comes near, say whether the condition that ruled it out holds here.
 
 Don't propose machinery the repo is too small to need. A small repo may need only drafts-run-nothing, time-based shards and a budget. A CI-wide in-process retry that files a flake issue on every recovery is a separate policy choice: it changes what a green gate means, so it needs its own yes.

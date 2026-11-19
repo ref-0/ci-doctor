@@ -19,7 +19,7 @@ A green check can hide a file that never ran. So:
 
 ## Collecting from the API without losing runs
 
-Any baseline, audit or report you build from the provider's API (PROMPT Phase 2) follows the completeness and estimator contract in [`skills/speed-up-tests/references/ci-history-data.md`](../../skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md). In short: split search windows below the API's caps and page every list; keep every attempt; join runs to PRs by explicit relations, not branch names; keep main's and release costs apart; name the quantile estimator and the timestamps used; pair deploys by build identity; and count what you didn't read. An unread outcome is never a zero wait, a zero cost or a success.
+Any baseline, audit or report you build from the provider's API (Phase 2) follows the completeness and estimator contract in [`skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md`](../../skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md). In short: split search windows below the API's caps and page every list; keep every attempt; join runs to PRs by explicit relations, not branch names; keep main's and release costs apart; name the quantile estimator and the timestamps used; pair deploys by build identity; and count what you didn't read. An unread outcome is never a zero wait, a zero cost or a success.
 
 A read-only baseline on GitHub Actions, run with the access you already have, into a scratch folder:
 

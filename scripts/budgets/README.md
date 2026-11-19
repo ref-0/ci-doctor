@@ -20,7 +20,7 @@ What CI may take and spend, a daily report against it, and a watcher that report
 
 ## Wire it in
 
-Each part is its own approved change, set up after the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). Start every part in report-only mode against existing runs.
+Each part is its own approved change, set up after the user approves the plan ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). Start every part in report-only mode against existing runs.
 
 ### 1. Budgets
 

@@ -4,7 +4,7 @@ Workflows and composite actions that show the CI anatomy in [the guide, section 
 
 They live here, not in `.github/`, so they never run in this repo. Copy what you need into your repo's `.github/workflows/` and `.github/actions/`, then fill in the placeholders.
 
-**Nothing here is copied, enabled or scheduled before the user approves the plan.** The commands and setup steps below are for the approved implementation ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
+**Nothing here is copied, enabled or scheduled before the user approves the plan.** The commands and setup steps below are for the approved implementation ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 **Start small.** On GitHub-hosted runners, with no Vite+, Rust or Blacksmith, begin from the [minimal starter](#minimal-starter-github-hosted) and add one overlay at a time. `ci.yml` is the full reference: every overlay wired together.
 

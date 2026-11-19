@@ -15,7 +15,7 @@ Each row says how it runs, because these are four different things: *CI* is a sc
 | Weekly (CI) | Load baseline | Runs only if the deployed server changed since the last passing baseline |
 | Three times a week (agent) | **Slow tests and flakes** | The campaign in section 15, end to end. Its guardrails are below. |
 | Every 2 weeks (agent) | **Docs drift sweep** | Section 17 |
-| Weekly (agent) | PR-time re-measure | Where engineers' PR time actually goes, using PROMPT Phase 2's delivery-interval fields. CI waits were a small share of PR-hours; questions and approvals were far larger, so we optimize the real constraint. |
+| Weekly (agent) | PR-time re-measure | Where engineers' PR time actually goes, using Phase 2's delivery-interval fields. CI waits were a small share of PR-hours; questions and approvals were far larger, so we optimize the real constraint. |
 | Weekly (agent) | Review-value check-in | Review escapes ("Caused by #n" PRs) and whether the cut-down review still catches enough |
 | Weekly (agent) | Skills/memories review | Agent memories get folded into skills or deleted |
 | Nightly (machine timer) | CI-records collector | Section 13 |

@@ -33,7 +33,7 @@ A production period the tests inherit is read through `<config-module>`, with pr
 
 <!-- Example: the server's periods are read through its config module, with production's value in the
      deploy config and a shorter one in the test harness's settings: 100 ms in tests against 1 s in production.
-     On Cloudflare Workers, see skills/speed-up-tests/references/workers.md. -->
+     On Cloudflare Workers, see the ci-doctor hub's references/speed-up-tests/references/workers.md. -->
 
 ## Holds and fakes
 
