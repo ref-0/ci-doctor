@@ -6,6 +6,13 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 - **Minor:** a new technique, skill section, script or template.
 - **Patch:** fixes and wording.
 
+## Unreleased
+
+- Guide section 9: Vite+ 1.7 and later run Oxlint's type-aware rules on tsrs themselves, so the tsgolint adapter, its override and its peer rule go; the section says to upgrade rather than build it, and how to show type-aware lint still runs after deleting it. Section 18 has the adapter's row, and `tools/workspace/`'s README drops its contract. **Action:** on Vite+ 1.7 or later, delete your `oxlint-tsgolint` adapter package, its override and its `oxlint>oxlint-tsgolint` peer allowance, then check that a floating promise in a scratch file still fails `vp lint` and `vp check`.
+- Guide section 9's "If you use Effect": `effect-tsgo tsrs` runs the tsrs that `@effect/tsgo` ships, so the type check and type-aware lint can run different tsrs releases.
+- The remote cache Worker takes two upstream fixes: a multipart part streams past a boundary prefix that isn't one, instead of buffering the whole body, and cleanup frees a generation whose multipart upload R2 can no longer abort, instead of retrying it forever with its bytes charged. Its vendored README says what else upstream changed and why it isn't taken, and that Vite+ 1.7's protocol is 1.6's. **Action:** if you deployed the Worker, copy `vendor/vite-plus-remote-cache-cloudflare/src/multipart.ts` and `database.ts`'s changes, marked `local:`, and redeploy.
+- The scorer counts a repo on Vite+ as using Oxlint and Vitest, which Vite+ bundles, and takes Oxlint's `oxlint.config.ts`, so such a repo no longer gets "Lint with Oxlint or Biome".
+
 ## v0.1.0
 
 The first public release:
