@@ -16,7 +16,10 @@
  *    release replaced: `code-review`, the hub's five topics as skills, `<root>`, `install.ts`, or
  *    `PROMPT.md`, `docs/prompts/`, `checks/` and `templates/agent-knowledge/` as paths.
  * 6. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
- * 7. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
+ * 7. **Site:** the guide for ci.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
+ *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
+ *    name every guide page, skill and reference README, and only what's served.
+ * 8. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
  *    checks use, each from its own folder. A skipped test fails: each needs its fixtures.
  *
  * Runs: from the repo's root, before pushing. Node 24, `git` and `jq` only. Temporary folders go in
@@ -32,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { anchorsOf, checkFile, filesUnder, linkTargets, proseLines } from './docs/check-links.ts';
 import { docsBudget, layout } from './docs/docs-budget.ts';
 import { validate } from './plugin/validate.ts';
+import { build, siteProblems } from './site/build.ts';
 import { stale } from './skills/excerpts.ts';
 
 /** Where a link out of `skills/` may land: the paths the hub's "Outside the skills" names. */
@@ -117,6 +121,17 @@ export const skillsOnly = (root: string): string[] => {
   return problems;
 };
 
+/** The site, built into a temporary folder: links that leave what it serves, and `llms.txt`'s gaps. */
+export const site = (root: string): { problems: string[]; files: number } => {
+  const top = mkdtempSync(join(tmpdir(), 'ci-doctor-site-'));
+  try {
+    const { files } = build(root, join(top, 'site'));
+    return { problems: siteProblems(root, join(top, 'site')), files };
+  } finally {
+    rmSync(top, { recursive: true, force: true });
+  }
+};
+
 /** Each line that names what this release replaced, in prose or in code. */
 export const oldNames = (root: string, files = tracked(root)): string[] => {
   const problems: string[] = [];
@@ -163,6 +178,7 @@ export const checks = (root: string): Result[] => {
   const links = filesUnder(root, []).filter((f) => f.endsWith('.md'));
   const budget = docsBudget(root, { ...layout, skillPath: /^skills\/([^/]+)\/SKILL\.md$/, upstreamLock: undefined, upstreamPrefixes: ['test-audit'], rules: undefined });
   const run = tests(root);
+  const built = site(root);
   return [
     { name: 'plugin', problems: validate(root), summary: 'manifests agree; each skill loads as one' },
     { name: 'excerpts', problems: stale(root).map((p) => `${p}: stale; run node scripts/skills/excerpts.ts`), summary: 'match their sources' },
@@ -170,6 +186,7 @@ export const checks = (root: string): Result[] => {
     { name: 'links, skills only', problems: skillsOnly(root), summary: 'resolve in the copy, or leave it only for the fallback' },
     { name: 'old names', problems: oldNames(root), summary: 'none' },
     { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget` },
+    { name: 'site', problems: built.problems, summary: `${built.files} files; every link lands on one, and llms.txt names every page` },
     { name: 'tests', problems: run.problems, summary: `${run.ran} files, ${run.passed} tests passed, none skipped` },
   ];
 };

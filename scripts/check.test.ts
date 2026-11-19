@@ -1,17 +1,18 @@
 /**
- * Tests for check.ts: the old-name scan, the skills-only link check and the test runner each
+ * Tests for check.ts: the old-name scan, the skills-only link check, the site check and the test runner each
  * catch what they're for, including the cases a review found they missed.
  *
  * Runs: `node --test check.test.ts` from this folder (Node 24).
  */
 import { deepStrictEqual, equal, match } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { FALLBACK, OLD_NAMES, skillsOnly, tests } from './check.ts';
+import { FALLBACK, OLD_NAMES, site, skillsOnly, tests } from './check.ts';
+import { build } from './site/build.ts';
 
 const flagged = (line: string) => OLD_NAMES.some(([pattern]) => pattern.test(line));
 
@@ -63,5 +64,82 @@ describe('the test runner', () => {
       ['skills/a/scripts/empty.test.ts'],
     );
     equal(run.passed, 1);
+  });
+});
+
+describe('the site check', () => {
+  /** A repo whose links all resolve in Git, so the repo's own link check passes it. */
+  const repo = (extra: Record<string, string> = {}) => {
+    const root = mkdtempSync(join(tmpdir(), 'check-site-'));
+    const files: Record<string, string> = {
+      '.gitignore': 'dist/\n',
+      'README.md': '<h1>x</h1>\n\nA guide.\n\nSee [the guide](docs/README.md), [the tools](tools/) and the [license](LICENSE).\n',
+      'CHANGELOG.md': '# Changelog\n\nReleases.\n',
+      LICENSE: 'MIT\n',
+      'docs/README.md': '# Guide\n\nIntro, see [two](pages/02-b.md).\n\n## Contents\n\n1. [One](pages/01-a.md)\n2. [Two](pages/02-b.md)\n',
+      'docs/pages/01-a.md': '[Guide](../README.md)\n\n# 1. A\n\n**Applies when:** always. More.\n',
+      'docs/pages/02-b.md': '# 2. B\n\nUses [the script](../../scripts/x/run.ts).\n',
+      'skills/hub/SKILL.md': '---\nname: hub\ndescription: "The hub."\n---\n\n# Hub\n',
+      'scripts/x/README.md': '# X\n\nRuns things.\n',
+      'scripts/x/run.ts': 'export {};\n',
+      'tools/t/README.md': '# T\n\nA tool.\n',
+      'tools/t/src/main.ts': 'export {};\n',
+      ...extra,
+    };
+    for (const [file, text] of Object.entries(files)) write(root, file, text);
+    spawnSync('git', ['init', '-q'], { cwd: root });
+    spawnSync('git', ['add', '.'], { cwd: root });
+    return root;
+  };
+  const roots: string[] = [];
+  after(() => roots.forEach((r) => rmSync(r, { recursive: true, force: true })));
+  const problems = (extra?: Record<string, string>, untracked: Record<string, string> = {}) => {
+    const root = repo(extra);
+    roots.push(root);
+    for (const [file, text] of Object.entries(untracked)) write(root, file, text);
+    return site(root).problems;
+  };
+
+  it('passes a repo whose links land on served files and folders, and serves a linked folder whole', () => {
+    deepStrictEqual(problems(), []);
+    const root = repo();
+    roots.push(root);
+    build(root, join(root, 'out'));
+    equal(existsSync(join(root, 'out/guide/tools/t/src/main.ts')), true);
+    equal(existsSync(join(root, 'out/guide/tools/index.html')), true);
+    match(readFileSync(join(root, 'out/llms.txt'), 'utf8'), /^- \[1\. A\]\(https:\/\/ci\.ref0\.dev\/guide\/docs\/pages\/01-a\.md\): Applies when: always\.$/m);
+  });
+
+  it('builds the same bytes twice', () => {
+    const root = repo();
+    roots.push(root);
+    build(root, join(root, 'a'));
+    build(root, join(root, 'b'));
+    const diff = spawnSync('diff', ['-r', 'a', 'b'], { cwd: root });
+    equal(diff.status, 0, diff.stdout.toString());
+  });
+
+  it('fails a link to a file Git ignores, which the repo link check passes because it exists', () => {
+    const found = problems({ 'scripts/x/README.md': '# X\n\nBuilt: [the bundle](../../dist/out.js).\n' }, { 'dist/out.js': '' });
+    deepStrictEqual(found, ["scripts/x/README.md:3: ../../dist/out.js: dist/out.js isn't served"]);
+  });
+
+  it('fails a link to a test fixture, and to a folder holding only fixtures', () => {
+    const found = problems({
+      'scripts/x/README.md': '# X\n\nSee [a fixture](test/fixtures/a.json) and [them all](test/fixtures/).\n',
+      'scripts/x/test/fixtures/a.json': '{}\n',
+    });
+    equal(found.length, 2);
+    match(found.join('\n'), /test\/fixtures\/a\.json isn't served[\s\S]*test\/fixtures isn't served/);
+  });
+
+  it('fails a link that leaves the repo', () => {
+    const found = problems({ 'docs/pages/02-b.md': '# 2. B\n\nSee [the monorepo](../../../elsewhere/README.md).\n' });
+    match(found.join('\n'), /docs\/pages\/02-b\.md:3: .*: leaves \/guide\//);
+  });
+
+  it("fails a guide page that docs/README.md's contents don't list, so llms.txt leaves it out", () => {
+    const found = problems({ 'docs/pages/03-c.md': '# 3. C\n\nNew.\n', 'docs/pages/02-b.md': '# 2. B\n\nNext: [C](03-c.md).\n' });
+    deepStrictEqual(found, ["llms.txt: doesn't name docs/pages/03-c.md"]);
   });
 });
