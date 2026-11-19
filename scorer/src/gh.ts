@@ -16,6 +16,8 @@ export interface ReadOptions {
   raw?: boolean;
   /** Never cache this answer, such as a job's log. */
   noCache?: boolean;
+  /** Send this GraphQL query, to the `graphql` path. */
+  query?: string;
 }
 
 /** API answers kept on disk, only when asked, under one gh account's folder. */
@@ -66,13 +68,17 @@ export class Gh {
   // gh 2.97 and later escape control characters unless told not to; logs and files are wanted as they are.
   private escapesFlag = true;
 
-  constructor(cache?: ApiCache) {
+  /** A token to read with instead of gh's own sign-in, such as a GitHub App's, passed to gh as GH_TOKEN. */
+  private readonly token: string | undefined;
+
+  constructor(cache?: ApiCache, token?: string) {
     this.cache = cache;
+    this.token = token;
   }
 
   /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
   text(path: string, options: ReadOptions = {}): string | undefined {
-    const key = `${options.raw ? 'raw' : 'api'}:${path}`;
+    const key = options.query !== undefined ? `graphql:${options.query}` : `${options.raw ? 'raw' : 'api'}:${path}`;
     const seen = options.noCache ? undefined : this.memo.get(key);
     if (seen !== undefined) return seen;
 
@@ -97,7 +103,15 @@ export class Gh {
   }
 
   json(path: string, options: ReadOptions = {}): any {
-    const text = this.text(path, options);
+    return this.parse(path, this.text(path, options));
+  }
+
+  /** One GraphQL query's answer, cached and remembered as a GET is. GitHub counts these against their own hourly points. */
+  graphql(query: string): any {
+    return this.parse('graphql', this.text('graphql', { query }));
+  }
+
+  private parse(path: string, text: string | undefined): any {
     // GitHub answers 202 with no body while it computes statistics: unknown for now, like an absent answer.
     if (text === undefined || text.trim() === '') return undefined;
 
@@ -123,6 +137,7 @@ export class Gh {
       ...(this.escapesFlag ? ['--allow-escape-sequences'] : []),
       ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
       path,
+      ...(options.query !== undefined ? ['-f', `query=${options.query}`] : []),
     ];
     const run = () => {
       this.calls++;
@@ -130,7 +145,7 @@ export class Gh {
         encoding: 'utf8',
         maxBuffer: 512 << 20,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
+        env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
         windowsHide: true,
       });
     };

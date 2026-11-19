@@ -4,8 +4,9 @@
 // reading as empty, a practice that couldn't be checked is null (unknown) rather than false (absent), job logs are
 // read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
 import { CliError } from './errors.ts';
-import type { Gh } from './gh.ts';
+import { ApiCache, Gh } from './gh.ts';
 import { githubSource, localSource, type Source, type Tree } from './source.ts';
+import { ecosystemOf, stackOf } from './stack.ts';
 
 const DAY = 24 * 3600e3;
 const MAX_RUN_PAGES = 10;
@@ -334,6 +335,17 @@ const slowTests = (gh: Gh, repo: string, jobs: { id: number; name: string }[]) =
 
 // ---------- static practices: the tree and the workflow files ----------
 
+/** The default branch's workflow files, up to MAX_WORKFLOWS, and whether every one was read. */
+const workflowFiles = (source: Source) => {
+  const all = source.tree.blobs.map((b) => b.path).filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p));
+  const read = all.slice(0, MAX_WORKFLOWS).map((p) => ({ p, text: source.read(p) }));
+  const texts = read.map((r) => r.text).filter((x): x is string => x !== undefined);
+  const unknown: string[] = [];
+  if (all.length > MAX_WORKFLOWS) unknown.push(`Read the first ${MAX_WORKFLOWS} of ${all.length} workflow files`);
+  for (const r of read) if (r.text === undefined) unknown.push(`${r.p} is in the tree but couldn't be found`);
+  return { all, texts, complete: !source.tree.truncated && all.length <= MAX_WORKFLOWS && texts.length === read.length, unknown };
+};
+
 /** Found is true; not found where everything was read is false (absent); not found otherwise is null (unknown). */
 const tri = (found: boolean, complete: boolean): boolean | null => (found ? true : complete ? false : null);
 const named = <T>(found: T | undefined, complete: boolean): T | false | null => (found !== undefined ? found : complete ? false : null);
@@ -345,13 +357,8 @@ export const practices = (source: Source) => {
   const unknown: string[] = [];
   if (!treeComplete) unknown.push("GitHub cut the file tree short, so a file past the cut can't be checked");
 
-  const allWorkflows = [...tree].filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p));
-  const workflowPaths = allWorkflows.slice(0, MAX_WORKFLOWS);
-  const read = workflowPaths.map((p) => ({ p, text: source.read(p) }));
-  const workflows = read.map((r) => r.text).filter((x): x is string => x !== undefined);
-  if (allWorkflows.length > MAX_WORKFLOWS) unknown.push(`Read the first ${MAX_WORKFLOWS} of ${allWorkflows.length} workflow files`);
-  for (const r of read) if (r.text === undefined) unknown.push(`${r.p} is in the tree but couldn't be found`);
-  const workflowsComplete = treeComplete && allWorkflows.length <= MAX_WORKFLOWS && workflows.length === read.length;
+  const { all: allWorkflows, texts: workflows, complete: workflowsComplete, unknown: workflowsUnknown } = workflowFiles(source);
+  unknown.push(...workflowsUnknown);
 
   // A file read only if the tree has it: '' when it's known to be absent, undefined when that's unknown.
   const optional = (p: string) => {
@@ -442,6 +449,11 @@ const SUPPORT = /(^|\/)(fixtures?|__fixtures__|__mocks__|mocks|testdata|test-?ut
 const TEST = /\.(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rs)$|(^|\/)test_[^/]*\.py$|(^|\/)(tests?|__tests__|spec|specs)\//i;
 export const BYTES_PER_LINE = 30; // GitHub's language bytes ÷ lines, measured 28–31 on hono, vite and ruff, 18 Nov 2026
 
+const notExample = (p: string) => !/(^|\/)(examples?|fixtures?|__fixtures__|test|tests|e2e|templates?(-[\w.-]+)?|benchmarks?|playground)\//i.test(p);
+const isPackage = (p: string) => notExample(p) && !SKIP.test(p);
+/** The workspace's package manifests, as the profile counts them: not examples, fixtures, vendored or generated. */
+export const manifestPaths = (tree: Tree) => tree.blobs.map((b) => b.path).filter((p) => ecosystemOf(p) !== undefined && isPackage(p));
+
 const kindOf = (path: string) =>
   INTEGRATION.test(path) ? 'integration' : SUPPORT.test(path) ? 'support' : TEST.test(path) ? 'tests' : 'implementation';
 
@@ -453,8 +465,7 @@ export const treeProfile = (tree: Tree) => {
   for (const b of code) bytes[kindOf(b.path)]! += b.size ?? 0;
   const codeBytes = Object.values(bytes).reduce((a, x) => a + x, 0);
   const lines = (n: number) => Math.round(n / BYTES_PER_LINE);
-  const notExample = (p: string) => !/(^|\/)(examples?|fixtures?|__fixtures__|test|tests|e2e|templates?|benchmarks?|playground)\//i.test(p);
-  const manifests = (name: RegExp) => blobs.filter((b) => name.test(b.path) && notExample(b.path) && !SKIP.test(b.path)).length;
+  const manifests = (name: RegExp) => blobs.filter((b) => name.test(b.path) && isPackage(b.path)).length;
 
   return {
     codeBytes,
@@ -517,7 +528,7 @@ const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: numb
     ageYears: r1((Date.now() - Date.parse(meta.created_at)) / (365 * DAY)),
     stars: meta.stargazers_count,
     forks: meta.forks_count,
-    languages: Object.entries(languages).slice(0, 4).map(([l, b]) => [l, Math.round(((b as number) / langTotal) * 100)]),
+    languages: Object.entries(languages).slice(0, 4).map(([l, b]) => [l, Math.round(((b as number) / langTotal) * 100)] as [string, number]),
     ...fromTree,
     // Lines of the repo's own source, from the tree's file sizes. GitHub's language bytes count vendored copies and
     // generated code a repo hasn't marked, so they are only the fallback, when the tree is truncated or empty.
@@ -702,7 +713,8 @@ const notesOf = (pr: Practices, language: string | undefined) => [
   ...stackNote(language),
 ];
 
-export const scoreRepo = (gh: Gh, repo: string, days: number) => {
+/** One repo's report through this Gh: what `scoreRepo` and the CLI return, without the `read` provenance. */
+export const measure = (gh: Gh, repo: string, days: number) => {
   const meta = gh.json(`repos/${repo}`, { absentOn: [404] });
   if (!meta)
     throw new CliError(`GitHub has no repo ${repo} that this gh account can see. If it's private, the account needs access to it and the \`repo\` scope (\`gh auth refresh -s repo\`).`);
@@ -796,6 +808,15 @@ export const scoreRepo = (gh: Gh, repo: string, days: number) => {
   const source = githubSource(gh, repo, meta.default_branch);
   const pr = practices(source);
   const profile = profileOf(gh, repo, meta, source.tree, prRuns.length, covered);
+  // Workflow files and the languages answer are remembered from the reads before: no second call.
+  const stack = stackOf({
+    source,
+    manifestPaths: manifestPaths(source.tree),
+    workflows: workflowFiles(source),
+    languages: gh.json(`repos/${repo}/languages`) === undefined ? undefined : profile.languages,
+    packages: profile.packages,
+    runners: jobs?.providers,
+  });
   const mergedInWindow = (profile.prsMergedPerWeek * Math.max(covered, 0.5)) / 7;
   const efficiency = {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
@@ -852,6 +873,7 @@ export const scoreRepo = (gh: Gh, repo: string, days: number) => {
     jobs,
     tests,
     practices: pr,
+    stack,
     // No workflows: no CI to fix yet, as for a checkout's inventory.
     fixes: pr.workflows === 0 ? [] : fixesOf(outcomes, pr),
     notes: notesOf(pr, profile.languages[0]?.[0] as string | undefined),
@@ -859,13 +881,42 @@ export const scoreRepo = (gh: Gh, repo: string, days: number) => {
   };
 };
 
-export type Report = ReturnType<typeof scoreRepo>;
+export type Report = ReturnType<typeof measure>;
+
+export interface ScoreOptions {
+  /** Days of runs to read, 1 to 90. Default 7. */
+  days?: number;
+  /** A token to read with, such as a GitHub App's; otherwise gh's sign-in, or GH_TOKEN. */
+  token?: string;
+  /** Keep and reuse API answers up to 24 hours old in this folder. */
+  cacheDir?: string;
+}
+
+/** Where a report's numbers came from: live calls, cached answers and any file written. */
+export const provenanceOf = (gh: Gh, cacheDir?: string, savedTo?: string) => ({
+  calls: gh.calls,
+  fromCache: gh.fromCache,
+  oldestCachedAt: gh.oldestCachedAt,
+  cacheDir,
+  savedTo,
+});
+
+/** One GitHub repo's report, the object `--json` prints, from code. Reads go through `gh api`. */
+export const scoreRepo = (repo: string, { days = 7, token, cacheDir }: ScoreOptions = {}) => {
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new CliError('days takes a whole number from 1 to 90.', 2);
+
+  const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined, token);
+  const report = measure(gh, repo, days);
+  return { ...report, read: provenanceOf(gh, cacheDir) };
+};
 
 /** No GitHub history to read: what the checkout's own files say, unscored, with the reason. */
 export const inventoryLocal = (root: string, reason: string) => {
   const source = localSource(root);
   const pr = practices(source);
   const { codeBytes: _, ...profile } = treeProfile(source.tree);
+  // A checkout has no GitHub languages or jobs: those stay unknown.
+  const stack = stackOf({ source, manifestPaths: manifestPaths(source.tree), workflows: workflowFiles(source), languages: undefined, packages: profile.packages, runners: undefined });
 
   return {
     repo: null,
@@ -877,6 +928,7 @@ export const inventoryLocal = (root: string, reason: string) => {
     grade: null,
     band: null,
     practices: pr,
+    stack,
     // A checkout with no workflows has no CI to fix yet.
     fixes: pr.workflows ? fixesOf({ wait: waits([]) }, pr) : [],
     notes: notesOf(pr, undefined),

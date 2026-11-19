@@ -15,7 +15,12 @@ export interface Tree {
 export interface Source {
   tree: Tree;
   read(path: string): string | undefined;
+  /** Several files at once, by path. A path left out of the answer couldn't be found or read whole. */
+  readMany(paths: string[]): Map<string, string>;
 }
+
+/** Files per GraphQL query: GitHub answers 100 aliased blobs well inside its limits. */
+export const FILES_PER_QUERY = 100;
 
 const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
 
@@ -24,9 +29,26 @@ export const githubSource = (gh: Gh, repo: string, ref: string): Source => {
   const tree = gh.json(`repos/${repo}/git/trees/${ref}?recursive=1`, { absentOn: [404, 409] });
   const blobs = ((tree?.tree ?? []) as any[]).filter((t) => t.type === 'blob').map((t) => ({ path: String(t.path), size: Number(t.size ?? 0) }));
 
+  const [owner, name] = repo.split('/') as [string, string];
+  // One query reads up to FILES_PER_QUERY files, each an aliased object at `ref:path`; a missing one answers null.
+  const readMany = (paths: string[]) => {
+    const texts = new Map<string, string>();
+    for (let i = 0; i < paths.length; i += FILES_PER_QUERY) {
+      const batch = paths.slice(i, i + FILES_PER_QUERY);
+      const objects = batch.map((p, j) => `f${j}: object(expression: ${JSON.stringify(`${ref}:${p}`)}) { ... on Blob { isTruncated text } }`);
+      const answer = gh.graphql(`query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${objects.join(' ')} } }`);
+      batch.forEach((p, j) => {
+        const blob = answer?.data?.repository?.[`f${j}`];
+        if (typeof blob?.text === 'string' && !blob.isTruncated) texts.set(p, blob.text);
+      });
+    }
+    return texts;
+  };
+
   return {
     tree: { blobs, truncated: !!tree?.truncated },
     read: (path) => gh.text(`repos/${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`, { raw: true, absentOn: [404] }),
+    readMany,
   };
 };
 
@@ -51,15 +73,21 @@ export const localSource = (root: string): Source => {
     }
   }
 
+  const read = (path: string) => {
+    try {
+      return readFileSync(onDisk(path), 'utf8');
+    } catch (e) {
+      if ((e as { code?: string }).code === 'ENOENT') return undefined;
+      throw new CliError(`Couldn't read ${path}: ${(e as Error).message}`);
+    }
+  };
+
   return {
     tree: { blobs, truncated: false },
-    read: (path) => {
-      try {
-        return readFileSync(onDisk(path), 'utf8');
-      } catch (e) {
-        if ((e as { code?: string }).code === 'ENOENT') return undefined;
-        throw new CliError(`Couldn't read ${path}: ${(e as Error).message}`);
-      }
-    },
+    read,
+    readMany: (paths) => new Map(paths.flatMap((p) => {
+      const text = read(p);
+      return text === undefined ? [] : [[p, text] as const];
+    })),
   };
 };
