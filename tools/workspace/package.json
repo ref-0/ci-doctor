@@ -2,7 +2,7 @@
   "name": "workspace-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Type driver and cache, symbol search and copy check, export guard and split lint config. Reference implementation; adapt to your repo.",
+  "description": "Type driver and cache, symbol search and copy check, export guard, package-graph check and split lint config. Reference implementation; adapt to your repo.",
   "type": "module",
   "bin": {
     "workspace-tools": "./src/bin.ts"
