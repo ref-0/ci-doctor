@@ -146,7 +146,9 @@ export const validate = (root: string): string[] => {
     if (!same(entry.keywords, portable.keywords)) problems.push(`${path}: ci-doctor's keywords differ from plugin.json's`);
   }
   const source = (codexEntry.source ?? {}) as Json;
-  if (source.source !== 'url' || source.url !== `${REPOSITORY}.git`) problems.push(`.agents/plugins/marketplace.json: ci-doctor's source must be the url ${REPOSITORY}.git`);
+  // The marketplace's own checkout, so a local folder installs without GitHub, and `--ref` pins the plugin too.
+  // A url source clones the default branch again, whatever ref the marketplace was added at.
+  if (source.source !== 'local' || source.path !== './') problems.push(`.agents/plugins/marketplace.json: ci-doctor's source must be {"source": "local", "path": "./"}`);
 
   const readme = existsSync(join(root, 'README.md')) ? readFileSync(join(root, 'README.md'), 'utf8') : '';
   for (const line of INSTALL_LINES) if (!readme.includes(line)) problems.push(`README.md: missing the install line "${line}"`);
