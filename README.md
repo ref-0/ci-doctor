@@ -9,11 +9,19 @@ Everything we learned getting CI to a ~3-minute median in a 1.5M LOC TypeScript 
 
 ## AI Quickstart
 
-Copy this into your coding agent, from your repo's root:
+Copy this into your coding agent, from your repo's root. It installs the skills, by [whichever method](#installing) your agent supports, then starts the plan:
 
 ```text
-Clone https://github.com/ref-0/ci-doctor.git into a folder outside this repo, check out its newest release tag, read its PROMPT.md, and follow it for this repo, starting at the beginning.
+Install the ci-doctor skills using one method. In Claude Code, run `claude plugin marketplace add ref-0/ci-doctor`, then `claude plugin install ci-doctor@ref0`, and start a new session or run `/reload-plugins`. In Codex, run `codex plugin marketplace add ref-0/ci-doctor`, then `codex plugin add ci-doctor@ref0`, and start a new session. In VS Code or Cursor, install `https://github.com/ref-0/ci-doctor` as a plugin from source. For another agent, run `npx skills add https://github.com/ref-0/ci-doctor` and select the agent. Then use the ci-doctor skill to start its plan for this repo.
 ```
+
+To try it without installing anything, paste this instead:
+
+```text
+Clone https://github.com/ref-0/ci-doctor.git into a folder outside this repo, check out its newest release tag, read its skills/ci-doctor/SKILL.md, and follow it for this repo, starting at the beginning.
+```
+
+If you scored your repo with `npx @ref0/ci-doctor` or on ci.ref0.dev, add `Start from this CI report:` and paste the report's `<ci-report>` block after either prompt.
 
 Your agent maps your stack, measures your CI's median and p90, and writes a plan for you to review. Until you approve it, it only reads: no installs, test runs, CI runs, account setup or schedules.
 
@@ -73,9 +81,7 @@ Clone this repo at its newest release tag and copy each folder in `skills/` into
 
 ### Or let your agent install it
 
-```text
-Install the ci-doctor skills using one method. In Claude Code, run `claude plugin marketplace add ref-0/ci-doctor`, then `claude plugin install ci-doctor@ref0`, and start a new session or run `/reload-plugins`. In Codex, run `codex plugin marketplace add ref-0/ci-doctor`, then `codex plugin add ci-doctor@ref0`, and start a new session. In VS Code or Cursor, install `https://github.com/ref-0/ci-doctor` as a plugin from source. For another agent, run `npx skills add https://github.com/ref-0/ci-doctor` and select the agent. Then use the ci-doctor skill to start its plan for this repo.
-```
+Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method for your agent.
 
 ## Contents
 

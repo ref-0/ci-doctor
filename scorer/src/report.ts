@@ -101,7 +101,7 @@ export const scoredText = (r: Report, v: Provenance) => {
   return [
     head,
     window,
-    r.score === null ? profileLine(r) : promptBlock(r),
+    r.score === null ? profileLine(r) : `To fix it with your agent, paste the AI Quickstart prompt from https://github.com/ref-0/ci-doctor, then "Start from this CI report:" and this block:\n\n${promptBlock(r)}`,
     practicesBlock(r.practices),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),
