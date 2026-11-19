@@ -55,6 +55,6 @@ pnpm run build                            # every package's build
 ## Working here
 
 - When docs and code disagree, the code is right. Fix the doc in the same change.
-- CI: read `ci-doctor` before changing it, before changing a runner or costing a change, and for Blacksmith's CLI and disks<!-- drop if you don't run on Blacksmith -->. `review-gate` reviews a PR while it's a draft<!-- drop if the repo keeps its own review process -->, and `ci-merge-workflow` takes it to merged; before merging, read the `ci-doctor` skill's check `references/checks/check-what-ci-ran.md`. This repo's facts are in `.agents/repo/ci.md` and `.agents/repo/review.md`.
+- CI: read `ci-doctor` before changing it, before changing a runner or costing a change, and for Blacksmith's CLI and disks<!-- drop if you don't run on Blacksmith -->. `review-gate` is the review gate a draft passes before its one CI run<!-- drop if the repo keeps its own review process -->, and `ci-merge-workflow` takes it to merged; before merging, read the `ci-doctor` skill's check `references/checks/check-what-ci-ran.md`. This repo's facts are in `.agents/repo/ci.md` and `.agents/repo/review.md`.
 - Tests: `ci-doctor` for a slow test or a flake, `test-audit` for a test's value, `proof-tiers` for models and property tests.
 - Evidence: `ci-doctor`'s `verify-evidence` topic before you call work done or quote a number.

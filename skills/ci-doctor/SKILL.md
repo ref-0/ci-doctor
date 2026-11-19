@@ -75,7 +75,7 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 
 ## Not here
 
-- Reviewing a PR before its CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
+- The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
 

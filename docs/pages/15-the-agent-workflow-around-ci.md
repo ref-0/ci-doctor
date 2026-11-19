@@ -14,10 +14,36 @@
 - **Type-check test-only changes too.** CI runs type-aware lint on every file.
 - **Review:**
   - Changed tests, helpers or test config need a **test-focused reviewer** (a second model), apart from tiny low-risk changes (≤ 20 changed test lines). Speed work can silently weaken proof.
-  - Large production changes (for us, at least 300 net production lines, `largeChange` in [`review-record.ts`](../../skills/review-gate/scripts/review-record.ts)) need a code-quality review. [`skills/review-gate/`](../../skills/review-gate/SKILL.md) holds the review procedure.
+  - Large production changes (for us, at least 300 net production lines, `largeChange` in [`review-record.ts`](../../skills/review-gate/scripts/review-record.ts)) need a code-quality review. The [`review-gate`](../../skills/review-gate/SKILL.md) skill holds the gate CI checks; [how we run a review](#how-we-run-a-review) is below.
   - Rounds are capped.
   - If only the review record was missing, a small workflow reruns **just the aggregate result job** once a valid record lands. It doesn't rerun everything else.
 - **Follow main after merging.** Main once stayed red for hours while agents watched only their own PRs. A green merge isn't a deploy, either: check the deploy.
+
+## How we run a review
+
+**Applies when:** A repo adopts the review gate and has no review process of its own for what the gate requires. **Skip when:** The repo's own review already decides who reviews and how, or it doesn't gate CI on a review.
+
+The review gate checks that a record exists and is well formed. This is the review behind the record, as we ran it. Your repo's own review can replace it: review.md names who reviews, with which types, at what effort.
+
+**What gets a review.** A system where a miss is a security hole, loses data or is hard to undo: sign-in, tokens, secrets and permissions; anything that writes the record of who did what; contracts at the repo's boundaries; stored state and migrations; a bounded model's rules, breaks and bounds; a spike's results when they decide what gets built. The review list names these paths.
+
+**Before starting,** name the session for the PR and the short commit it starts at, such as `<pr>-<head-sha>`, so it never reads an earlier session's output as its own. Check for collisions: `gh pr list --repo <org>/<repo> --search "<file>"` for each file, looking for the same lines, a heading this PR renames, or a table it reflows for one row. Narrow the change, stack on the other PR, or say which merges first.
+
+**Plan the reviewers.** Read the diff, and give each area the change reaches a reviewer of the type that fits it: red team for a token, system design for a lease, storage for a migration, program design for a contract, fuzzing for a parser, bounded verification for a model's rules, stress test for inputs, experiment and skeptic for a spike's results, with the bar in the hub's [`verify-evidence`](../../skills/ci-doctor/references/verify-evidence/TOPIC.md). A type that reaches several areas gets one reviewer per area. We used 1 to 8 reviewers a round.
+
+**Rounds, at most three.** Keep the PR a draft, and keep a ledger of the reviewers, the types not run and why, and every finding, written before the first reviewer starts, so a restart can resume from it.
+- Round 1 runs every planned reviewer at once, each on its scope.
+- Round 2 runs again only the reviewers whose findings a fix answered, on those fixes alone, when a fix changed behaviour, added a step or touched code near a finding. Small local fixes, a word or a guard, the author checks. Tests and code quality reviewers get no round 2: tests check their fixes.
+- Round 3 runs only the reviewers that found a P0 or P1 in round 2, on those fixes alone. Nothing after it.
+
+**Check each finding.** Reproduce it with a failing test, a command or a code trace: agreement is not evidence, and without a real consumer and a reproduction it's dismissed. Untouched work goes in a follow-up issue. Rate it P0 to P3, then:
+- **Fixed** on the PR's branch, with a regression that fails before and passes after. Every in-scope P0 and P1 is fixed in the PR.
+- **Filed:** real but out of scope or below P1, as an issue linked from the PR.
+- **Kept:** retained on purpose by a brief or a decision, naming the reason and who decided.
+- **Dismissed:** wrong, unreproducible or unreachable, with a sentence of evidence.
+- **Question:** needs a person's decision; keep working and ask at the end.
+
+A finding reopens only with evidence its dismissal was wrong or its fix failed. Two reviewers reporting one defect get one row.
 
 ## Running a slow-test campaign with parallel agents
 
