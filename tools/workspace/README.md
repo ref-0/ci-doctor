@@ -1,6 +1,6 @@
 # Workspace tools: one type check, reuse across worktrees, no copied code
 
-The workspace checks behind [guide section 9](../../docs/pages/09-workspace-tooling.md), as one small package you copy into your repo. It runs on Node 24 or later with no build: Node runs the TypeScript directly.
+The workspace checks behind [guide section 9](../../docs/pages/09-workspace-tooling.md) and [section 21](../../docs/pages/21-optimize-all-of-your-graphs.md)'s package graph, as one small package you copy into your repo. It runs on Node 24 or later with no build: Node runs the TypeScript directly.
 
 | Command | What it does |
 | --- | --- |
@@ -8,6 +8,7 @@ The workspace checks behind [guide section 9](../../docs/pages/09-workspace-tool
 | `symbols find <words...>` | The ten best matches for the words among the repo's top-level functions, classes, consts and types, before you write one again. |
 | `symbols check <base> [<head>]` | Fails a change that adds an exact copy of a declaration the repo has, and warns on a near copy. `--all` lists every copy already there. |
 | `package-exports` | The export guard: each package's `exports` names source first under your source condition, and only files it tracks or its build declares. |
+| `package-graph [--unused \| --generate]` | Holds every import across packages to the declared graph in `package-graph.json`, and each layered folder's imports to its layers. `--generate` prints the graph the imports draw today, for a first declaration; `--unused` lists what it allows that nothing uses. |
 | `check [--fix]` | The split local check: your steps before lint (the types), untyped lint over every file, then type-aware lint on the files changed since the base. Every step runs. |
 
 `src/lint/config.ts` is the split lint config both passes share.
@@ -21,6 +22,7 @@ The workspace checks behind [guide section 9](../../docs/pages/09-workspace-tool
 | `src/types/` | The type driver (`types.ts`), its cache (`cache.ts`, `inputs.ts`) and project discovery (`projects.ts`) |
 | `src/symbols/` | The index (`symbols.ts`), `find.ts`, `check.ts`, and the parser adapter (`parser.ts`) |
 | `src/package-exports.ts` | The export guard |
+| `src/graph/` | The package graph and layers: the checks (`graph.ts`), the import reader (`imports.ts`) and the command (`command.ts`). `package-graph.example.json` shows the file it reads. |
 | `src/lint/config.ts`, `src/lint/check.ts` | The split lint config and the local check |
 | `test/` | `node:test` tests. `fixtures/fake-tsc.mjs` is a stand-in checker that keeps the contract below. |
 
@@ -35,6 +37,7 @@ Nothing here is installed before the user approves the plan ([ci-doctor, "Before
    - `types`: the checker, `typescript` or whatever your `types.compiler` runs.
    - `symbols`: one parser, `oxc-parser`, or nothing if you already have `rolldown` (Vite 8) or `vite-plus`. `parser.ts` takes the first it finds.
    - `package-exports`: nothing more.
+   - `package-graph`: the same parser as `symbols`.
 3. Copy `config.example.json` to `workspace-tools.json` at the root and edit it. Every key has a default, so you can leave out what fits. It has no `lint` block: `check` exits 2 with a message until `workspace-tools.json` has one. Add it when you take the split lint command below; `config.lint-vite-plus.example.json` has Vite+'s.
 4. Add the root scripts for the commands you took:
 
@@ -43,13 +46,14 @@ Nothing here is installed before the user approves the plan ([ci-doctor, "Before
      "scripts": {
        "check:types": "node tools/workspace/src/bin.ts types",
        "check:exports": "node tools/workspace/src/bin.ts package-exports",
+       "check:graph": "node tools/workspace/src/bin.ts package-graph",
        "symbols:find": "node tools/workspace/src/bin.ts symbols find",
        "symbols:check": "node tools/workspace/src/bin.ts symbols check origin/main"
      }
    }
    ```
 
-5. In CI: run `check:types` in the types step with `WORKSPACE_TYPES_CACHE` set to the folder the Actions cache restores and saves. [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) already does this; put `pnpm run check:types` (or your package manager's equivalent) in its `<types-command>`. In the static job, run `check:exports`, and `symbols check <base-ref> HEAD` with history back to the merge base (`HEAD^1 HEAD` when the job checks out the pull request's merge commit). If your repo already runs a type check, replace it with `types`; don't add a second pass.
+5. In CI: run `check:types` in the types step with `WORKSPACE_TYPES_CACHE` set to the folder the Actions cache restores and saves. [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) already does this; put `pnpm run check:types` (or your package manager's equivalent) in its `<types-command>`. In the static job, run `check:exports`, `check:graph`, and `symbols check <base-ref> HEAD` with history back to the merge base (`HEAD^1 HEAD` when the job checks out the pull request's merge commit). If your repo already runs a type check, replace it with `types`; don't add a second pass.
 6. Run the tests below. Then prove the cache on your own checker before you trust its replays (see [Prove it](#prove-it-before-you-trust-replays)).
 
 ### The split lint command
@@ -157,6 +161,41 @@ The guard holds each package in `packageExports.packages` to these rules:
 
 Where it reads the build: `vite.config.ts`'s `pack` by default (Vite+). For tsdown, set `"packConfig": "tsdown.config.ts", "packKey": "."`. For another bundler, import `problems()` from `src/package-exports.ts` and pass each package's builds as `{ entry, dts }`.
 
+## The package graph
+
+`package-graph.json`, at the root, declares what each package and app may import of the others, and how each layered folder stacks. Guide [section 21](../../docs/pages/21-optimize-all-of-your-graphs.md) says why; `package-graph.example.json` has every key.
+
+```json
+{
+  "graph": {
+    "@pip/contracts": {},
+    "@pip/model": { "@pip/contracts": { "values": ["core"], "tests": ["testing/vectors"] } },
+    "@pip/compiler": { "@pip/contracts": { "types": ["checks"] } },
+    "@pip/web": { "@pip/model": { "values": ["queue"] }, "@pip/contracts": { "tests": ["core"] } }
+  },
+  "nodeFiles": { "@pip/compiler": ["src/generate.ts"] },
+  "layers": { "packages/cli/src": [["base"], ["terminal", "client"], ["commands"], ["main"]] },
+  "layerExceptions": { "packages/cli/src": { "terminal/output.ts": ["commands/help"] } }
+}
+```
+
+- **`graph`** names every workspace package and app, each with its edges. An edge's entries are `exports` keys without their `./`: `.` for the root, `core` for `./core`, a pattern's folder (`testing/vectors` for `./testing/vectors/*.json`). `values` allows any import; `types` only `import type` and `export type`, since `import { type X }` still loads the module; `tests` any import, from tests and `testing/` modules only.
+- **`nodeFiles`** lists, by package, files that run only in Node, which take values on a `types` edge. Tests do too.
+- **`layers`** gives a source folder's places from the bottom: a top folder, or a top file without its extension. A file imports its own place and places below; tests import anything.
+- **`layerExceptions`** lists, by source, file and module, the imports allowed against the layers. One no import needs fails, so the list only shrinks.
+
+It fails, one line each with the file and line, on: a package missing from the graph; an edge to an app, an entry the target doesn't export, or a package the importer's manifest doesn't list; an import with no edge, through an unlisted entry, of a `tests` entry outside test code, or of a value on a `types` edge; a relative path out of a package; and an import beside or above in a layered folder. Under GitHub Actions each is an annotation too.
+
+```text
+packages/compiler/src/runs.ts:3: @pip/compiler doesn't import @pip/model: package-graph.json has no such edge.
+apps/web/src/page.tsx:1: @pip/web doesn't import @pip/model/access: its edge to @pip/model lists `queue`. To import another entry point, add it to that edge.
+packages/cli/src/base/quote.ts:2: base sits below commands in packages/cli/src, so it imports nothing of it. Move what it needs down, to where both can import it.
+```
+
+`packageGraph` in `workspace-tools.json` sets the package folders (`packages/*` and `apps/*` by default), which of them are apps (`apps/*`), and the file. It reads tracked `.ts`, `.tsx`, `.js` and `.jsx` files, leaving out `dist/`, `node_modules/` and `.d.ts`. To adopt it, run `--generate` into `package-graph.json`, fix what it can't declare (an import of an app, a relative path out of a package), turn the check on, then tighten with `--unused`.
+
+**Limits.** It reads imports, so it misses a package reached by a file read from disk or a name in a string; the selector's coverage declarations ([section 4](../../docs/pages/04-run-only-what-a-change-can-reach.md)) hold those. `require()` isn't read. Layers are checked only through relative imports inside the folder.
+
 ## Split lint
 
 ### The config
@@ -215,7 +254,9 @@ Each of these is your repo's to write, or is ported elsewhere in this playbook. 
 | Isolate imports (a lint rule) | your linter | Each restricted runtime's entry files (sandbox, isolate), and the modules they import | A finding for any import in an entry's transitive closure that the runtime can't run. Name your restricted entries first. |
 | Environment at entry points (a lint rule) | your linter | Each module | A finding for environment access (`process.env`) outside declared entry points |
 | Seeded properties (a lint rule) | your linter | Test files | A finding for a property test not using the shared seeded options, so a pull request's failure reproduces |
-| Barrels and entry re-exports (lint rules) | your linter | `index.ts` files; each package's entry files | A finding for an `index.ts` that does more than re-export, or an entry that doesn't re-export what its package exports |
+| Barrels and entry re-exports (lint rules) | your linter | `index.ts` files; each file a package's `exports` names | A finding for an `index.ts` that does more than re-export, and for any `export *` or `export * as` in an entry file: an entry re-exports by name only what other packages import ([section 21](../../docs/pages/21-optimize-all-of-your-graphs.md#export-paths-what-an-edit-triggers)) |
+| Layers in another language | `<layers-command>`, in the static job | The module tree outside tests, each module's in-crate paths (`crate::` in Rust), and the same layers as `package-graph.json` | Nonzero, naming each import beside or above its place by file and line, and each cycle between modules by its modules |
+| Graph measurement | coming to `scripts/graph/` (its README will be `scripts/graph/README.md`) | The workspace's imports, `exports`, layers and task config | Each graph's width, read-only and locally: what one edit selects by package edges, by entries and by the import graph |
 | Generation driver | `<generate-command>`, from install's `prepare` and before tests, builds and deploys | Each generator's source inputs, in dependency order | Each generated file written only when it changed; tracked outputs checked fresh in CI (`<generate-check-command>`); ignored bundles checked against their source by tests. It must succeed on a checkout with no generated files. Git hooks may run it too: they skip revisions without the generator and print the repair command on failure. |
 
 ## Tests
@@ -226,7 +267,7 @@ node --test test/
 ```
 
 - The type driver's tests use the stand-in checker and need nothing installed. Its real-`tsc` group runs when `typescript` is in this package's `node_modules`, or in the folder `WORKSPACE_TOOLS_NODE_MODULES` names, and skips otherwise.
-- The symbol tests need a parser (`oxc-parser`, `rolldown` or `vite-plus`), and skip with a message without one.
+- The symbol tests, and the package-graph command's, need a parser (`oxc-parser`, `rolldown` or `vite-plus`), and skip with a message without one. The graph's own checks need nothing.
 - `npm run typecheck` checks this package with `tsc`.
 
 ## Placeholders
@@ -235,5 +276,6 @@ node --test test/
 | --- | --- | --- |
 | `<generated-dir>` | `config.example.json` | A folder of generated code to leave out of `symbols` |
 | `<generate-command>`, `<generate-check-command>` | The table above | Your generation driver, and the check that tracked outputs are fresh |
+| `<layers-command>` | The table above | Your layer check for a language the linter doesn't read |
 
 Everything else is a default in `workspace-tools.json`, ready to change. The source condition defaults to `workspace-source`, the name the guide uses.

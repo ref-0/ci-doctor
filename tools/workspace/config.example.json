@@ -12,5 +12,10 @@
     "condition": "workspace-source",
     "packConfig": "vite.config.ts",
     "packKey": "pack"
+  },
+  "packageGraph": {
+    "packages": ["packages/*", "apps/*"],
+    "apps": ["apps/*"],
+    "file": "package-graph.json"
   }
 }
