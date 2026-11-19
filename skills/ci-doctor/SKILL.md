@@ -1,6 +1,8 @@
 ---
 name: ci-doctor
 description: "CI speed, cost and flakes on any provider: why a PR's check failed, slow CI runs or queues, changing workflows and jobs, runners and the bill, slow or flaky tests (local too), checking CI evidence or a before/after claim, and starting or continuing the ci-doctor plan."
+metadata:
+  version: "0.1.0"
 ---
 
 # ci-doctor
@@ -79,4 +81,4 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 
 ## Outside the skills
 
-Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci.ref0.dev/guide/](https://ci.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag this plugin's version names.
+Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci.ref0.dev/guide/](https://ci.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is this file's `metadata.version`.

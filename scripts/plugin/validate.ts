@@ -157,6 +157,11 @@ export const validate = (root: string): string[] => {
   const license = join(root, 'scorer', 'LICENSE');
   if (!existsSync(license) || readFileSync(license, 'utf8') !== readFileSync(join(root, 'LICENSE'), 'utf8')) problems.push('scorer/LICENSE: must be a copy of LICENSE, since npm packs only scorer/');
 
+  // A skills-only install carries no manifest, so the hub names its release in its own frontmatter.
+  const hub = join(root, 'skills', 'ci-doctor', 'SKILL.md');
+  const hubVersion = existsSync(hub) ? /^---\n[\s\S]*?^metadata:\n(?:[ \t]+.*\n)*?[ \t]+version:\s*"?([^"\n]+)"?\s*$/m.exec(readFileSync(hub, 'utf8'))?.[1] : undefined;
+  if (hubVersion !== portable.version) problems.push(`skills/ci-doctor/SKILL.md: metadata.version is ${String(hubVersion)}, not plugin.json's ${String(portable.version)}`);
+
   const skills = skillNames(root);
   for (const name of skills) {
     const path = join(root, 'skills', name, 'SKILL.md');
