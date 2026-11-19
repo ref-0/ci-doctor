@@ -370,11 +370,15 @@ export const practices = (source: Source) => {
   const yes = (re: RegExp, text = all) => tri(re.test(text), workflowsComplete);
   const inPkg = (re: RegExp) => re.test(pkg ?? '');
 
+  // Vite+ bundles Vitest and Oxlint, so a Vite+ repo names neither in its package.json.
+  const vitePlus = inPkg(/"vite-plus"/);
   const testRunner =
     inPkg(/"vitest"/) || has(/^vitest\.(config|workspace)\./)
       ? 'vitest'
       : inPkg(/"jest"/) || has(/^jest\.config\./)
         ? 'jest'
+        : vitePlus
+          ? 'vitest'
         : /cargo nextest/.test(all) || has('.config/nextest.toml')
           ? 'nextest'
           : /pytest[^\n]*-n\s/.test(all) ? 'pytest-xdist' : undefined;
@@ -403,14 +407,14 @@ export const practices = (source: Source) => {
     // E. Workspace tooling
     taskRunner: named(
       ['turbo.json', 'nx.json', 'MODULE.bazel', 'WORKSPACE', 'moon.yml', '.moon/workspace.yml', 'pants.toml'].find((p) => has(p)) ??
-        (inPkg(/"vite-plus"/) ? 'vite-plus' : undefined),
+        (vitePlus ? 'vite-plus' : undefined),
       treeComplete && pkgKnown,
     ),
     packageManager: named(
       has('pnpm-lock.yaml') ? 'pnpm' : has(/^bun\.lockb?$/) ? 'bun' : has('yarn.lock') ? (has('.yarnrc.yml') ? 'yarn berry' : 'yarn 1') : has('package-lock.json') ? 'npm' : undefined,
       treeComplete,
     ),
-    fastLint: tri(has(/^biome\.jsonc?$/) || has(/^\.?oxlintrc\.json$/) || inPkg(/"(oxlint|@biomejs\/biome)"/), treeComplete && pkgKnown),
+    fastLint: tri(has(/^biome\.jsonc?$/) || has(/^(\.?oxlintrc\.json|oxlint\.config\.[cm]?[jt]s)$/) || inPkg(/"(oxlint|@biomejs\/biome|vite-plus)"/), treeComplete && pkgKnown),
     eslint: tri(inPkg(/"eslint"/) || has(/^(\.eslintrc(\.\w+)?|eslint\.config\.[cm]?[jt]s)$/), treeComplete && pkgKnown),
     testRunner: named(testRunner, treeComplete && pkgKnown && workflowsComplete),
     // F. Tests and flakes
