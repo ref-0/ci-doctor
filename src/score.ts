@@ -1,72 +1,17 @@
-// CI score: what a public repo's GitHub data says about its CI, scored 0–100, with what to fix first.
-// Usage: node score.ts owner/repo [owner/repo ...] [--days 7] [--json]
-// API calls go through `gh api` (the caller's token) and are cached for 24 h in ./cache; raw files come
-// from raw.githubusercontent.com, which doesn't spend API quota. Reports land in ./reports.
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+// CI score: what a repo's GitHub data says about its CI, scored 0–100, with what to fix first.
+// Copied from ci-score/score.ts. The weights, fixes, notes and guide links are unchanged; what changed is the
+// must-fixes': every read goes through `gh` (no raw.githubusercontent.com), a read that fails throws instead of
+// reading as empty, a practice that couldn't be checked is null (unknown) rather than false (absent), job logs are
+// read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
+import { CliError } from './errors.ts';
+import type { Gh } from './gh.ts';
+import { githubSource, localSource, type Source, type Tree } from './source.ts';
 
-const HERE = import.meta.dirname;
-const CACHE = join(HERE, 'cache');
 const DAY = 24 * 3600e3;
 const MAX_RUN_PAGES = 10;
 const JOB_SAMPLE = 6;
-const GUIDE = 'https://github.com/ref-0/ci-doctor/blob/main/docs/pages/';
-
-// ---------- fetching ----------
-
-let calls = 0;
-
-const cached = (key: string, load: () => string): string => {
-  const file = join(CACHE, createHash('sha1').update(key).digest('hex'));
-  if (existsSync(file) && Date.now() - statSync(file).mtimeMs < DAY) return readFileSync(file, 'utf8');
-
-  const text = load();
-  mkdirSync(CACHE, { recursive: true });
-  writeFileSync(file, text);
-  return text;
-};
-
-const apiText = (path: string): string =>
-  cached(`api:${path}`, () => {
-    const run = () => {
-      calls++;
-      return execFileSync('gh', ['api', '--allow-escape-sequences', path], {
-        encoding: 'utf8',
-        maxBuffer: 512 << 20,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    };
-    try {
-      return run();
-    } catch (e) {
-      if (/HTTP 404|HTTP 410|HTTP 403/.test(String((e as any).stderr))) throw e;
-      return run();
-    }
-  });
-
-const api = (path: string): any => JSON.parse(apiText(path));
-const tryApi = (path: string): any => {
-  try {
-    return api(path);
-  } catch {
-    return undefined;
-  }
-};
-
-const raw = async (repo: string, ref: string, path: string): Promise<string | undefined> => {
-  const key = `raw:${repo}@${ref}:${path}`;
-  const file = join(CACHE, createHash('sha1').update(key).digest('hex'));
-  if (existsSync(file) && Date.now() - statSync(file).mtimeMs < DAY) return readFileSync(file, 'utf8');
-
-  const res = await fetch(`https://raw.githubusercontent.com/${repo}/${ref}/${path}`);
-  if (!res.ok) return undefined;
-  const text = await res.text();
-  mkdirSync(CACHE, { recursive: true });
-  writeFileSync(file, text);
-  return text;
-};
+const MAX_WORKFLOWS = 40;
+export const GUIDE = 'https://github.com/ref-0/ci-doctor/blob/main/docs/pages/';
 
 // ---------- small helpers ----------
 
@@ -149,11 +94,11 @@ interface Run {
 }
 
 /** One stream of completed runs, such as PR runs or pushes to main, newest first. */
-const readRuns = (repo: string, since: string, filter: string, pages: number) => {
+const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: number) => {
   const runs: Run[] = [];
   let total = 0;
   for (let page = 1; page <= pages; page++) {
-    const res = api(`repos/${repo}/actions/runs?${filter}&created=%3E%3D${since}&per_page=100&page=${page}&exclude_pull_requests=true`);
+    const res = gh.json(`repos/${repo}/actions/runs?${filter}&created=%3E%3D${since}&per_page=100&page=${page}&exclude_pull_requests=true`);
     total = res.total_count;
     runs.push(...res.workflow_runs);
     if (res.workflow_runs.length < 100) break;
@@ -170,11 +115,11 @@ const startOf = (r: Run) =>
 
 /** For each pushed head: the wait from the first workflow's start to the last one's end. */
 /** A rerun run's first attempt: failed, cancelled or green. One call each, capped per report. */
-const firstAttempts = (repo: string, cap: number) => {
+const firstAttempts = (gh: Gh, repo: string, cap: number) => {
   const seen = new Map<number, string | undefined>();
   return (run: Run): string | undefined => {
     if (run.run_attempt === 1) return run.conclusion ?? undefined;
-    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, tryApi(`repos/${repo}/actions/runs/${run.id}/attempts/1`)?.conclusion ?? undefined);
+    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1`, { absentOn: [404] })?.conclusion ?? undefined);
     return seen.get(run.id);
   };
 };
@@ -282,10 +227,10 @@ interface Job {
   steps?: { name: string; started_at: string | null; completed_at: string | null; conclusion: string | null }[];
 }
 
-const readJobs = (repo: string, runId: number): Job[] => {
+const readJobs = (gh: Gh, repo: string, runId: number): Job[] => {
   const jobs: Job[] = [];
   for (let page = 1; page <= 3; page++) {
-    const res = api(`repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100&page=${page}`);
+    const res = gh.json(`repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100&page=${page}`);
     jobs.push(...res.jobs);
     if (res.jobs.length < 100) break;
   }
@@ -358,16 +303,14 @@ const TEST_LINE: [RegExp, (m: RegExpMatchArray) => { file: string; sec: number }
   [/^\s*([\d.]+)s\s+(?:call|setup|teardown)\s+(\S+)/, (m) => ({ file: m[2]!.split('::')[0]!, sec: +m[1]! })],
 ];
 
-const slowTests = (repo: string, jobs: { id: number; name: string }[]) => {
+// A job's log can hold code, paths or secrets: it's read in memory, only the derived timings are kept, and it's
+// never cached. An expired or withheld log (403, 404, 410) leaves the test timings unknown.
+const slowTests = (gh: Gh, repo: string, jobs: { id: number; name: string }[]) => {
   const files: { file: string; sec: number; job: string }[] = [];
   let read = 0;
   for (const job of jobs) {
-    let text: string;
-    try {
-      text = apiText(`repos/${repo}/actions/jobs/${job.id}/logs`);
-    } catch {
-      continue;
-    }
+    const text = gh.text(`repos/${repo}/actions/jobs/${job.id}/logs`, { absentOn: [403, 404, 410], noCache: true });
+    if (text === undefined) continue;
     read++;
     for (const line of text.split('\n')) {
       const clean = line.replace(ANSI, '').replace(/^\S+Z\s/, '');
@@ -388,19 +331,54 @@ const slowTests = (repo: string, jobs: { id: number; name: string }[]) => {
 
 // ---------- static practices: the tree and the workflow files ----------
 
-const practices = async (repo: string, ref: string, tree: Set<string>) => {
+/** Found is true; not found where everything was read is false (absent); not found otherwise is null (unknown). */
+const tri = (found: boolean, complete: boolean): boolean | null => (found ? true : complete ? false : null);
+const named = <T>(found: T | undefined, complete: boolean): T | false | null => (found !== undefined ? found : complete ? false : null);
+
+export const practices = (source: Source) => {
+  const tree = new Set(source.tree.blobs.map((b) => b.path));
+  const treeComplete = !source.tree.truncated;
   const has = (p: string | RegExp) => (typeof p === 'string' ? tree.has(p) : [...tree].some((x) => p.test(x)));
-  const workflowPaths = [...tree].filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p)).slice(0, 40);
-  const workflows = (await Promise.all(workflowPaths.map((p) => raw(repo, ref, p)))).filter((x): x is string => !!x);
+  const unknown: string[] = [];
+  if (!treeComplete) unknown.push("GitHub cut the file tree short, so a file past the cut can't be checked");
+
+  const allWorkflows = [...tree].filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p));
+  const workflowPaths = allWorkflows.slice(0, MAX_WORKFLOWS);
+  const read = workflowPaths.map((p) => ({ p, text: source.read(p) }));
+  const workflows = read.map((r) => r.text).filter((x): x is string => x !== undefined);
+  if (allWorkflows.length > MAX_WORKFLOWS) unknown.push(`Read the first ${MAX_WORKFLOWS} of ${allWorkflows.length} workflow files`);
+  for (const r of read) if (r.text === undefined) unknown.push(`${r.p} is in the tree but couldn't be found`);
+  const workflowsComplete = treeComplete && allWorkflows.length <= MAX_WORKFLOWS && workflows.length === read.length;
+
+  // A file read only if the tree has it: '' when it's known to be absent, undefined when that's unknown.
+  const optional = (p: string) => {
+    if (!has(p)) return treeComplete ? '' : undefined;
+    const text = source.read(p);
+    if (text === undefined) unknown.push(`${p} is in the tree but couldn't be found`);
+    return text;
+  };
+  const pkg = optional('package.json');
+  const nx = optional('nx.json');
+  const dependabot = optional('.github/dependabot.yml');
+  const pkgKnown = pkg !== undefined;
+
   const all = workflows.join('\n');
   const onPr = workflows.filter((w) => /pull_request/.test(w)).join('\n');
-  const pkg = (await raw(repo, ref, 'package.json')) ?? '';
-  const nx = has('nx.json') ? ((await raw(repo, ref, 'nx.json')) ?? '') : '';
-  const dependabot = has('.github/dependabot.yml') ? ((await raw(repo, ref, '.github/dependabot.yml')) ?? '') : '';
-  const yes = (re: RegExp, text = all) => re.test(text);
+  const yes = (re: RegExp, text = all) => tri(re.test(text), workflowsComplete);
+  const inPkg = (re: RegExp) => re.test(pkg ?? '');
+
+  const testRunner =
+    inPkg(/"vitest"/) || has(/^vitest\.(config|workspace)\./)
+      ? 'vitest'
+      : inPkg(/"jest"/) || has(/^jest\.config\./)
+        ? 'jest'
+        : /cargo nextest/.test(all) || has('.config/nextest.toml')
+          ? 'nextest'
+          : /pytest[^\n]*-n\s/.test(all) ? 'pytest-xdist' : undefined;
+  const agentsMd = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md'].filter((p) => has(p));
 
   return {
-    workflows: workflowPaths.length,
+    workflows: allWorkflows.length,
     // B. Running less
     cancelInProgress: yes(/cancel-in-progress:\s*(true|\$\{\{)/, onPr),
     pathFilters: yes(/^\s*paths(-ignore)?:|dorny\/paths-filter|changed-files/m, onPr),
@@ -410,34 +388,38 @@ const practices = async (repo: string, ref: string, tree: Set<string>) => {
     scheduled: yes(/^\s*schedule:/m),
     // C. Reusing work
     depCache: yes(/actions\/cache|cache:\s*['"]?(npm|pnpm|yarn|pip|poetry|gradle|maven|bun|sbt)|enable-cache|cache-dependency-path|rust-cache|setup-gradle/),
-    remoteCache: yes(/TURBO_TOKEN|TURBO_REMOTE|NX_CLOUD|nx-cloud|--remote_cache|--remote_executor|buildbuddy|VP_REMOTE|gradle-enterprise|develocity/i) || /nxCloud/.test(nx),
+    remoteCache: tri(
+      /TURBO_TOKEN|TURBO_REMOTE|NX_CLOUD|nx-cloud|--remote_cache|--remote_executor|buildbuddy|VP_REMOTE|gradle-enterprise|develocity/i.test(all) || /nxCloud/.test(nx ?? ''),
+      workflowsComplete && nx !== undefined,
+    ),
     compilerCache: yes(/rust-cache|sccache|ccache/),
     frozenInstall: yes(/--frozen-lockfile|npm ci\b|--immutable|--locked|--frozen\b/),
     // D. Shards and runners
     shardsConfigured: yes(/--shard|shardIndex|shard_index|total-shards|split-tests|knapsack|--partition/i),
     timeouts: yes(/timeout-minutes/),
     // E. Workspace tooling
-    taskRunner:
+    taskRunner: named(
       ['turbo.json', 'nx.json', 'MODULE.bazel', 'WORKSPACE', 'moon.yml', '.moon/workspace.yml', 'pants.toml'].find((p) => has(p)) ??
-      (/"vite-plus"/.test(pkg) ? 'vite-plus' : undefined),
-    packageManager: has('pnpm-lock.yaml') ? 'pnpm' : has(/^bun\.lockb?$/) ? 'bun' : has('yarn.lock') ? (has('.yarnrc.yml') ? 'yarn berry' : 'yarn 1') : has('package-lock.json') ? 'npm' : undefined,
-    fastLint: has(/^biome\.jsonc?$/) || has(/^\.?oxlintrc\.json$/) || /"(oxlint|@biomejs\/biome)"/.test(pkg),
-    eslint: /"eslint"/.test(pkg) || has(/^(\.eslintrc(\.\w+)?|eslint\.config\.[cm]?[jt]s)$/),
-    testRunner: /"vitest"/.test(pkg) || has(/^vitest\.(config|workspace)\./)
-      ? 'vitest'
-      : /"jest"/.test(pkg) || has(/^jest\.config\./)
-        ? 'jest'
-        : yes(/cargo nextest/) || has('.config/nextest.toml')
-          ? 'nextest'
-          : yes(/pytest[^\n]*-n\s/) ? 'pytest-xdist' : undefined,
+        (inPkg(/"vite-plus"/) ? 'vite-plus' : undefined),
+      treeComplete && pkgKnown,
+    ),
+    packageManager: named(
+      has('pnpm-lock.yaml') ? 'pnpm' : has(/^bun\.lockb?$/) ? 'bun' : has('yarn.lock') ? (has('.yarnrc.yml') ? 'yarn berry' : 'yarn 1') : has('package-lock.json') ? 'npm' : undefined,
+      treeComplete,
+    ),
+    fastLint: tri(has(/^biome\.jsonc?$/) || has(/^\.?oxlintrc\.json$/) || inPkg(/"(oxlint|@biomejs\/biome)"/), treeComplete && pkgKnown),
+    eslint: tri(inPkg(/"eslint"/) || has(/^(\.eslintrc(\.\w+)?|eslint\.config\.[cm]?[jt]s)$/), treeComplete && pkgKnown),
+    testRunner: named(testRunner, treeComplete && pkgKnown && workflowsComplete),
     // F. Tests and flakes
     testResults: yes(/junit|buildpulse|trunk-io|test-results|test-reporter|codecov\/test-results-action/i),
     // G. Health
-    depBotsBatched: (has(/^(\.github\/)?renovate\.json5?$|^\.renovaterc/) ) || /groups:/.test(dependabot),
+    depBotsBatched: tri(has(/^(\.github\/)?renovate\.json5?$|^\.renovaterc/) || /groups:/.test(dependabot ?? ''), treeComplete && dependabot !== undefined),
     // H. Ready for agents
-    agentsMd: ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md'].filter((p) => has(p)),
-    agentRules: has(/^\.cursor\/rules\//) || has(/^\.(agents|claude)\/skills\//),
-    preCommit: has('lefthook.yml') || has(/^\.husky\//) || has('.pre-commit-config.yaml'),
+    agentsMd: agentsMd.length || treeComplete ? agentsMd : null,
+    agentRules: tri(has(/^\.cursor\/rules\//) || has(/^\.(agents|claude)\/skills\//), treeComplete),
+    preCommit: tri(has('lefthook.yml') || has(/^\.husky\//) || has('.pre-commit-config.yaml'), treeComplete),
+    /** Why any practice above is null. */
+    unknown,
   };
 };
 
@@ -456,8 +438,9 @@ export const BYTES_PER_LINE = 30; // GitHub's language bytes ÷ lines, measured 
 const kindOf = (path: string) =>
   INTEGRATION.test(path) ? 'integration' : SUPPORT.test(path) ? 'support' : TEST.test(path) ? 'tests' : 'implementation';
 
-const profileOf = (repo: string, meta: any, tree: any, prRunCount: number, coveredDays: number) => {
-  const blobs: { path: string; size: number }[] = (tree?.tree ?? []).filter((t: any) => t.type === 'blob');
+/** What the file tree alone says: lines by kind and packages. Shared by GitHub reads and a local checkout. */
+export const treeProfile = (tree: Tree) => {
+  const blobs = tree.blobs;
   const code = blobs.filter((b) => CODE_EXT.test(b.path) && !SKIP.test(b.path) && (b.size ?? 0) <= MAX_SOURCE_FILE);
   const bytes = { implementation: 0, tests: 0, integration: 0, support: 0 } as Record<string, number>;
   for (const b of code) bytes[kindOf(b.path)]! += b.size ?? 0;
@@ -466,46 +449,12 @@ const profileOf = (repo: string, meta: any, tree: any, prRunCount: number, cover
   const notExample = (p: string) => !/(^|\/)(examples?|fixtures?|__fixtures__|test|tests|e2e|templates?|benchmarks?|playground)\//i.test(p);
   const manifests = (name: RegExp) => blobs.filter((b) => name.test(b.path) && notExample(b.path) && !SKIP.test(b.path)).length;
 
-  const languages = tryApi(`repos/${repo}/languages`) ?? {};
-  const langTotal = Object.values(languages).reduce((a: number, x: any) => a + x, 0) as number;
-
-  // Commits on the default branch in the last 28 days, and who wrote them.
-  const since28 = new Date(Date.now() - 28 * DAY).toISOString();
-  const commits: any[] = [];
-  for (let page = 1; page <= 5; page++) {
-    const res = tryApi(`repos/${repo}/commits?sha=${meta.default_branch}&since=${since28}&per_page=100&page=${page}`) ?? [];
-    commits.push(...res);
-    if (res.length < 100) break;
-  }
-  const authors = new Set(commits.map((c) => c.author?.login ?? c.commit?.author?.email).filter((a) => a && !String(a).endsWith('[bot]')));
-
-  // The year's weekly commits, to see whether it's speeding up.
-  const participation = tryApi(`repos/${repo}/stats/participation`)?.all as number[] | undefined;
-  const yearWeekly = participation?.length ? participation.reduce((a, x) => a + x, 0) / participation.length : NaN;
-  const lastMonthWeekly = participation?.length ? participation.slice(-4).reduce((a, x) => a + x, 0) / 4 : NaN;
-
-  // Merged PRs in the last 7 days: how many, and opened (or marked ready) to merged.
-  const since7 = new Date(Date.now() - 7 * DAY).toISOString().slice(0, 10);
-  const merged = tryApi(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr is:merged merged:>=${since7}`)}&per_page=100&sort=updated`);
-  const opened = tryApi(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr created:>=${since7}`)}&per_page=1`);
-  const items: any[] = merged?.items ?? [];
-  const isBot = (i: any) => i.user?.type === 'Bot' || /\[bot\]$|^(renovate|dependabot)/.test(i.user?.login ?? '');
-  const openToMerge = items.filter((i) => i.pull_request?.merged_at && !isBot(i)).map((i) => (Date.parse(i.pull_request.merged_at) - Date.parse(i.created_at)) / 3600e3);
-  const botPrs = items.filter(isBot).length;
-  const mergedPerWeek = merged?.total_count ?? NaN;
-
   return {
-    ageYears: r1((Date.now() - Date.parse(meta.created_at)) / (365 * DAY)),
-    stars: meta.stargazers_count,
-    forks: meta.forks_count,
-    languages: Object.entries(languages).slice(0, 4).map(([l, b]) => [l, Math.round(((b as number) / langTotal) * 100)]),
-    // Lines of the repo's own source, from the tree's file sizes. GitHub's language bytes count vendored copies and
-    // generated code a repo hasn't marked, so they are only the fallback, when the tree is truncated or empty.
-    linesOfCode: !tree?.truncated && codeBytes > 0 ? lines(codeBytes) : lines(langTotal),
-    linesFrom: !tree?.truncated && codeBytes > 0 ? 'tree' : 'languages',
+    codeBytes,
+    linesOfCode: lines(codeBytes),
     files: blobs.length,
     sourceFiles: code.length,
-    treeTruncated: !!tree?.truncated,
+    treeTruncated: tree.truncated,
     // Shares of counted source by kind, from file sizes in the tree.
     sourceLines: {
       implementation: lines(bytes.implementation!),
@@ -520,6 +469,53 @@ const profileOf = (repo: string, meta: any, tree: any, prRunCount: number, cover
       go: manifests(/(^|\/)go\.mod$/),
       python: manifests(/(^|\/)(pyproject\.toml|setup\.py)$/),
     },
+  };
+};
+
+const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: number, coveredDays: number) => {
+  const { codeBytes, ...fromTree } = treeProfile(tree);
+  const lines = (n: number) => Math.round(n / BYTES_PER_LINE);
+
+  const languages = gh.json(`repos/${repo}/languages`) ?? {};
+  const langTotal = Object.values(languages).reduce((a: number, x: any) => a + x, 0) as number;
+
+  // Commits on the default branch in the last 28 days, and who wrote them.
+  const since28 = new Date(Date.now() - 28 * DAY).toISOString();
+  const commits: any[] = [];
+  for (let page = 1; page <= 5; page++) {
+    // 409: an empty repo has no commits.
+    const res = gh.json(`repos/${repo}/commits?sha=${meta.default_branch}&since=${since28}&per_page=100&page=${page}`, { absentOn: [409] }) ?? [];
+    commits.push(...res);
+    if (res.length < 100) break;
+  }
+  const authors = new Set(commits.map((c) => c.author?.login ?? c.commit?.author?.email).filter((a) => a && !String(a).endsWith('[bot]')));
+
+  // The year's weekly commits, to see whether it's speeding up.
+  // GitHub answers 202 with no body while it computes these; the pace is then unknown.
+  const participation = gh.json(`repos/${repo}/stats/participation`)?.all as number[] | undefined;
+  const yearWeekly = participation?.length ? participation.reduce((a, x) => a + x, 0) / participation.length : NaN;
+  const lastMonthWeekly = participation?.length ? participation.slice(-4).reduce((a, x) => a + x, 0) / 4 : NaN;
+
+  // Merged PRs in the last 7 days: how many, and opened (or marked ready) to merged.
+  const since7 = new Date(Date.now() - 7 * DAY).toISOString().slice(0, 10);
+  const merged = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr is:merged merged:>=${since7}`)}&per_page=100&sort=updated`);
+  const opened = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr created:>=${since7}`)}&per_page=1`);
+  const items: any[] = merged?.items ?? [];
+  const isBot = (i: any) => i.user?.type === 'Bot' || /\[bot\]$|^(renovate|dependabot)/.test(i.user?.login ?? '');
+  const openToMerge = items.filter((i) => i.pull_request?.merged_at && !isBot(i)).map((i) => (Date.parse(i.pull_request.merged_at) - Date.parse(i.created_at)) / 3600e3);
+  const botPrs = items.filter(isBot).length;
+  const mergedPerWeek = merged?.total_count ?? NaN;
+
+  return {
+    ageYears: r1((Date.now() - Date.parse(meta.created_at)) / (365 * DAY)),
+    stars: meta.stargazers_count,
+    forks: meta.forks_count,
+    languages: Object.entries(languages).slice(0, 4).map(([l, b]) => [l, Math.round(((b as number) / langTotal) * 100)]),
+    ...fromTree,
+    // Lines of the repo's own source, from the tree's file sizes. GitHub's language bytes count vendored copies and
+    // generated code a repo hasn't marked, so they are only the fallback, when the tree is truncated or empty.
+    linesOfCode: !tree.truncated && codeBytes > 0 ? lines(codeBytes) : lines(langTotal),
+    linesFrom: !tree.truncated && codeBytes > 0 ? 'tree' : 'languages',
     commitsPerWeek: r1((commits.length / 4) * (commits.length >= 500 ? NaN : 1)) ?? `≥${Math.round(500 / 4)}`,
     commitsPerWeekYear: r1(yearWeekly),
     pace: Number.isFinite(lastMonthWeekly / yearWeekly) ? r1(lastMonthWeekly / yearWeekly) : null,
@@ -536,7 +532,7 @@ const profileOf = (repo: string, meta: any, tree: any, prRunCount: number, cover
 
 // ---------- score and fixes ----------
 
-type Practices = Awaited<ReturnType<typeof practices>>;
+export type Practices = ReturnType<typeof practices>;
 
 // The larger of two classes: by code and by PR traffic.
 export const sizeClass = (headsPerWeek: number, linesOfCode: number) => {
@@ -547,7 +543,7 @@ export const sizeClass = (headsPerWeek: number, linesOfCode: number) => {
 };
 
 /** PR CI job minutes in the window, across every workflow: 2 sampled runs each, scaled by run count. */
-const ciMinutes = (repo: string, prRuns: Run[]) => {
+const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
   const ran = prRuns.filter((r) => ['success', 'failure', 'cancelled'].includes(r.conclusion ?? ''));
   const byWorkflow = [...groupBy(ran, (r) => r.name)].sort((x, y) => y[1].length - x[1].length);
   const perRun: number[] = [];
@@ -563,7 +559,7 @@ const ciMinutes = (repo: string, prRuns: Run[]) => {
     const usable = rs.filter((r) => r.run_attempt === 1 && r.conclusion !== 'cancelled').sort((x, y) => length(x) - length(y));
     const mid = Math.floor(usable.length / 2);
     const sample = usable.slice(Math.max(0, mid - 1), mid + 2);
-    const jobs = sample.map((r) => readJobs(repo, r.id));
+    const jobs = sample.map((r) => readJobs(gh, repo, r.id));
     if (!jobs.length) continue;
     const dur = (j: Job) => minutes_(j.started_at!, j.completed_at!);
     const m = median(jobs.map((js) => js.reduce((acc, j) => acc + dur(j), 0)));
@@ -665,26 +661,27 @@ const stackNote = (language: string | undefined) =>
     ? [{ text: `ci-doctor's guides are strongest for TypeScript and Rust. For ${language} it applies the principles, without a ${language}-specific page`, guide: GUIDE + '01-principles.md' }]
     : [];
 
-const fixesOf = (o: any, pr: Practices) => {
+// A fix for a missing practice shows only when the practice is known to be absent (false), never when unknown (null).
+export const fixesOf = (o: any, pr: Practices) => {
   const fixes: { text: string; page: string; weight: number }[] = [];
   const slow = o.wait.p50 > 5;
   const add = (when: unknown, weight: number, text: string | (() => string), page: string) =>
     when && fixes.push({ text: typeof text === "string" ? text : text(), page, weight });
 
-  add(slow && !pr.affected && !pr.pathFilters, 9, 'Run only what a change can reach: no path filters or affected-only selection on PR workflows', '04-run-only-what-a-change-can-reach.md');
-  add(slow && !pr.remoteCache && !!pr.taskRunner, 8, () => `Share a remote cache for ${pr.taskRunner}: it has none in CI`, '06-reuse-work-by-its-real-inputs.md');
+  add(slow && pr.affected === false && pr.pathFilters === false, 9, 'Run only what a change can reach: no path filters or affected-only selection on PR workflows', '04-run-only-what-a-change-can-reach.md');
+  add(slow && pr.remoteCache === false && typeof pr.taskRunner === 'string', 8, () => `Share a remote cache for ${pr.taskRunner}: it has none in CI`, '06-reuse-work-by-its-real-inputs.md');
   add(o.jobs?.setupShare > 0.35 && o.jobs.spanMin > 4, 7, () => `Setup is ${Math.round(o.jobs.setupShare * 100)}% of job time: cache dependencies and build once`, '06-reuse-work-by-its-real-inputs.md');
   add(o.jobs?.shard && o.jobs.shard.maxOverMedian > 1.25, 7, () => `"${o.jobs.shard.name}": the slowest shard takes ${o.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${Math.round(o.jobs.shard.idleTail * 100)}% idle; balance shards by measured time`, '07-shards-runners-and-billing.md');
-  add(slow && !o.jobs?.shard && !pr.shardsConfigured && o.jobs?.longest.minutes > 8, 6, () => `"${o.jobs?.longest.name}" runs ${Math.round(o.jobs?.longest.minutes)} min in one job: shard it`, '07-shards-runners-and-billing.md');
+  add(slow && !o.jobs?.shard && pr.shardsConfigured === false && o.jobs?.longest.minutes > 8, 6, () => `"${o.jobs?.longest.name}" runs ${Math.round(o.jobs?.longest.minutes)} min in one job: shard it`, '07-shards-runners-and-billing.md');
   add(o.tests?.over10s > 0, 6, () => `${o.tests?.over10s} test files take over 10 s; the slowest, ${o.tests?.top[0]?.file}, takes ${Math.round(o.tests?.top[0]?.sec)} s`, '10-slow-tests-the-method.md');
   add(o.wait.passedOnRerunRate > 0.03, 6, () => `${Math.round(o.wait.passedOnRerunRate * 100)}% of PR heads went green only on a rerun: track and fix flakes`, '11-flakes.md');
   add(o.wait.p90 > 2 * o.wait.p50 && o.wait.p90 > 10, 5, () => `p90 is ${(o.wait.p90 / o.wait.p50).toFixed(1)}× p50: find what makes the slow runs slow`, '12-budgets-health-and-spend.md');
   add(o.jobs?.queueP90Sec > 60, 5, () => `Jobs wait ${Math.round(o.jobs.queueP90Sec)} s for a runner at p90${/^GitHub/.test(o.jobs.providers[0]?.[0] ?? '') ? ': GitHub-hosted runners are often slow to start, so price a faster provider' : ''}`, '02-runners-blacksmith-and-the-cost-of-getting-fast.md#when-jobs-wait-to-start');
   add(o.jobs?.subMinuteJobs / o.jobs?.jobs > 0.4 && o.jobs.billedMinutes > 1.5 * o.jobs.jobMinutes && o.jobs.providers[0]?.[0] !== 'GitHub-hosted', 3, () => `${o.jobs?.subMinuteJobs} of ${o.jobs?.jobs} jobs finish in under a minute but bill a whole one: merge them`, '07-shards-runners-and-billing.md');
-  add(!pr.cancelInProgress, 4, 'Cancel superseded PR runs: no concurrency with cancel-in-progress', '04-run-only-what-a-change-can-reach.md');
-  add(slow && !pr.scheduled, 3, 'Move broad checks to a scheduled sweep', '05-tiers-what-runs-where.md');
-  add(!pr.timeouts, 2, 'Set timeout-minutes on jobs', '03-workflow-anatomy.md');
-  add(slow && pr.eslint && !pr.fastLint, 2, 'Lint with Oxlint or Biome', '09-workspace-tooling.md');
+  add(pr.cancelInProgress === false, 4, 'Cancel superseded PR runs: no concurrency with cancel-in-progress', '04-run-only-what-a-change-can-reach.md');
+  add(slow && pr.scheduled === false, 3, 'Move broad checks to a scheduled sweep', '05-tiers-what-runs-where.md');
+  add(pr.timeouts === false, 2, 'Set timeout-minutes on jobs', '03-workflow-anatomy.md');
+  add(slow && pr.eslint === true && pr.fastLint === false, 2, 'Lint with Oxlint or Biome', '09-workspace-tooling.md');
   add(slow && pr.testRunner === 'jest', 2, 'Jest: consider Vitest', '09-workspace-tooling.md');
 
   return fixes.sort((a, b) => b.weight - a.weight).map(({ text, page }) => ({ text, guide: GUIDE + page }));
@@ -692,15 +689,23 @@ const fixesOf = (o: any, pr: Practices) => {
 
 // ---------- one repo ----------
 
-const scoreRepo = async (repo: string, days: number) => {
-  calls = 0;
-  const meta = api(`repos/${repo}`);
+// Flags, not fixes: worth knowing, but not a CI problem the measurements show.
+const notesOf = (pr: Practices, language: string | undefined) => [
+  ...(pr.agentsMd?.length === 0 ? [{ text: 'No AGENTS.md: agents working here have no instructions, such as how to run one test', guide: GUIDE + '15-the-agent-workflow-around-ci.md' }] : []),
+  ...stackNote(language),
+];
+
+export const scoreRepo = (gh: Gh, repo: string, days: number) => {
+  const meta = gh.json(`repos/${repo}`, { absentOn: [404] });
+  if (!meta)
+    throw new CliError(`GitHub has no repo ${repo} that this gh account can see. If it's private, the account needs access to it and the \`repo\` scope (\`gh auth refresh -s repo\`).`);
+
   const since = new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
   // PR runs and pushes to main are read as separate streams, so a busy repo's bots, schedules and
   // other events don't crowd the PR runs out of the window.
-  const prStream = readRuns(repo, since, 'event=pull_request', MAX_RUN_PAGES);
-  const targetStream = readRuns(repo, since, 'event=pull_request_target', 2);
-  const mainStream = readRuns(repo, since, `event=push&branch=${encodeURIComponent(meta.default_branch)}`, 3);
+  const prStream = readRuns(gh, repo, since, 'event=pull_request', MAX_RUN_PAGES);
+  const targetStream = readRuns(gh, repo, since, 'event=pull_request_target', 2);
+  const mainStream = readRuns(gh, repo, since, `event=push&branch=${encodeURIComponent(meta.default_branch)}`, 3);
   const runs = [...prStream.runs, ...targetStream.runs, ...mainStream.runs];
   const total = prStream.total;
   const covered = prStream.days;
@@ -708,8 +713,8 @@ const scoreRepo = async (repo: string, days: number) => {
   const prRuns = runs.filter((r) => PR_EVENTS.has(r.event));
   const gating = prRuns.filter((r) => !NOT_A_CHECK.test(r.name));
   const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
-  const ci = ciMinutes(repo, gating);
-  const first = firstAttempts(repo, 25);
+  const ci = ciMinutes(gh, repo, gating);
+  const first = firstAttempts(gh, repo, 25);
   const wait = waits(gating, first, ci.heavy);
   const allPushes = waits(gating, first);
   const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)));
@@ -720,7 +725,7 @@ const scoreRepo = async (repo: string, days: number) => {
   const sample = gating
     .filter((r) => r.name === lastName && r.conclusion === 'success' && r.run_attempt === 1)
     .slice(0, JOB_SAMPLE);
-  const perRun = sample.map((r) => ({ run: r, jobs: readJobs(repo, r.id) })).filter((x) => x.jobs.length);
+  const perRun = sample.map((r) => ({ run: r, jobs: readJobs(gh, repo, r.id) })).filter((x) => x.jobs.length);
   const stats = perRun.map((x) => jobStats(x.jobs));
   const jobs = stats.length
     ? {
@@ -778,13 +783,12 @@ const scoreRepo = async (repo: string, days: number) => {
       .slice(0, 2)
       .map((j) => ({ id: j.id, name: j.name }));
     const uniq = [...new Map([...testy, ...picks].map((j) => [j.id, j])).values()].slice(0, 3);
-    tests = slowTests(repo, uniq);
+    tests = slowTests(gh, repo, uniq);
   }
 
-  const tree = tryApi(`repos/${repo}/git/trees/${meta.default_branch}?recursive=1`);
-  const paths = new Set<string>((tree?.tree ?? []).map((t: any) => t.path));
-  const pr = await practices(repo, meta.default_branch, paths);
-  const profile = profileOf(repo, meta, tree, prRuns.length, covered);
+  const source = githubSource(gh, repo, meta.default_branch);
+  const pr = practices(source);
+  const profile = profileOf(gh, repo, meta, source.tree, prRuns.length, covered);
   const mergedInWindow = (profile.prsMergedPerWeek * Math.max(covered, 0.5)) / 7;
   const efficiency = {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
@@ -811,11 +815,20 @@ const scoreRepo = async (repo: string, days: number) => {
 
   // Too few timed pushes to say anything: no score, and the report says why.
   const enough = wait.timed >= MIN_TIMED;
+  const unscored = enough
+    ? undefined
+    : pr.workflows === 0 && !source.tree.truncated
+      ? `There are no GitHub Actions workflows on ${meta.default_branch}, so there's no CI history to score.`
+      : prRuns.length === 0
+        ? `There were no pull-request runs of GitHub Actions in the last ${days} days.`
+        : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
 
   return {
     repo,
     date: new Date().toISOString().slice(0, 10),
-    unscored: enough ? undefined : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`,
+    checkout: null,
+    defaultBranch: meta.default_branch as string,
+    unscored,
     profile,
     window: { days: r1(covered), runs: prStream.runs.length, runsInPeriod: total, truncated: total > prStream.fetched, mainDays: r1(mainStream.days) },
     size: sizeClass((wait.heads / Math.max(covered, 0.5)) * 7, profile.linesOfCode),
@@ -833,55 +846,34 @@ const scoreRepo = async (repo: string, days: number) => {
     tests,
     practices: pr,
     fixes: fixesOf(outcomes, pr),
-    // Flags, not fixes: worth knowing, but not a CI problem the measurements show.
-    notes: [
-      ...(pr.agentsMd.length === 0 ? [{ text: 'No AGENTS.md: agents working here have no instructions, such as how to run one test', guide: GUIDE + '15-the-agent-workflow-around-ci.md' }] : []),
-      ...stackNote(profile.languages[0]?.[0]),
-    ],
-    apiCalls: calls,
+    notes: notesOf(pr, profile.languages[0]?.[0] as string | undefined),
+    apiCalls: gh.calls,
   };
 };
 
-// ---------- output ----------
+export type Report = ReturnType<typeof scoreRepo>;
 
-type Report = Awaited<ReturnType<typeof scoreRepo>>;
-const p = (x: number) => (Number.isFinite(x) ? `${Math.round(x * 100)}%` : '–');
-const m = (x: number | undefined) => (x !== undefined && Number.isFinite(x) ? x.toFixed(1) : '–');
+/** No GitHub history to read: what the checkout's own files say, unscored, with the reason. */
+export const inventoryLocal = (root: string, reason: string) => {
+  const source = localSource(root);
+  const pr = practices(source);
+  const { codeBytes: _, ...profile } = treeProfile(source.tree);
 
-const fmtK = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`);
-const pkgText = (pk: Record<string, number>) =>
-  Object.entries(pk).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k === 'npm' ? 'npm package' : k === 'cargo' ? 'crate' : k === 'go' ? 'Go module' : 'Python project'}${n === 1 ? '' : 's'}`).join(', ') || 'one package';
+  return {
+    repo: null,
+    checkout: root,
+    date: new Date().toISOString().slice(0, 10),
+    unscored: `${reason}.`,
+    profile,
+    score: null,
+    grade: null,
+    band: null,
+    practices: pr,
+    // A checkout with no workflows has no CI to fix yet.
+    fixes: pr.workflows ? fixesOf({ wait: waits([]) }, pr) : [],
+    notes: notesOf(pr, undefined),
+  };
+};
 
-const promptBlock = (r: Report) =>
-  [
-    `<ci-report repo="${r.repo}" date="${r.date}">`,
-    `Score ${r.score}/100, grade ${r.grade}: speed ${r.parts.speed}, reliability ${r.parts.reliability}, efficiency ${r.parts.efficiency} (${r.size}: ${r.headsPerWeek} PR pushes a week)`,
-    `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} people (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs}% by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`,
-    `PR wait p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (pushes that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all pushes p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
-    `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr)} job-min across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedMinutesPerMergedPr}); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
-    r.jobs && `Last to finish: "${r.wait.lastToFinish[0]?.[0]}", ${r.jobs.jobs} jobs, ${m(r.jobs.jobMinutes)} job-min; run ${m(r.jobs.spanMin)} min; longest job "${r.jobs.longest.name}" ${m(r.jobs.longest.minutes)} min; setup ${p(r.jobs.setupShare)} of job time`,
-    r.jobs?.shard && `Shards "${r.jobs.shard.name}": ${r.jobs.shard.shards}, slowest ${r.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${p(r.jobs.shard.idleTail)} idle tail`,
-    r.tests?.top.length && `Slowest test files: ${r.tests.top.slice(0, 3).map((t) => `${t.file} ${t.sec.toFixed(1)} s`).join(', ')}`,
-    `Fix first: ${r.fixes.slice(0, 3).map((f, i) => `${i + 1}. ${f.text} (${f.guide.split('/').at(-1)!.slice(0, 2)})`).join('  ') || 'nothing urgent'}`,
-    `</ci-report>`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+export type Inventory = ReturnType<typeof inventoryLocal>;
 
-const args = import.meta.main ? process.argv.slice(2) : [];
-const days = Number(args[args.indexOf('--days') + 1]) || 7;
-const json = args.includes('--json');
-const repos = args.filter((a, i) => a.includes('/') && args[i - 1] !== '--days');
-
-for (const repo of repos) {
-  try {
-    const r = await scoreRepo(repo, days);
-    const dir = join(HERE, 'reports', repo.replace('/', '__'));
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, `${r.date}.json`), JSON.stringify(r, null, 1));
-    if (json) console.log(JSON.stringify(r));
-    else console.log(`\n== ${repo}  score ${r.score}  ${JSON.stringify(r.parts)}  (${r.apiCalls} API calls, ${r.window.days} days, ${r.window.runs}${r.window.truncated ? ` of ${r.window.runsInPeriod}` : ''} runs)\n${promptBlock(r)}`);
-  } catch (e) {
-    console.log(`\n== ${repo}  failed: ${(e as Error).message.split("\n")[0]}`); if (process.env.DEBUG) console.error(e);
-  }
-}
