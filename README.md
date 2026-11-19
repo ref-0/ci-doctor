@@ -36,7 +36,7 @@ claude plugin marketplace add ref-0/ci-doctor
 claude plugin install ci-doctor@ref0
 ```
 
-Start a new session, or run `/reload-plugins` in an open one. Inside Claude Code the same commands are `/plugin marketplace add ref-0/ci-doctor` and `/plugin install ci-doctor@ref0`. The skills are namespaced, such as `/ci-doctor:review-gate`.
+Start a new session, or run `/reload-plugins` in an open one. Inside Claude Code the same commands are `/plugin marketplace add ref-0/ci-doctor` and `/plugin install ci-doctor@ref0`. The skills are namespaced, such as `/ci-doctor:review-gate`. To update, run `claude plugin marketplace update ref0`, then `claude plugin update ci-doctor@ref0`.
 
 ### Codex
 
@@ -45,7 +45,7 @@ codex plugin marketplace add ref-0/ci-doctor
 codex plugin add ci-doctor@ref0
 ```
 
-Start a new Codex session after installing.
+Start a new Codex session after installing. To update, run `codex plugin marketplace upgrade ref0`.
 
 ### VS Code / GitHub Copilot
 
@@ -63,7 +63,7 @@ Open **Customize**, select **Plugins**, choose **From GitHub Repository**, and e
 npx skills add https://github.com/ref-0/ci-doctor
 ```
 
-Select your agent when it asks. This copies the skill folders only; the guide and the reference scripts they link to stay in this repo, at the release tag.
+Select your agent when it asks, and update with `npx skills update`. This copies the skill folders only; the guide and the reference scripts they link to stay in this repo, at the release tag.
 
 ### By hand
 
@@ -120,6 +120,8 @@ node scripts/site/build.ts
 ```
 
 The build checks build it too, and fail on a link that leaves what it serves or a page `llms.txt` misses. `scripts/site/README.md` says what it serves and how to deploy it.
+
+A release bumps `version` in `plugin.json`, which the build checks keep the same in every manifest. Claude Code updates an installed plugin only when that version changes.
 
 ## License
 
