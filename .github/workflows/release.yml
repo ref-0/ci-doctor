@@ -1,0 +1,50 @@
+# Publishes the scorer, @ref0/ci-doctor, when a release tag is pushed. Nothing else runs here: the repo has no
+# CI of its own, and contributors run `node scripts/check.ts` before pushing.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  # npm provenance: the package says which workflow run built it.
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: The tag, the plugin and the package name one version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          plugin="$(jq -r .version plugin.json)"
+          package="$(jq -r .version scorer/package.json)"
+          echo "tag $tag, plugin.json $plugin, scorer/package.json $package"
+          test "$tag" = "$plugin" && test "$tag" = "$package"
+
+      - name: Build checks
+        run: node scripts/check.ts
+
+      - name: Test the built package
+        working-directory: scorer
+        run: |
+          npm ci
+          npm test
+
+      - name: Publish
+        working-directory: scorer
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

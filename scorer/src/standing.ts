@@ -2,7 +2,7 @@
 // class, as JSON with those two fields, and nothing else: no repo name, no account, no measurements.
 import { CliError, usage } from './errors.ts';
 
-/** ci.ref0.dev's endpoint, once the site has one. Until then a caller names it with --standing-url. */
+/** ci-doctor.ref0.dev's endpoint, once the site has one. Until then a caller names it with --standing-url. */
 export const STANDING_URL: string | undefined = undefined;
 
 export interface Standing {
@@ -12,7 +12,7 @@ export interface Standing {
 
 export const standingUrl = (flag: string | undefined, env = process.env.CI_DOCTOR_STANDING_URL) => {
   const named = flag ?? env ?? STANDING_URL;
-  if (!named) throw usage("--standing has no endpoint yet: ci.ref0.dev doesn't take standings, so name one with --standing-url.");
+  if (!named) throw usage("--standing has no endpoint yet: ci-doctor.ref0.dev doesn't take standings, so name one with --standing-url.");
 
   let url: URL;
   try {

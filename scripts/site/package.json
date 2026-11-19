@@ -1,0 +1,9 @@
+{
+  "name": "ci-doctor-guide-site",
+  "private": true,
+  "type": "module",
+  "description": "Deploys the guide's build to ci-doctor.ref0.dev with cf. The build itself needs no install.",
+  "devDependencies": {
+    "cf": "1.0.0-rc.2"
+  }
+}
