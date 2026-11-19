@@ -2,7 +2,7 @@
 /**
  * What: prints where CI's time went, and roughly what it cost, from GitHub's runs and jobs API.
  * Where: run by a person or an agent from a checkout of the repo, before and after a change to CI.
- * Configure: the CONFIG block below, or the flags that override it. Needs Node 24 and `gh`, logged in
+ * Configure: the repo's `.agents/repo/ci-time.json` (SETTINGS below), or the flags that override it. Needs Node 24 and `gh`, logged in
  *   to <org>. With `--bill blacksmith`, also the `blacksmith` CLI and the blacksmith topic's adapter
  *   (references/blacksmith/scripts/blacksmith-bill.ts in the ci-doctor hub). It never reads either CLI's credentials.
  * Tests: `node --test ci-time.test.ts`, from this folder.
@@ -20,7 +20,7 @@
  *   ci-time.ts --repo <owner/name>
  *                              another repo than the one `gh repo view` finds from this folder
  *   ci-time.ts --workflow checks.yml --shard Test --shard E2E
- *                              a repo whose workflow file or sharded jobs aren't named as CONFIG says,
+ *                              a repo whose workflow file or sharded jobs aren't named as the settings say,
  *                              as its .agents/repo/ci.md names them: a job whose name starts with a
  *                              --shard prefix is a shard
  *   ci-time.ts --bill blacksmith
@@ -52,39 +52,62 @@
  * The check that runs this is the hub's references/checks/ci-measure-before-changing-it.md, with the ci-workflows topic.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { argv, exit, stderr } from 'node:process';
+import { argv, env, exit, stderr } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-// ---- CONFIG: your repo's layout and runners. Flags override the first three. ------------------------
-export const REPO: string | null = null; // "<org>/<repo>"; null reads it from `gh repo view` in this folder
-export const WORKFLOW = 'ci.yml'; // the workflow file that runs pull requests' checks
-export const SHARDS: readonly string[] = ['Tests', 'Sandbox']; // job-name prefixes of sharded jobs; the first is the test shards
-export const GATE_JOB = 'CI result'; // the job that only gathers the others' results; left out of wall time
-export const LARGE_RUN_SHARDS = 3; // a passing PR run with at least this many test shards counts as large: a heuristic, not full selection
-// A runner label's vCPUs: [pattern, vCPUs]. A pattern with a group takes the vCPUs from it. First match
-// wins. Check each against your provider's current runner list: hosted defaults change, and a
-// self-hosted label says nothing about its machine until you add it here.
-export const RUNNERS: readonly (readonly [RegExp, number | null])[] = [
-  [/(\d+)vcpu/, null], //        Blacksmith: blacksmith-<n>vcpu-ubuntu-2404[-arm]
-  [/(\d+)-cores?/, null], //     GitHub's larger runners, when named for their cores
-  [/^ubuntu-/, 2], //            GitHub-hosted standard Linux (<github-hosted-vcpus>)
-  [/^windows-/, 2],
-  [/^macos-/, 3],
-  // [/^self-hosted$/, <vcpus>], // your own runners
-];
-// A runner label's list price per started minute: [pattern, price], first match wins, in your currency.
-// Price each label from your provider's current pricing page; a per-vCPU provider's label costs its
-// vCPUs times the per-vCPU price. Leave it empty to print no money; a total prints only when every
-// job's label is priced.
-export const PRICES: readonly (readonly [RegExp, number])[] = [
-  // [/^ubuntu-latest$/, <price-per-minute>],
-  // [/blacksmith-8vcpu-ubuntu-2404$/, <price-per-minute>],
-];
-// Test files whose times the shard logs print, as a regular expression over the path.
-export const TEST_FILE = String.raw`\S+\.(?:test|spec)\.[cm]?[jt]sx?`;
+// ---- SETTINGS: your repo's layout and runners, in `.agents/repo/ci-time.json` -----------------------
+// The repo owns that file, so updating this script never touches its values. Its template is the
+// ci-doctor hub's references/agent-knowledge/repo-facts/ci-time.json. It's read from the folder this
+// runs in, or from CI_TIME_SETTINGS; a key it leaves out keeps the default below. Flags override the
+// first three. Patterns are regular expressions, as strings.
+/** The defaults: the source repo's values, as examples. */
+export const DEFAULTS = {
+  repo: null as string | null, // "<org>/<repo>"; null reads it from `gh repo view` in this folder
+  workflow: 'ci.yml', // the workflow file that runs pull requests' checks
+  shards: ['Tests', 'Sandbox'] as readonly string[], // job-name prefixes of sharded jobs; the first is the test shards
+  gateJob: 'CI result', // the job that only gathers the others' results; left out of wall time
+  largeRunShards: 3, // a passing PR run with at least this many test shards counts as large: a heuristic, not full selection
+  // A runner label's vCPUs: [pattern, vCPUs]. A pattern with a group takes the vCPUs from it. First match
+  // wins. Check each against your provider's current runner list: hosted defaults change, and a
+  // self-hosted label says nothing about its machine until you add it.
+  runners: [
+    ['(\\d+)vcpu', null], //        Blacksmith: blacksmith-<n>vcpu-ubuntu-2404[-arm]
+    ['(\\d+)-cores?', null], //     GitHub's larger runners, when named for their cores
+    ['^ubuntu-', 2], //            GitHub-hosted standard Linux (<github-hosted-vcpus>)
+    ['^windows-', 2],
+    ['^macos-', 3],
+  ] as readonly (readonly [string, number | null])[],
+  // A runner label's list price per started minute: [pattern, price], first match wins, in your currency.
+  // Price each label from your provider's current pricing page; a per-vCPU provider's label costs its
+  // vCPUs times the per-vCPU price. Leave it empty to print no money; a total prints only when every
+  // job's label is priced.
+  prices: [] as readonly (readonly [string, number])[],
+  // Test files whose times the shard logs print, as a regular expression over the path.
+  testFile: String.raw`\S+\.(?:test|spec)\.[cm]?[jt]sx?`,
+};
+export type Settings = typeof DEFAULTS;
+
+/** The repo's settings over the defaults; a key the defaults don't have is an error. */
+export function readSettings(path = env.CI_TIME_SETTINGS ?? join('.agents', 'repo', 'ci-time.json')): Settings {
+  if (!existsSync(path)) return DEFAULTS;
+  const given = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  const unknown = Object.keys(given).filter((key) => !(key in DEFAULTS));
+  if (unknown.length) throw new Error(`${path}: unknown settings ${unknown.join(', ')}`);
+  return { ...DEFAULTS, ...given } as Settings;
+}
+
+const SETTINGS = readSettings();
+export const REPO = SETTINGS.repo;
+export const WORKFLOW = SETTINGS.workflow;
+export const SHARDS = SETTINGS.shards;
+export const GATE_JOB = SETTINGS.gateJob;
+export const LARGE_RUN_SHARDS = SETTINGS.largeRunShards;
+export const RUNNERS: readonly (readonly [RegExp, number | null])[] = SETTINGS.runners.map(([pattern, vcpus]) => [new RegExp(pattern), vcpus]);
+export const PRICES: readonly (readonly [RegExp, number])[] = SETTINGS.prices.map(([pattern, price]) => [new RegExp(pattern), price]);
+export const TEST_FILE = SETTINGS.testFile;
 // ------------------------------------------------------------------------------------------------------
 
 const ANSI = /\x1b\[[0-9;]*m/g;

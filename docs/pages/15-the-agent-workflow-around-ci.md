@@ -12,7 +12,7 @@
 - **Type-check test-only changes too.** CI runs type-aware lint on every file.
 - **Review:**
   - Changed tests, helpers or test config need a **test-focused reviewer** (a second model), apart from tiny low-risk changes (≤ 20 changed test lines). Speed work can silently weaken proof.
-  - Large production changes (for us, at least 300 net production lines, `largeChange` in [`review-record.ts`](../../skills/code-review/scripts/review-record.ts)) need a code-quality review. [`skills/code-review/`](../../skills/code-review/SKILL.md) holds the review procedure.
+  - Large production changes (for us, at least 300 net production lines, `largeChange` in [`review-record.ts`](../../skills/review-gate/scripts/review-record.ts)) need a code-quality review. [`skills/review-gate/`](../../skills/review-gate/SKILL.md) holds the review procedure.
   - Rounds are capped.
   - If only the review record was missing, a small workflow reruns **just the aggregate result job** once a valid record lands. It doesn't rerun everything else.
 - **Follow main after merging.** Main once stayed red for hours while agents watched only their own PRs. A green merge isn't a deploy, either: check the deploy.

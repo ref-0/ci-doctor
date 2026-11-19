@@ -1,5 +1,5 @@
 <!--
-What: the facts about one repo's tests that the speed-up-tests skill reads: its records and scripts, settings, holds, fakes and what past campaigns measured.
+What: the facts about one repo's tests that the ci-doctor hub's speed-up-tests topic reads: its records and scripts, settings, holds, fakes and what past campaigns measured.
 Where: copy to `.agents/repo/speed-up-tests.md` in your repo.
 Configure: replace every <placeholder>. The commented "Example" blocks are the source repo's values; delete them once yours are in.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # <repo>'s slow tests
 
-What the shared `speed-up-tests` skill reads about this repo: CI's records and the scripts that rank them, the settings, holds and fakes, and what past campaigns measured.
+What the shared `speed-up-tests` topic reads about this repo: CI's records and the scripts that rank them, the settings, holds and fakes, and what past campaigns measured.
 
 ## Records and scripts
 
@@ -19,7 +19,7 @@ node <scripts-dir>/ci-slow-files.ts records.jsonl
 node <scripts-dir>/ci-wait-hints.ts records.jsonl --over 10 --out batches/
 ```
 
-This kit's versions are in `<root>/scripts/records/`, the playbook's pinned copy. Records hold only what ran: a test the task cache replays isn't in them.
+This kit's versions are in the ci-doctor repo's `scripts/records/`, at its release tag. Records hold only what ran: a test the task cache replays isn't in them.
 
 ## Thresholds
 

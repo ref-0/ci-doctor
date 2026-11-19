@@ -46,7 +46,7 @@ Every script a workflow calls ships in this playbook, and each workflow calls it
 | `scripts/sweeps/` | `scripts/sweeps/` | `ci.yml` plan (`snapshot-pins.ts`), `sweep-bisect.yml` |
 | `scripts/budgets/` | `scripts/budgets/` | `ci-health.yml`; `sweep-bisect.ts` imports two of its files |
 | `scripts/reuse/` | `scripts/reuse/` | `ci.yml` plan (`pass-key.ts`), only once you turn Rust pass reuse on |
-| `skills/code-review/` | `<skills-dir>/code-review/`, as [the skills' install](../../skills/README.md#install) lays it out | `ci.yml` result, which runs `<review-checker>` (that copy's `scripts/review-record.ts`) from the repo root of a base-branch checkout |
+| `skills/review-gate/` | `<skills-dir>/review-gate/`, as [the skills' install](../../skills/README.md#install) lays it out | `ci.yml` result, which runs `<review-checker>` (that copy's `scripts/review-record.ts`) from the repo root of a base-branch checkout |
 | `scripts/budgets/spend-watcher/ci-budget-alert.yml` | `.github/workflows/` of a **separate alerts repo**, not this one | the spend watcher. See [`scripts/budgets/README.md`](../../scripts/budgets/README.md#3-the-spend-watcher) |
 
 `ci.yml` finds ordinary tests with `ORDINARY_TESTS` (`\.test\.tsx?$`, anywhere, in its `env`), less the own-job files `\.(sandbox|proof)\.test\.tsx?$`. Keep both equal to the planner's `config.testFile` and `ownJob`, `near-tests.ts`' `testFile` and `test-groups.ts`' `ORDINARY` and `LEFT_OUT`, or a file can be planned and never run. Tests in another language or named another way stay in jobs of their own that run on every ready run.
@@ -160,7 +160,7 @@ The plan job picks the test runner's size (`test_runner`): change both labels it
 | `<org>/<shared-actions-repo>`, `<full-commit-sha>` | `static.yml` | Where you keep shared actions and workflows, pinned by full SHA |
 | `<monthly-cap>` | `spendCeiling` in `scripts/budgets/ci-budgets.ts`, which `ci-health.yml` projects against | A copy of the cap the user set. The authoritative cap lives where the spend stop reads it ([`scripts/budgets/`](../../scripts/budgets/README.md#placeholders)) |
 | `<node-setup>`, `<install-command>`, `<lint-command>`, `<types-command>`, `<js-test-command>`, `<python-version-file>`, `<python-install>`, `<python-test-command>` | `ci-starter.yml`, as its header lists them | The commands your CI runs today, unchanged |
-| `<review-checker>` | `ci.yml` result's sparse checkout and `CHECKER` | The repo's copy of `review-record.ts`, from its root, as `.agents/repo/review.md` names it: `<skills-dir>/code-review/scripts/review-record.ts` for the installed skill. Runs on Node 24 |
+| `<review-checker>` | `ci.yml` result's sparse checkout and `CHECKER` | The repo's copy of `review-record.ts`, from its root, as `.agents/repo/review.md` names it: `<skills-dir>/review-gate/scripts/review-record.ts` for the installed skill. Runs on Node 24 |
 | `<skills-dir>` | the install layout | The skills folder your harness reads ([`../../docs/harnesses.md`](../../docs/harnesses.md)) |
 | `<small-label>`, `<medium-label>`, `<large-label>`, `<label>` | [Runner labels](#runner-labels) | Your self-hosted runners' labels, by size |
 | `TASK_CACHE_READ_TOKEN` | jobs calling `actions/task-cache` | The repository secret holding the cache's read token. A generic name; rename it everywhere if you like |

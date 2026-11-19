@@ -1,6 +1,6 @@
 ---
 name: proof-tiers
-description: "Keep a bounded model check or a property test honest: writing one, keeping it true when covered code changes or its check fails, and moving it to a slower tier. Use for state machines, retries, queues, leases, parsers or wire formats; optional for stacks without them. CI's tiers: ci-workflows; test value: test-audit."
+description: "Keep a bounded model check or a property test honest: writing one, keeping it true when covered code changes or its check fails, and moving it to a slower tier. Use for state machines, retries, queues, leases, parsers or wire formats; optional for stacks without them. CI's tiers: ci-doctor; test value: test-audit."
 ---
 
 <!--
@@ -30,7 +30,7 @@ A stack with neither can skip this skill. Read the repo's `.agents/repo/proof-ti
 - **Honest about scope.** Record what each proof covers, under which bound and assumptions, and what it leaves out. A pass covers the model within its bound, not the system.
 - **Kept in step.** Record the files each proof covers and the commit at which someone last confirmed it describes them. A pull request that changes covered code updates the proof, or says in its body why it still holds.
 - **Cheap where every PR pays.** The PR tier runs a fixed seed or a small bound in seconds; the sweep runs deeper. Measure before you set either.
-- **Reviewed by someone else.** A change to a rule, a break or a bound gets an independent review, as [`code-review`](../code-review/SKILL.md) says.
+- **Reviewed by someone else.** A change to a rule, a break or a bound gets an independent review, as [`review-gate`](../review-gate/SKILL.md) says if the repo adopted it, or by the repo's own review process.
 
 ## Moving one to a slower tier
 
@@ -40,5 +40,5 @@ Follow [the tiers](../ci-doctor/references/ci-workflows/references/tiers.md). Ke
 
 - [`speed-up-tests`](../ci-doctor/references/speed-up-tests/TOPIC.md): a slow proof's waits.
 - [How CI runs them](references/properties.md#how-ci-runs-them): seeds on a PR and in the sweep.
-- [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md): reading a property failure in a PR's run.
-- [`test-audit`](../test-audit/SKILL.md): whether a test is worth keeping.
+- [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if the repo adopted it: reading a property failure in a PR's run.
+- [`test-audit`](../test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping.

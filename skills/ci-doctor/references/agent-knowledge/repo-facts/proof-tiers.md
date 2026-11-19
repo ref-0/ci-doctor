@@ -34,5 +34,5 @@ What the shared `proof-tiers` skill reads about this repo. Point at the files th
 
 <!-- Example:
 - Seeds come from FUZZ_SEED and FUZZ_RUNS; a PR runs seed 42 at 100 cases, the sweep the run's ID at 2,000.
-- `node <root>/skills/proof-tiers/scripts/run-breaks.ts --config .agents/repo/breaks.json [words]` applies each break registered there, runs its test, prints CAUGHT, UNCLEAR, HUNG, MISSED or SKIP, and restores the code.
+- `node <skills-dir>/proof-tiers/scripts/run-breaks.ts --config .agents/repo/breaks.json [words]` applies each break registered there, runs its test, prints CAUGHT, UNCLEAR, HUNG, MISSED or SKIP, and restores the code.
 -->

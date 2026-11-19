@@ -73,5 +73,5 @@ The method holds on any stack. Where your stack matches, these say what was spec
 
 - [`ci-workflows`](../ci-workflows/TOPIC.md): shards, selection, tiers and caches; [`ci-runners`](../ci-runners/TOPIC.md) for runner size and cost.
 - [`test-audit`](../../../test-audit/SKILL.md): whether a test is worth keeping at all; its authoring gate applies to any test you add.
-- [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): taking a PR through CI; [`code-review`](../../../code-review/SKILL.md) for its tests reviewer.
+- [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): taking a PR through CI; [`review-gate`](../../../review-gate/SKILL.md) for its tests reviewer.
 - [`verify-evidence`](../verify-evidence/TOPIC.md): judging a number before you quote it.

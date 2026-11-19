@@ -1,0 +1,16 @@
+{
+  "repo": null,
+  "workflow": "ci.yml",
+  "shards": ["Tests", "Sandbox"],
+  "gateJob": "CI result",
+  "largeRunShards": 3,
+  "runners": [
+    ["(\\d+)vcpu", null],
+    ["(\\d+)-cores?", null],
+    ["^ubuntu-", 2],
+    ["^windows-", 2],
+    ["^macos-", 3]
+  ],
+  "prices": [],
+  "testFile": "\\S+\\.(?:test|spec)\\.[cm]?[jt]sx?"
+}

@@ -1206,13 +1206,13 @@ jobs:
           missing=$(jq -c --argjson claimed "$claimed" '[range(length)] - $claimed' <<< "$QUEUE")
           [ "$missing" = '[]' ] || { echo "::error::No shard claimed the batches $missing, so their files ran nowhere."; exit 1; }
       # The PR's review is on record (a member's `## Review:` session comment, or a "No review:" line
-      # in its body), as the code-review skill's record reference defines it. Read last,
+      # in its body), as the review-gate skill's record reference defines it. Read last,
       # so a comment posted while checks ran counts; review-recheck.yml reruns only this job when the
       # record lands after it failed for that alone. Optional: delete these two steps and
       # review-recheck.yml if you don't gate on review. The checker comes from the base branch, so a
       # PR can't rewrite the gate it's judged by; until the base has one, the step only warns.
       # <review-checker>: the repo's copy of review-record.ts, from its root, as .agents/repo/review.md
-      # names it (the installed skill's, as <skills-dir>/code-review/scripts/review-record.ts).
+      # names it (the installed skill's, as <skills-dir>/review-gate/scripts/review-record.ts).
       - uses: actions/checkout@v7
         if: always() && github.event_name == 'pull_request'
         timeout-minutes: 1
@@ -1222,6 +1222,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             <review-checker>
+            .agents/repo/review-record.json
           sparse-checkout-cone-mode: false
       - name: The review is on record
         if: always() && github.event_name == 'pull_request'
@@ -1230,6 +1231,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           BASE: ${{ github.base_ref }}
           CHECKER: review/<review-checker>
+          REVIEW_SETTINGS: review/.agents/repo/review-record.json
         run: |
           if [ ! -f "$CHECKER" ]; then
             echo "::warning::$BASE has no review checker yet, so the record is checked from the first PR after it merges."

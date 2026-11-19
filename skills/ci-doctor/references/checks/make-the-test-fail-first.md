@@ -38,5 +38,5 @@ In the source repo:
 ## Pointed at from
 
 - [`test-audit`](../../../test-audit/SKILL.md).
-- [The tests reviewer](../../../code-review/references/tests-reviewer.md), on evidence.
+- [The tests reviewer](../../../review-gate/references/tests-reviewer.md), on evidence.
 - [`speed-up-tests`](../speed-up-tests/references/flakes.md), on proving a flake's fix.

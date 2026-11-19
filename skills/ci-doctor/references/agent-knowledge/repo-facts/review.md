@@ -1,5 +1,5 @@
 <!--
-What: the facts about one repo's review that the code-review skill reads: its systems, review list, model and account, types and checker.
+What: the facts about one repo's review that the review-gate skill reads: its systems, review list, model and account, types and checker.
 Where: copy to `.agents/repo/review.md` in your repo, and the review list to `.agents/repo/review-paths.txt`.
 Configure: replace every <placeholder>; delete the commented examples once yours are in.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # <repo>'s review
 
-What the `code-review` skill reads about this repo. It wins on policy. Keep values in the checker's CONFIG block and the review list, and name them here.
+What the `review-gate` skill reads about this repo. It wins on policy. Keep values in the checker's settings, `.agents/repo/review-record.json`, and the review list, and name them here.
 
 ## Systems and the review list
 

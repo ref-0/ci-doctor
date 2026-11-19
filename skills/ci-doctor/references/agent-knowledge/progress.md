@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 # CI work: progress
 
 - **Updated:** `<date and time, UTC>`
-- **Playbook:** `<root>` at `<tag or commit>`
+- **Playbook:** ci-doctor `<version or tag>`, and how it's installed
 - **Phase:** `<0–6>`, `<its name>`
 - **Plan:** `<path to the plan>`; approved `<date>` by `<who>`, or not yet
 - **Authorization record:** `<path, or the plan's section>`

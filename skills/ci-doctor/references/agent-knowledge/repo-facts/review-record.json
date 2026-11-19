@@ -1,0 +1,13 @@
+{
+  "reviewTypes": ["stress test", "red team", "system design", "bounded verification", "fuzzing", "storage", "program design", "tests", "code quality", "experiment", "skeptic"],
+  "consideredTypes": ["stress test", "system design", "red team", "storage", "program design", "bounded verification", "fuzzing"],
+  "testCode": ["*.test.ts", "*.test.tsx", "*/testing/*", "*/tests/*", "scripts/test-*.ts", "!*.gen.*"],
+  "productionExtensions": "\\.(ts|tsx|rs)$",
+  "notProduction": "(\\.test\\.|\\.fuzz\\.|\\/tests?\\/|_test\\.rs|\\/testing\\/|\\/fixtures\\/|\\.gen\\.|\\/verification\\/)",
+  "largeChange": 300,
+  "lowRiskLines": 20,
+  "requiredEffort": "high",
+  "reviewPaths": ".agents/repo/review-paths.txt",
+  "defaultBase": "main",
+  "reviewerAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+}

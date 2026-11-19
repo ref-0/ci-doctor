@@ -8,13 +8,13 @@
  */
 import { deepStrictEqual, equal, match, notEqual, ok } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { billedMinutes, FILE, type Job, jobRows, loadAdapter, quantile, report, vcpu, vcpus, wall } from './ci-time.ts';
+import { billedMinutes, DEFAULTS, FILE, type Job, jobRows, loadAdapter, quantile, readSettings, report, vcpu, vcpus, wall } from './ci-time.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -98,6 +98,27 @@ describe('rows', () => {
 describe('vCPU-minutes', () => {
   it('prints whole numbers bare and others to one decimal', () => {
     deepStrictEqual([0, 24, 12.5, 2 / 3, 1234567].map(vcpu), ['0', '24', '12.5', '0.7', '1234567']);
+  });
+});
+
+describe('the settings', () => {
+  const template = join(here, '..', '..', 'agent-knowledge', 'repo-facts', 'ci-time.json');
+
+  it('has a template that holds every default', () => {
+    deepStrictEqual(readSettings(template), DEFAULTS);
+  });
+
+  it('keeps the defaults without a settings file, and refuses a key it does not know', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ci-time-'));
+    try {
+      deepStrictEqual(readSettings(join(dir, 'none.json')), DEFAULTS);
+      writeFileSync(join(dir, 'bad.json'), JSON.stringify({ workflows: 'x.yml' }));
+      match(String((() => { try { readSettings(join(dir, 'bad.json')); } catch (error) { return error; } })()), /unknown settings workflows/);
+      writeFileSync(join(dir, 'ok.json'), JSON.stringify({ workflow: 'checks.yml' }));
+      deepStrictEqual(readSettings(join(dir, 'ok.json')), { ...DEFAULTS, workflow: 'checks.yml' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

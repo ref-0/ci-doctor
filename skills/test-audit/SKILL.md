@@ -1,6 +1,6 @@
 ---
 name: test-audit
-description: "Judge a test's value: the gate for a new or changed test's design, audits of weak or duplicate coverage, and test-only production seams. Use when deciding whether a test should exist or what it proves. Slow or flaky tests: speed-up-tests; models and property tests: proof-tiers; a PR's tests reviewer: code-review."
+description: "Judge a test's value: the gate for a new or changed test's design, audits of weak or duplicate coverage, and test-only production seams. Use when deciding whether a test should exist or what it proves. Slow or flaky tests: ci-doctor; models and property tests: proof-tiers; a PR's tests reviewer: review-gate."
 ---
 
 <!--
@@ -48,8 +48,8 @@ observable effect, or delete the test.
 
 A test of a parser, a wire format, a limit or code that must agree with another
 implementation may earn properties over generated input, since a hand-picked case
-covers only the inputs someone thought of. Where the repo has property tests,
-[`proof-tiers`](../proof-tiers/SKILL.md) decides where generated coverage pays for
+covers only the inputs someone thought of. Where the repo has property tests and adopted
+[`proof-tiers`](../proof-tiers/SKILL.md), it decides where generated coverage pays for
 its cost, and how it runs.
 
 Bug regression tests must fail on the pre-fix code for the intended reason and

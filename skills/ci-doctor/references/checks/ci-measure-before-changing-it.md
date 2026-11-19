@@ -1,7 +1,7 @@
 <!--
 What: a check that a change to CI is priced and modelled from measured runs before it's built, and measured again after.
 Where: read by an agent designing a change to CI's jobs, shards, runners or selection.
-Configure: ci-time.ts's config block (repo, workflow, shard prefixes, runner labels, each label's <price-per-minute>).
+Configure: the repo's `.agents/repo/ci-time.json` (repo, workflow, shard prefixes, runner labels, each label's <price-per-minute>).
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 

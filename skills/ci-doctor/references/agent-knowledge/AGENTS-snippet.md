@@ -33,7 +33,7 @@ Run the narrowest check that covers your change, from the root:
 - Give the test command files, not a directory, package or glob.
 - Run the permitted focused checks before pushing. Follow this repo's machine policy below for builds and full checks; the checks it reserves for CI are verified in the ready PR's run.
 - Never run the whole suite or CI by hand, outside the approved dispatch exceptions in `.agents/repo/ci.md`'s Manual runs and failures. Where this repo skips CI on drafts, CI runs once, when the PR is marked ready.
-- Before you run a check or dispatch CI, read `<root>/checks/run-only-checks-that-decide.md`.
+- Before you run a check or dispatch CI, read the `ci-doctor` skill's check `references/checks/run-only-checks-that-decide.md`.
 
 ## Machine policy
 
@@ -55,6 +55,6 @@ pnpm run build                            # every package's build
 ## Working here
 
 - When docs and code disagree, the code is right. Fix the doc in the same change.
-- CI: read `ci-workflows` before changing it, `ci-runners` before changing a runner or costing a change, and `blacksmith` for its CLI and disks<!-- drop if you don't run on Blacksmith -->. `code-review` reviews a PR while it's a draft<!-- drop if the repo keeps its own review process -->, and `ci-merge-workflow` takes it to merged; before merging, read `<root>/checks/check-what-ci-ran.md`. This repo's facts are in `.agents/repo/ci.md` and `.agents/repo/review.md`.
-- Tests: `speed-up-tests` for a slow test or a flake, `test-audit` for a test's value, `proof-tiers` for models and property tests.
-- Evidence: `verify-evidence` before you call work done or quote a number.
+- CI: read `ci-doctor` before changing it, before changing a runner or costing a change, and for Blacksmith's CLI and disks<!-- drop if you don't run on Blacksmith -->. `review-gate` reviews a PR while it's a draft<!-- drop if the repo keeps its own review process -->, and `ci-merge-workflow` takes it to merged; before merging, read the `ci-doctor` skill's check `references/checks/check-what-ci-ran.md`. This repo's facts are in `.agents/repo/ci.md` and `.agents/repo/review.md`.
+- Tests: `ci-doctor` for a slow test or a flake, `test-audit` for a test's value, `proof-tiers` for models and property tests.
+- Evidence: `ci-doctor`'s `verify-evidence` topic before you call work done or quote a number.
