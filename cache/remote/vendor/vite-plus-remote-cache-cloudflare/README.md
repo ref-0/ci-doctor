@@ -1,6 +1,13 @@
 # vite-plus-remote-cache-cloudflare, vendored
 
-[voidzero-dev/vite-plus-remote-cache-cloudflare](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare) at [`5b06c2c10d84ea441735ba07c46f6d1b7cb2ff3b`](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare/tree/5b06c2c10d84ea441735ba07c46f6d1b7cb2ff3b) (22 Oct 2026), MIT, copyright VoidZero Inc. (`LICENSE`). On 6 Nov 2026 upstream's `main` was 18 commits past it, all dependency updates, with no change under `src/` or `migrations/`.
+[voidzero-dev/vite-plus-remote-cache-cloudflare](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare) at [`5b06c2c10d84ea441735ba07c46f6d1b7cb2ff3b`](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare/tree/5b06c2c10d84ea441735ba07c46f6d1b7cb2ff3b) (22 Oct 2026), MIT, copyright VoidZero Inc. (`LICENSE`). On 19 Nov 2026 upstream's `main` ([`f6bdd05`](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare/tree/f6bdd051721f2c46428251ff813aebcb88bc214c)) was 48 commits past it, with changes under `src/` and a third migration. Vite+ 1.7.0's client is 1.6.0's, built from the same commit of its task runner, so the protocol this copy speaks hasn't changed.
+
+**Taken from upstream since the pin,** each marked `local:` like the changes below:
+
+- **A multipart part streams past a boundary prefix that isn't one** (13 Nov, `src/multipart.ts`). Before, a body that repeated `\r\n--<boundary>` with padding and no CRLF was buffered whole, up to the store's limit, past the metadata and blob limits, which see only what the parser yields. Only a writer can send one.
+- **Cleanup frees a generation whose multipart upload R2 can no longer abort** (13 Nov, `src/database.ts`). Before, a published blob over one part kept its upload ID, and when it expired, R2's `NoSuchUpload` (10024) on the abort left the row in `deleting` with its bytes charged, retried every 10 minutes forever, until such rows filled the byte budget and stopped every store. Publication now clears the ID, and only 10024 lets deletion go on.
+
+**Not taken:** several entries per key, with its migration; admission that waits for a slot instead of refusing (this copy admits by bytes, below); no rate limiting; one JWKS fetch shared between stores (this copy's 30 s wait follows only a failed fetch, below); and 32 reads at once.
 
 **Copied:** `src/` except `index.ts`, the handler, which `../../src/worker.ts` replaces; both migrations, which are in `../../migrations/` as `0001` and `0002`.
 
