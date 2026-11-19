@@ -2,6 +2,8 @@
 
 # 5. Tiers: what runs where
 
+**Applies when:** Checks too slow or costly for every PR could run on merges, on main's server runs or in a sweep instead. **Skip when:** No sweep has yet been shown to run every check it would take off PRs ("Releasing what the sweep checked", below).
+
 | Tier | When | What |
 |---|---|---|
 | **PR (ready)** | Each ready push | Plan; static build and type-aware lint in parallel; the tests the diff reaches, at normal property-test depth with a fixed seed; covered-only heavy files only if their covered paths changed; Rust only if its inputs changed; packaging only if packed inputs changed; review validation |
@@ -12,6 +14,8 @@
 | **Production deploy** | After publish | Fast-forwards to **the sweep's checked commit**, not main's tip. Staging follows every merge. |
 
 ## Moving heavy tests to the right tier
+
+**Applies when:** Expensive files run on every PR: bounded model checks, large-fixture, long-history or large-dataset tests, wide grids, full oracle corpora. **Skip when:** No PR test is expensive enough to tie to the inputs it proves.
 
 - **Covered-only table.** Expensive files are tied to the inputs they prove: bounded model checks, large-fixture tests, long-history or large-dataset tests, wide grids, full oracle corpora. A PR runs one only if it touches a covered path, **even when the PR otherwise selects everything.** Sweeps always run them.
 - **Split before you move.** Keep the light regression cases on PRs and move only the scale proof. In one case 17 light cases stayed and three scale proofs, most of the file's time, moved.
@@ -26,6 +30,8 @@
 
 ## Cron is not a scheduler you can trust
 
+**Applies when:** GitHub's scheduled runs carry checks, such as sweeps or main-only jobs. **Skip when:** The repo has no scheduled or main-only jobs.
+
 GitHub's scheduled runs arrived **hours late**, and in one period 7 of 9 never started.
 
 - **Merge fallback:** the first merge after each slot checks whether a run has started since that slot, and dispatches one if not. Serialized controller groups prevent duplicates, and slots recognize each other's coverage.
@@ -33,6 +39,8 @@ GitHub's scheduled runs arrived **hours late**, and in one period 7 of 9 never s
 - **Main-only jobs need a plan before merge.** A notice and a later read are evidence only after something runs, and a new `workflow_dispatch` workflow can be dispatched only once it's on the default branch. Before merging, check its syntax and event logic locally and name the exact job and what stays untested. For an existing dispatchable workflow, give the command, ref, inputs, permissions and run budget for the user's approval. Stage a new or truly main-only job so it can't affect gates, releases or issues until its first eligible run is reviewed, and record a deadline, an owner and a rollback in case it never starts.
 
 ## One issue for a red main, and a bisect with a budget
+
+**Applies when:** A sweep on main runs checks that PRs skip, so a failure has to be traced to a merge. **Skip when:** Main has no sweep.
 
 - **One issue:** a failed sweep opens or updates a single "main failed" issue listing the merges since the last pass. A passing sweep closes it.
 - **Rerun before bisecting:** failed jobs rerun at the same commit first. Passing on rerun means a flake, so no bisect starts.
@@ -42,6 +50,8 @@ GitHub's scheduled runs arrived **hours late**, and in one period 7 of 9 never s
 - **What it won't bisect:** checks that can't be repeated. A run-seeded property test can be bisected only with the failing run's recorded seed, case count, size and versions held fixed.
 
 ## Releasing what the sweep checked
+
+**Applies when:** Any PR coverage would move to a sweep, or a release or deploy should ship only what the sweep checked. **Skip when:** PRs keep all their coverage.
 
 The release and deploy rows above rest on a few steps. Map each one to your own release mechanism before you defer any PR coverage to a sweep. [`templates/github/README.md`](../../templates/github/README.md#release-integration-checklist) maps steps 2 to 7 to the scripts; step 1 is `ci.yml` plan's first step.
 

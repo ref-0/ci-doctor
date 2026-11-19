@@ -13,7 +13,7 @@ Work out, and record in the plan:
 3. **Machine limits:**
    - core count, memory, whether several agents share the machine, and whether Docker or heavy local runs are welcome;
    - the machine's policy for full checks and builds, if it's shared: which local checks are allowed, and which are left to CI;
-   - for shared test slots (guide section 14), only if the plan uses them: the one project name, slot directory and cap every caller uses, set once in the shared launch environment;
+   - for shared test slots ([guide section 14](../excerpts/phase-2.md#sharing-one-machine)), only if the plan uses them: the one project name, slot directory and cap every caller uses, set once in the shared launch environment;
    - the conditional prerequisites in [logins' "Only if you use them"](logins.md#only-if-you-use-them) and [what the machine needs](../excerpts/phase-0.md#what-the-machine-needs) for the local scripts.
 4. **What you can read now.** Check with status commands only (`gh auth status`, and a read of the repo's runs: `gh run list --limit 1`). A private repo, missing SSO or restricted billing may stop a read: note it and ask for the exact missing permission, or for an owner-provided, redacted export.
 5. **Accounts the plan may need later.** Only for options the plan might select, note whether they exist: a Blacksmith org and `blacksmith auth status`; a Cloudflare account and `wrangler whoami`; each model CLI's executable, provider, config home and auth-status command. Don't ask for any of these as baseline setup. Write rights, secrets and installs belong to Phase 4.

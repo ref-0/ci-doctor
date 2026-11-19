@@ -6,6 +6,8 @@
 
 ## Task runners and their remote caches
 
+**Applies when:** The repo has a workspace task runner, or caches task results today. **Skip when:** The repo would adopt a runner only for its cache and section 4's selection replay hasn't come first.
+
 We used Vite+. Most workspace task runners have a remote cache, and each technique in this section has an equivalent setting in them. Start from the runner your repo already has; adopting one only for its cache needs the selection replay in section 4 first.
 
 | Technique | Vite+ (`vp run`) | Turborepo | Nx | Bazel | Gradle |
@@ -26,6 +28,8 @@ Sources, checked November 2026: Vite+ [task caching](https://viteplus.dev/guide/
 
 ## Checking a cache on another task runner
 
+**Applies when:** Replays come from a runner with declared inputs, such as Turborepo, Nx, Bazel or Gradle. **Skip when:** The runner tracks what each task reads, as Vite+ does, or nothing is cached.
+
 Our checks below come from Vite+, which tracks what each task reads. A runner with declared inputs can replay a pass with an input left out, or fail to restore an output it was never told about. Before you rely on its replays, for each cached task:
 
 1. **Read its key.** For Turborepo, the task's `dependsOn`, `inputs`, `outputs`, `globalDependencies`, `env` and `globalEnv`; for the others, the rows above. Check what the declarations miss: another language's lockfile and config (`pyproject.toml`, a Python lockfile, `conftest.py`), generated files, and the interpreter or platform.
@@ -36,6 +40,8 @@ Our checks below come from Vite+, which tracks what each task reads. A runner wi
 6. **Keep nondeterministic tests uncached,** and count hits apart from executions.
 
 ## A remote task cache, with tests as tasks
+
+**Applies when:** Task results are shared through a remote cache: on Vite+ as written, on other runners through the table above. **Skip when:** No task results are shared across machines.
 
 We run Vite+'s task runner (`vp run`) with a **self-hosted remote cache**: a small Cloudflare Worker (a serverless function) that speaks its protocol, with D1 (Cloudflare's SQLite database) as the index of results and R2 (its object storage) for the blobs. CI proves who it is with an OIDC token: a short-lived identity token GitHub issues to a job, naming its repository, event and branch. This subsection is Vite+-specific; the rules carry over through the table above.
 
@@ -61,6 +67,8 @@ We run Vite+'s task runner (`vp run`) with a **self-hosted remote cache**: a sma
 - **Replays don't count as runs.** Replayed results are never counted as fresh executions for timing or flake recovery.
 
 ## Setting up the remote task cache on Cloudflare, step by step
+
+**Applies when:** The plan self-hosts Vite+'s remote cache on Cloudflare, with the trust policy already decided. **Skip when:** Another runner's cache, a hosted cache, or the trust policy still open.
 
 The steps live in one place: [`cache/remote/README.md`](../../cache/remote/README.md#set-it-up-step-by-step), the runbook for this playbook's port of VoidZero's [Cloudflare template](https://github.com/voidzero-dev/vite-plus-remote-cache-cloudflare) (which marks itself a work in progress). Copy the shipped Worker rather than starting from raw upstream: the credential script, the write policy and the fixes below are this port's. Decide the trust policy ("Trust", above) before you create anything. In outline:
 
@@ -94,6 +102,8 @@ Storage and requests bill separately from CI minutes; check them against your ow
 
 ## Rust: reuse passes and binaries separately
 
+**Applies when:** The stack has Rust. **Skip when:** It has none.
+
 For agents, [`skills/ci-doctor/references/ci-workflows/references/rust.md`](../../skills/ci-doctor/references/ci-workflows/references/rust.md) holds these rules, if your stack uses Rust.
 
 - **Two keys:**
@@ -110,6 +120,8 @@ For agents, [`skills/ci-doctor/references/ci-workflows/references/rust.md`](../.
 
 ## Setup caches on Blacksmith
 
+**Applies when:** Installs and toolchain setup take job time: on Blacksmith with its sticky disks, elsewhere with the Actions cache fallback. **Skip when:** Setup isn't where the job time goes.
+
 The disks are Blacksmith's; the rules aren't. Without Blacksmith, the same snapshots live in the Actions cache: the template actions take `sticky-disk: 'false'` and document the `actions/cache` fallback ([`templates/github/README.md`](../../templates/github/README.md#without-blacksmith)).
 
 - **Sticky dependency disk.** One disk per repo, OS and architecture holds main's last **complete** install: the toolchain (Vite+, Node, pnpm), the package-store markers and every project's links, not just `node_modules`. Jobs with a matching manifest hash mount it as read-only overlay lower layers with per-job writable upper layers, and skip the install after checking the manifests. A matching snapshot avoids reinstalling dependencies at all. A disk of `node_modules` alone saved almost nothing, because postinstalls reran from markers that lived outside it (section 18). At least one job still runs a frozen-lockfile install to validate the lockfile.
@@ -121,6 +133,8 @@ The disks are Blacksmith's; the rules aren't. Without Blacksmith, the same snaps
 - **Type and symbol caches.** Per-project incremental types, and parsed per-file declarations for the duplicate-code check: cache the facts, not the verdict.
 
 ## Not worth caching
+
+**Applies when:** A cache is proposed for sub-second generation, npm tarballs, Rust sccache in CI or another layer. **Skip when:** No new cache layer is proposed.
 
 - **Sub-second generation.** A cache replay took two to four times as long as regenerating.
 - **npm tarballs.** The 352 MB restore cost more than it saved ([section 18](18-tried-and-dropped.md) has the row).

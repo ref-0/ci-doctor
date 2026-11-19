@@ -2,6 +2,8 @@
 
 # 3. Workflow anatomy
 
+**Applies when:** The repo is on GitHub Actions and its workflow lacks a plan job that gates the others, or a single result job that checks them. **Skip when:** The workflow already gates every job on a plan and checks them in one result job.
+
 One main workflow, shaped as **plan → jobs → result**:
 
 - **Plan job** (2 vCPU, no workspace install). It reads the diff and writes outputs: which test files, the shard split, which jobs, the runner size, and whether to pack, build Rust or run proofs. It logs its inputs and selection, so every run can be audited later.

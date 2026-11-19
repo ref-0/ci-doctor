@@ -6,6 +6,8 @@ The principles, the planner and the scripts hold on any CI platform. The workflo
 
 ## Choosing a provider and runners
 
+**Applies when:** The plan picks a provider, or sizes or resizes runners, on any CI platform. **Skip when:** The baseline shows neither runner cost nor runner size bearing on the limiter.
+
 - **Size each job from its work.** The plan and bookkeeping need little; static checks some more; test shards and type-aware lint the most. A provider that offers a size per job, and bills by it, lets each job take only what it uses. Resize only from measured CPU, when three runs agree (section 7).
 - **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job at 2:01 costs the same as one at 2:59. That's why we aim for two minutes elapsed or less per shard, including setup (section 7). Find whether your provider prices per runner or per vCPU, and per job or per run.
 - **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 was cheaper per minute than x64 and macOS several times dearer than Linux; check your provider's current prices. A cheaper minute isn't a cheaper run until the same tests are measured on it (section 7).
@@ -14,6 +16,8 @@ The principles, the planner and the scripts hold on any CI platform. The workflo
 - **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-doctor/references/ci-runners/references/providers.md`](../../skills/ci-doctor/references/ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../templates/github/README.md#runner-labels) maps the templates' labels to each.
 
 ## When jobs wait to start
+
+**Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time is a large share of the PR wait. **Skip when:** Queue time is seconds, as on most repos.
 
 A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds. When the slowest tenth of jobs wait minutes, people wait on capacity, not on tests, and faster tests won't help.
 
@@ -29,6 +33,8 @@ A job's queue time runs from when it's created to when a runner picks it up (`st
 - **Check it moved:** queue time at p90 again, over the same kind of week.
 
 ## Why we recommend Blacksmith
+
+**Applies when:** The repo runs GitHub Actions on GitHub-hosted or self-hosted runners, and the baseline shows where queue, compute or setup time goes. **Skip when:** The repo is off GitHub Actions, or the user declines the move: the plan stays on the current runners.
 
 **We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/ci-doctor/references/blacksmith/TOPIC.md) skill has the specifics for agents.
 
@@ -48,6 +54,8 @@ A job's queue time runs from when it's created to when a runner picks it up (`st
 
 ## Setting up Blacksmith
 
+**Applies when:** The user approved a move to Blacksmith. **Skip when:** The plan stays on the current runners.
+
 1. **Install the Blacksmith GitHub app** on your organization and choose which repos it can run for.
 2. **Swap the runner labels.** Change `runs-on: ubuntu-latest` to a Blacksmith label such as `blacksmith-4vcpu-ubuntu-2404`. Start every job at the size it runs on today, then resize from measurements.
 3. **Set Blacksmith's own spend limit** in its dashboard, *above* the cap you enforce yourself (section 12), so your watcher stops CI cleanly before the provider's limit strands jobs in a queue.
@@ -65,6 +73,8 @@ A job's queue time runs from when it's created to when a runner picks it up (`st
 6. **Move setup onto sticky disks** once the job graph is stable: main's dependency install and your toolchain. Keep one job doing a real frozen-lockfile install so lockfile drift is still caught.
 
 ## Getting fast costs money and time first
+
+**Applies when:** The plan prices its own optimization period: sweeps, replays, measurement runs, bisects and debugging. **Skip when:** The plan changes nothing that runs in CI.
 
 Be honest with yourself about this: **optimizing a slow CI burns money and weeks before it pays off.** Ours got more expensive before it got cheaper:
 

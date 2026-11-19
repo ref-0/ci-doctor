@@ -2,6 +2,8 @@
 
 # 15. The agent workflow around CI
 
+**Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
+
 - **Draft until done.** This is our merge policy: engineers open drafts, and a manager agent marks them ready and merges, so each PR aims at one CI run. On another repo, keep its trigger and merge policy (base branch, required checks, allowed merge method, approvals, reviews dismissed on push, merge queue) until the user approves a change, and test the current required ref, including the merge queue's commit where there is one.
   - Asking engineers for "after" timings once made two of them dispatch ~15 draft runs. Take after-times from the ready run instead.
   - Running a draft's tests by hand doubles its cost, because the ready run repeats them.
@@ -18,6 +20,8 @@
 - **Follow main after merging.** Main once stayed red for hours while agents watched only their own PRs. A green merge isn't a deploy, either: check the deploy.
 
 ## Running a slow-test campaign with parallel agents
+
+**Applies when:** The slow-file inventory is long enough to split among agents, and the harness runs them in parallel, each in its own worktree. **Skip when:** The harness can't run parallel agents, or one agent can work the inventory.
 
 1. **Collect records** since the last run, rank every file past 10 s, every file that ends a shard, every wide spread and every flake. That's the item list, plus open items from the ledger.
 2. **Review every item, slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.

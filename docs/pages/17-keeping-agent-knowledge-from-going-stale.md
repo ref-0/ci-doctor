@@ -6,6 +6,8 @@ People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill acc
 
 ## Where knowledge lives
 
+**Applies when:** Agents work in the repo and the plan's findings go into their instructions. **Skip when:** No agents work in the repo.
+
 - **`AGENTS.md` is a short map:** repo layout, the commands, and a few rules. Ours includes *"When docs and code disagree, the code is right. Fix the doc in the same change."* It's size-budgeted in CI.
 - **Skills** (agent instruction folders) hold the method.
   - `SKILL.md` has only what every use needs.
@@ -24,6 +26,8 @@ People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill acc
 - **Shared skills, per-repo facts.** Our skills live in one shared repo, linked into every checkout's `.agents/skills/`. That's how we share them, not how a harness finds them: each harness reads its own folder and instruction file (`AGENTS.md`, `CLAUDE.md` and so on), so point the harness you use at the skills as its docs say, and put the top-level map in the file it actually loads. Each repo keeps its own facts in `.agents/repo/*.md`: its commands, CI tiers, settings, holds and fakes. The skill gives the procedure; the repo gives the values that change. Agent docs have no release cycle: an edit reaches every linked worktree immediately.
 
 ## What keeps it fresh
+
+**Applies when:** The repo keeps lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
 
 - **Every lesson carries its date and PR,** so an agent can check whether the code it describes still exists.
 - **Code wins.** The rule above lives in `AGENTS.md`, and agents read live values from code and config, never from prose.

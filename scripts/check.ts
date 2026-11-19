@@ -40,8 +40,8 @@ export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 
 /** Test files the build runs besides every one under `skills/`. */
 export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts'];
 
-/** Files the old-name scan leaves alone: history, provenance, and this file's own patterns. */
-export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'skills/test-audit/UPSTREAM.md'];
+/** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
+export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
 const TOPICS = 'ci-workflows|ci-runners|blacksmith|speed-up-tests|verify-evidence';
 

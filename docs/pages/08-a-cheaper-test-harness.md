@@ -2,6 +2,8 @@
 
 # 8. A cheaper test harness
 
+**Applies when:** A server with a heavy runtime per test file, such as workerd under Vitest. **Skip when:** The runtime's startup and bundling are a small share of each test file's time.
+
 Our server ran on Cloudflare Workers, so its tests ran it in workerd under Vitest. The ideas apply to any server with a heavy runtime per test file; what was specific to Workers is in [`skills/ci-doctor/references/speed-up-tests/references/workers.md`](../../skills/ci-doctor/references/speed-up-tests/references/workers.md), if your stack runs on them.
 
 - **Bundle the server once per input state.** Build a Wrangler dry-run bundle with a metafile and reuse it until its real inputs change, rebuilding under a file lock and publishing atomically. Each file still gets its own runtime. Locally this cut most of each harness's bundling CPU and about 50 MB of writes, and a generated one-line entry avoided reparsing a ~12 MB bundle. In CI, mean harness copy-and-start fell to about 40% of its old time.

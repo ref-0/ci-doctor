@@ -4,6 +4,8 @@
 
 ## Shards from measured time, not file count
 
+**Applies when:** Tests run, or should run, across several shards, and each file's time on main is recorded. **Skip when:** There are no per-file times yet.
+
 Start simple. A fixed assignment per suite, from the files' recorded times, run as an exact list through the installed test runner, and checked against the collected inventory, gets most of the balance ([`scripts/shards/`](../../scripts/shards/README.md#start-simple-a-fixed-split)). Keep test families that share fixture state together, cap the matrix by your organization's concurrency limits, and split a file that dominates before tuning the layout. Work stealing and lanes, below, are later optimizations to measure on their own.
 
 Vitest's built-in split balances file *counts*; two shards once differed by about a quarter in test-seconds. The plan computes one split from **each file's newest timing on main** and hands it to every shard:
@@ -19,6 +21,8 @@ shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per
 
 ## Work stealing over cache-key claims
 
+**Applies when:** Fixed shards from measured time are in place and runner speed still varies, measured on its own. **Skip when:** Fixed shards aren't in place yet.
+
 Runner speed varies: one shard ran 1.6× the median.
 
 - **Half fixed, half queued.** Reserve roughly half the estimated work in fixed assignments. Each shard's first group, untimed groups and explicitly pinned groups stay fixed even when that passes the target. The rest is a shared queue, slowest first, of batches formed by adding whole groups until their summed estimated work (file times plus modelled startup) reaches about 60 seconds; that's summed work, not a 60-second batch on the clock. A one-shard run uses no queue.
@@ -29,9 +33,13 @@ Runner speed varies: one shard ran 1.6× the median.
 
 ## Independent lanes
 
+**Applies when:** A shard runs its workers in rounds, so a lane waits for the slowest. **Skip when:** Each lane already starts its next task the moment it finishes.
+
 Each shard runs a lane per worker, and a lane starts its next task the moment it finishes. Round-based scheduling had kept lanes busy only **43%** of the time.
 
 ## Size runners from the work and the bill
+
+**Applies when:** Per-job CPU over at least three runs, the high tail included, shows a job sized wrongly, or tiny selections pay a big runner's minimum minute. **Skip when:** Fewer than three runs agree.
 
 - **Small selections run on 2 vCPU with 2 workers.** "Small" means `server_files + other_files/10 ≤ 6`. In one sample 28 of 40 one-shard runs were tiny: tests took about half of each job, and setup the rest. On 8 vCPU they'd pay 4× for the minimum minute.
 - **More workers isn't faster.** Nine workers on 8 vCPU took about 1.5–1.8× as long as six, and added timing failures.
@@ -43,6 +51,8 @@ Each shard runs a lane per worker, and a lane starts its next task the moment it
 - **Cheaper cores aren't cheaper service.** Arm runners at ~37% lower minute price ran our JS tests ~30% slower, and three files failed.
 
 ## Shorten the critical path before buying cores
+
+**Applies when:** Jobs wait for upstream jobs before starting their own setup, or test binaries run one after another. **Skip when:** The critical path is a single job's own work.
 
 - **Overlap setup with upstream work.** Proof jobs check out and install while the pack runs, then wait for the specific "snapshot published" *step*, not the whole job. A small wait action polls the latest attempt every 5 s and fails immediately if the prerequisite fails. Proof jobs started their tests about twice as early.
 - **Packing** waits for the binaries, not the Rust test suites. Waiting only orders the jobs: the Rust job still has to save its binaries and the pack job restore them, by an exact key.

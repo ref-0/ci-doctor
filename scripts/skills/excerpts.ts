@@ -8,8 +8,14 @@
  *
  * Each fact keeps one home: edit the source, then run this. The excerpt files say so at the top,
  * and the build checks (`scripts/check.ts`) fail on a stale one. A section is a heading and
- * everything under it, up to the next heading of the same or a higher level. Its links are
- * rewritten to resolve from the excerpt, and a bare `#anchor` points back at its source.
+ * everything under it, up to the next heading of the same or a higher level. An item is one
+ * top-level list item that opens with a bold label, such as `- **Trust:**`, with its nested lines,
+ * under a heading of that label. Links are rewritten to resolve from the excerpt, and a bare
+ * `#anchor` points back at its source.
+ *
+ * The techniques index lists each guide page's H2s, each with the `**Applies when:** …
+ * **Skip when:** …` line directly under it. A page with no H2 carries that line under its H1, and
+ * any page may. A heading the index lists without one fails the build.
  *
  * Runs: from the repo's root. Node 24 only. Tests: `node --test excerpts.test.ts`, from this folder.
  */
@@ -20,9 +26,12 @@ import { fileURLToPath } from 'node:url';
 
 export const OUT = 'skills/ci-doctor/references/excerpts';
 
-/** One part of an excerpt: whole sections of a source, by heading, or a generated index. */
+/** A section by its heading's text, or a list item by its bold label. */
+export type Piece = string | { readonly item: string };
+
+/** One part of an excerpt: sections or items of a source, a whole source, or a generated index. */
 export type Part =
-  | { readonly from: string; readonly sections: ReadonlyArray<string>; readonly why: string }
+  | { readonly from: string; readonly sections: ReadonlyArray<Piece>; readonly why: string }
   | { readonly from: string; readonly whole: true; readonly why: string }
   | { readonly index: ReadonlyArray<string>; readonly why: string };
 
@@ -49,11 +58,13 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
     phase: 1,
     title: 'Phase 1: the techniques and the planner',
     parts: [
-      { index: pages(2, 17), why: 'Every technique in guide sections 2–17, by section. Mark each that bears on the measured limiter, and read its section only then.' },
+      { index: pages(2, 17), why: 'Every technique in guide sections 2–17, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.' },
       { from: 'docs/pages/18-tried-and-dropped.md', whole: true, why: 'What was tried and dropped, and what would have to change before trying again.' },
       { from: 'docs/pages/20-thresholds-cheat-sheet.md', whole: true, why: "The source repo's starting values, as examples, not targets." },
       { from: 'docs/pages/04-run-only-what-a-change-can-reach.md', sections: ['Turborepo and Nx: their own affected runs first'], why: 'Selection with Turborepo or Nx.' },
-      { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Task runners and their remote caches'], why: "Guide section 6's cache table." },
+      { from: 'docs/pages/05-tiers-what-runs-where.md', sections: ['Releasing what the sweep checked'], why: 'The release checklist each shipping path is mapped to, before any PR coverage moves to a sweep.' },
+      { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Task runners and their remote caches', { item: 'Trust' }], why: "Guide section 6's cache table, and the trust policy a shared cache needs." },
+      { from: 'docs/pages/14-local-speed-and-many-agents-on-one-machine.md', sections: ['The local runner contract'], why: 'What a local runner of selected tests must do before its green means they ran.' },
       { from: 'templates/plan/README.md', sections: ['The rules, in order', 'Left out of the reference'], why: "The selection planner's inputs and its limits." },
     ],
   },
@@ -63,6 +74,8 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
     parts: [
       { from: 'docs/pages/13-records-evidence-of-what-ran.md', sections: ['Collecting from the API without losing runs'], why: 'The read-only collection recipe: pagination, attempts and what you couldn\'t read.' },
       { from: 'scripts/records/README.md', sections: ['1. The reporter', 'Python tests'], why: 'Per-file timings: what Vitest needs, and what pytest already writes.' },
+      { from: 'docs/pages/12-budgets-health-and-spend.md', sections: [{ item: 'Audit spend over comparable windows' }], why: 'The audit rules for comparing spend across windows.' },
+      { from: 'docs/pages/14-local-speed-and-many-agents-on-one-machine.md', sections: ['Sharing one machine'], why: "Test slots on a shared machine: Phase 0's settings and Phase 2's local contention." },
     ],
   },
   {
@@ -74,6 +87,7 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
       { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Checking a cache on another task runner'], why: 'Checking a cache before the plan relies on it.' },
       { from: 'docs/pages/16-standing-automations.md', whole: true, why: 'The automations table, for the plan\'s automations step.' },
       { from: 'docs/pages/10-slow-tests-the-method.md', sections: ['Name the wait before changing anything'], why: 'The slow-test fix table, for each file in the inventory.' },
+      { from: 'docs/pages/17-keeping-agent-knowledge-from-going-stale.md', whole: true, why: "Where agent knowledge lives and what keeps it fresh, for the plan's agent-knowledge step." },
     ],
   },
 ];
@@ -174,6 +188,24 @@ export const section = (root: string, path: string, heading: string) => {
   return { level, block: shift(block, inside.slice(start, end), level, 3).join('\n').trim() };
 };
 
+/** One top-level list item that opens with `**<label>:**` or `**<label>.**`, under a level-3 heading of the label. */
+export const item = (root: string, path: string, label: string) => {
+  const { lines, inside } = read(root, path);
+  const opens = (line: string) => line.startsWith(`- **${label}:**`) || line.startsWith(`- **${label}.**`);
+  const starts = lines.flatMap((line, i) => (!inside[i] && opens(line) ? [i] : []));
+  if (starts.length !== 1) throw new Error(`${path}: ${starts.length} items labelled "${label}", not 1`);
+  const start = starts[0] ?? 0;
+  let end = start + 1;
+  while (end < lines.length && /^\s+\S/.test(lines[end] ?? '')) end++;
+  return [`### ${label}`, '', ...lines.slice(start, end)].join('\n');
+};
+
+/** The `**Applies when:**` line directly under the heading on line `at`, if it has one. */
+const appliesUnder = (lines: ReadonlyArray<string>, at: number) => {
+  const next = lines.slice(at + 1).find((line) => line.trim() !== '') ?? '';
+  return /^\*\*Applies when:\*\* .+ \*\*Skip when:\*\* .+\.$/.test(next) ? next : undefined;
+};
+
 /** A whole source below its title, its headings shifted under level 2. */
 const whole = (root: string, path: string) => {
   const { lines, inside, h1 } = read(root, path);
@@ -181,7 +213,7 @@ const whole = (root: string, path: string) => {
   return shift(body, inside.slice(h1 + 1), 2, 3).join('\n').trim();
 };
 
-/** Each page's title and its H2 headings, linked: the techniques it holds. */
+/** Each page's title and its H2 headings, linked, each with when it applies: the techniques it holds. */
 const index = (root: string, prefixes: ReadonlyArray<string>, out: string) => {
   const files = prefixes.map((prefix) => {
     const dir = dirname(prefix);
@@ -191,13 +223,18 @@ const index = (root: string, prefixes: ReadonlyArray<string>, out: string) => {
   });
   return files
     .map((path) => {
-      const { lines, inside, title } = read(root, path);
+      const { lines, inside, h1, title } = read(root, path);
       const link = posix.relative(dirname(out), path);
-      const heads = lines
-        .filter((line, i) => !inside[i] && /^## /.test(line))
-        .map((line) => HEADING.exec(line)?.[2] ?? '')
-        .map((h) => `[${h}](${link}#${slug(h)})`);
-      return `- **[${title}](${link})**${heads.length ? `: ${heads.join(' · ')}` : ''}`;
+      const heads = lines.flatMap((line, i) => (!inside[i] && /^## /.test(line) ? [i] : []));
+      const top = appliesUnder(lines, h1);
+      if (heads.length === 0 && top === undefined) throw new Error(`${path}: no "**Applies when:** … **Skip when:** …" line under its title, and no H2s`);
+      const rows = heads.map((i) => {
+        const heading = HEADING.exec(lines[i] ?? '')?.[2] ?? '';
+        const applies = appliesUnder(lines, i);
+        if (applies === undefined) throw new Error(`${path}: no "**Applies when:** … **Skip when:** …" line under "${heading}"`);
+        return `  - [${heading}](${link}#${slug(heading)}): ${applies}`;
+      });
+      return [`- **[${title}](${link})**${top ? `: ${top}` : ''}`, ...rows].join('\n');
     })
     .join('\n');
 };
@@ -227,7 +264,8 @@ export const render = (root: string, excerpt: Excerpt) => {
     if ('index' in part) return [`## The techniques`, '', part.why, '', index(root, part.index, out)].join('\n');
     const { title } = read(root, part.from);
     const link = posix.relative(dirname(out), part.from);
-    const text = 'whole' in part ? whole(root, part.from) : part.sections.map((h) => section(root, part.from, h).block).join('\n\n');
+    const piece = (p: Piece) => (typeof p === 'string' ? section(root, part.from, p).block : item(root, part.from, p.item));
+    const text = 'whole' in part ? whole(root, part.from) : part.sections.map(piece).join('\n\n');
     return [`## ${title}`, '', `From [${part.from}](${link}). ${part.why}`, '', relink(text, part.from, out)].join('\n');
   });
   return `${[...head, '', ...body.flatMap((b) => [b, ''])].join('\n').trimEnd()}\n`;

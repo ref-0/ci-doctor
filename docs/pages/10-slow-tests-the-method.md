@@ -4,6 +4,8 @@
 
 ## Find them from CI's own records, not intuition
 
+**Applies when:** Test time bears on the measured limiter, and CI's records give per-file durations. **Skip when:** There are no per-file records yet: recording them comes first (section 13).
+
 - **Records:** a custom Vitest reporter logs one structured record per run, with per-file duration, failures, retries and import time (section 13). For pytest, start from its own JUnit XML and durations report ([`scripts/records/`](../../scripts/records/README.md#python-tests)), and keep Python and TypeScript timings apart unless they're measured on the same basis.
 - **Rank** by the **median of the newest 5 runs**, widest spread, and every test that failed or passed only on retry.
 - **A file is slow past 10 s.** Small files add up: one day the 133 files at 10–45 s together held *more test-seconds than the 33 files past 45 s.* Review every file past 10 s, not the top of the list.
@@ -11,6 +13,8 @@
 - **Wait hints.** A script scans files over 10 s for sleeps, polls, retries, fake clocks, long timeouts and literal periods, and batches them by area. Hints tell you where to read, not the cause.
 
 ## Name the wait before changing anything
+
+**Applies when:** A file past 10 s, or one that ends its shard, is on the inventory. **Skip when:** The inventory is empty.
 
 Give each file a verdict: **slow for a wrong reason** (which), **real work**, or **unknown** (with what to measure). Then look for *shared* causes; one helper's poll can reach a hundred files. Reconcile the reviewed population against the sum of its verdicts. When the record doesn't account for every file, keep an explicit unclassified group rather than changing the denominator to make the categories add up. One of our reviews covered 198 files: 119 slow for a wrong reason, 47 real work and 24 needing measurement, which leaves 8 unclassified.
 
@@ -32,6 +36,8 @@ A wait can hide behind another: a server retry *and* an SDK's own retry loop bot
 
 ## Keep what each test proves
 
+**Applies when:** Any test is made faster. **Skip when:** No test changes.
+
 - **Never** add a retry, raise a timeout alone, or skip a test to go faster.
 - **Keep both sides of every deadline:** nothing fires before it, and it fires within a bound after.
 - **Break the guarded code (mutate it)** and watch the faster test fail, for the intended reason. Do it in a disposable checkout, with remote cache writes off and the test run uncached, so a replay can't stand in for the run and the altered state can't reach a shared cache. Use the repo's real test command, then restore the source and run the clean whole file with retries off. Keep the mutation out of commits and CI. In one batch, all 13 deliberate mutations failed their intended tests.
@@ -43,6 +49,8 @@ A wait can hide behind another: a server retry *and* an SDK's own retry loop bot
 - **Faster tests expose real bugs.** Shorter timing revealed a missing alarm, a lock released before waiters were notified, and fixture races. Fix the bug; don't slow the test back down.
 
 ## Measure honestly
+
+**Applies when:** A before and after, or any timing comparison, is reported. **Skip when:** Nothing is compared.
 
 - **Same command, field and machine** on both sides, and test time, not wall time, when setup is shared.
 - **Interleave** before/after/before/after on a loaded machine, and state the load.
