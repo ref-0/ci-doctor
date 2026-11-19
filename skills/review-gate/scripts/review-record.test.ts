@@ -193,6 +193,8 @@ describe('the settings', () => {
   const template = join(here, '..', '..', 'ci-doctor', 'references', 'agent-knowledge', 'repo-facts', 'review-record.json');
 
   it('has a template that holds every default', () => {
+    // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.
+    deepStrictEqual(Object.keys(JSON.parse(readFileSync(template, 'utf8'))).sort(), Object.keys(DEFAULTS).sort());
     deepStrictEqual(readSettings(template), DEFAULTS);
   });
 

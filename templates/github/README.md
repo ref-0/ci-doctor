@@ -125,7 +125,7 @@ The templates use Blacksmith's labels, sized per job. On other runners, start ev
 | `blacksmith-<n>vcpu-ubuntu-2404-arm` | `ubuntu-24.04-arm`, or an arm64 larger runner | `[self-hosted, linux, arm64, <label>]` |
 | `blacksmith-6vcpu-macos-<version>` (releases only) | `macos-<version>` | `[self-hosted, macos, arm64]` |
 
-The plan job picks the test runner's size (`test_runner`): change both labels it can output and the job's default, or make it one label. Map any label that doesn't name its size in `ci-budgets.ts`' `otherRunners` and in `ci-time.ts`'s `RUNNERS`, so budgets and cost estimates know its vCPUs. Price it too: in `ci-budgets.ts`' `runnerMinutePrices`, and in `ci-time.ts`'s `PRICES` (label pattern, price per started minute). An unpriced label gets minutes and no money total. A container job you add sets its own runner size.
+The plan job picks the test runner's size (`test_runner`): change both labels it can output and the job's default, or make it one label. Map any label that doesn't name its size in `ci-budgets.ts`' `otherRunners` and in `ci-time.ts`'s `runners` setting, in `.agents/repo/ci-time.json`, so budgets and cost estimates know its vCPUs. Price it too: in `ci-budgets.ts`' `runnerMinutePrices`, and in that file's `prices` (label pattern, price per started minute). An unpriced label gets minutes and no money total. A container job you add sets its own runner size.
 
 ## Without Blacksmith
 

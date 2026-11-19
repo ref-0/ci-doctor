@@ -111,6 +111,11 @@ export const validate = (root: string): string[] => {
     if (!iface[key]) problems.push(`.codex-plugin/plugin.json: interface.${key} missing`);
   }
   if (typeof iface.shortDescription === 'string' && iface.shortDescription.length > 30) problems.push('.codex-plugin/plugin.json: interface.shortDescription over 30 characters');
+  // OpenAI's manifest reference: up to three starter prompts, at most 128 characters each, unique.
+  const prompts = Array.isArray(iface.defaultPrompt) ? iface.defaultPrompt : [iface.defaultPrompt];
+  if (prompts.length > 3) problems.push(`.codex-plugin/plugin.json: interface.defaultPrompt has ${prompts.length} prompts, over 3`);
+  for (const prompt of prompts) if (typeof prompt !== 'string' || prompt.length > 128) problems.push(`.codex-plugin/plugin.json: interface.defaultPrompt "${String(prompt)}" must be a string of at most 128 characters`);
+  if (new Set(prompts).size !== prompts.length) problems.push('.codex-plugin/plugin.json: interface.defaultPrompt repeats a prompt');
   for (const key of ['composerIcon', 'logo']) {
     const path = iface[key];
     if (typeof path !== 'string' || !path.startsWith('./') || !existsSync(join(root, path))) problems.push(`.codex-plugin/plugin.json: interface.${key} must be an existing ./ path`);

@@ -26,9 +26,10 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { cwd } from 'node:process';
+import { argv, cwd } from 'node:process';
+import { fileURLToPath } from 'node:url';
 
-import { anchorsOf, checkFile, filesUnder } from './docs/check-links.ts';
+import { anchorsOf, checkFile, filesUnder, linkTargets, proseLines } from './docs/check-links.ts';
 import { docsBudget, layout } from './docs/docs-budget.ts';
 import { validate } from './plugin/validate.ts';
 import { stale } from './skills/excerpts.ts';
@@ -37,7 +38,7 @@ import { stale } from './skills/excerpts.ts';
 export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 'README.md', 'CHANGELOG.md'];
 
 /** Test files the build runs besides every one under `skills/`. */
-export const REPO_TESTS = ['scripts/skills/excerpts.test.ts'];
+export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts'];
 
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'skills/test-audit/UPSTREAM.md'];
@@ -49,7 +50,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/code-review/, 'review-gate'],
   [/<root>/, 'a path from the skill, or the skill by name'],
   [/(?<![\w-])install\.ts/, 'the plugin install, and scripts/docs/check-links.ts for links'],
-  [new RegExp(`(?<![\\w./-])skills/(${TOPICS})\\b`), 'skills/ci-doctor/references/<topic>/'],
+  [new RegExp(`(?<![\\w-])skills/(${TOPICS})\\b`), 'skills/ci-doctor/references/<topic>/'],
   [new RegExp(`<skills-dir>/(${TOPICS})\\b`), '<skills-dir>/ci-doctor/references/<topic>/'],
   [new RegExp(`\\b(${TOPICS})/SKILL\\.md`), '<topic>/TOPIC.md'],
   [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
@@ -57,7 +58,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/ci-doctor/references/agent-knowledge/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
-  [/(?:\.\.\/)+PROMPT\.md|PROMPT\.md#/, 'skills/ci-doctor/SKILL.md'],
+  [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
 ];
 
 /** Files that may still name PROMPT.md as a path: the pointer itself, and the README's clone prompt. */
@@ -77,22 +78,6 @@ const walk = (dir: string): string[] =>
     return entry.isDirectory() ? walk(full) : [full];
   });
 
-const LINK = /\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
-
-/** Lines outside code, with inline code blanked, keeping line numbers. */
-const prose = (text: string) => {
-  let fence: string | undefined;
-  return text.split('\n').map((line) => {
-    const mark = /^\s*(`|~)\1\1/.exec(line)?.[1];
-    if (mark) {
-      if (fence === undefined) fence = mark;
-      else if (mark === fence) fence = undefined;
-      return '';
-    }
-    return fence === undefined ? line.replace(/`[^`]*`/g, '``') : '';
-  });
-};
-
 /** The links in a skills-only copy that leave it for somewhere the hub's fallback doesn't cover. */
 export const skillsOnly = (root: string): string[] => {
   const problems: string[] = [];
@@ -108,8 +93,8 @@ export const skillsOnly = (root: string): string[] => {
     for (const file of walk(copy).filter((f) => f.endsWith('.md'))) {
       const shown = relative(top, file);
       problems.push(...checkFile(file).filter((p) => resolve(dirname(file), p.target.split('#')[0] ?? '').startsWith(copy + sep) || p.target.startsWith('#')).map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, in a skills-only copy`));
-      prose(readFileSync(file, 'utf8')).forEach((line, index) => {
-        for (const [, target = ''] of line.matchAll(LINK)) {
+      proseLines(readFileSync(file, 'utf8')).forEach((line, index) => {
+        for (const target of linkTargets(line)) {
           if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#|<)/i.test(target)) continue;
           const [path = '', anchor = ''] = target.split('#');
           const resolved = resolve(dirname(file), decodeURIComponent(path));
@@ -160,9 +145,13 @@ export const tests = (root: string): { problems: string[]; ran: number; passed: 
       problems.push(`${file}: missing`);
       continue;
     }
-    const done = spawnSync(process.execPath, ['--test', file.split('/').at(-1) ?? file], { cwd: join(root, dirname(file)), encoding: 'utf8' });
+    // The spec reporter, pinned: its summary lines are what the counts below read, whatever NODE_OPTIONS or a TTY would pick.
+    const { NODE_TEST_CONTEXT: _parent, ...env } = process.env; // run as a test of its own, even when this runs under node --test
+    const done = spawnSync(process.execPath, ['--test', '--test-reporter=spec', file.split('/').at(-1) ?? file], { cwd: join(root, dirname(file)), encoding: 'utf8', env });
     const count = (key: string) => Number(new RegExp(`^ℹ ${key} (\\d+)$`, 'm').exec(done.stdout)?.[1] ?? 0);
     passed += count('pass');
+    if (!/^ℹ tests \d+$/m.test(done.stdout)) problems.push(`${file}: no test summary in its output\n${(done.stdout + done.stderr).split('\n').slice(-12).join('\n')}`);
+    else if (count('pass') === 0) problems.push(`${file}: no test passed`);
     if (done.status !== 0 || count('fail') > 0) problems.push(`${file}: failed\n${done.stdout.split('\n').filter((l) => /not ok|Error|expected|actual/.test(l)).slice(0, 12).join('\n')}`);
     if (count('skipped') > 0) problems.push(`${file}: ${count('skipped')} skipped; each test needs its fixtures:\n${done.stdout.split('\n').filter((l) => /# SKIP/.test(l)).join('\n')}`);
   }
@@ -184,7 +173,7 @@ export const checks = (root: string): Result[] => {
   ];
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(argv[1])) {
   const results = checks(cwd());
   for (const { name, problems, summary } of results) {
     if (problems.length === 0) console.log(`ok   ${name}: ${summary}`);

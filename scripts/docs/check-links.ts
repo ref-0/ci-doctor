@@ -44,7 +44,7 @@ export const slug = (heading: string) =>
     .replace(/ /g, '-');
 
 /** Lines outside fenced code blocks, with inline code blanked, keeping line numbers. */
-const proseLines = (text: string) => {
+export const proseLines = (text: string) => {
   let fence: string | undefined;
   return text.split('\n').map((line) => {
     const mark = /^\s*(`|~)\1\1/.exec(line)?.[1];
@@ -90,17 +90,19 @@ export const anchorsOf = (file: string) => {
 
 const external = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 
+/** The link targets on one prose line: inline links and reference-style definitions. */
+export const linkTargets = (line: string): string[] => [
+  ...[...line.matchAll(/\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)].flatMap((m) => m[1] ?? []),
+  ...[...line.matchAll(/^\s*\[[^\]]+\]:\s*<?(\S+?)>?(?:\s+"[^"]*")?\s*$/g)].flatMap((m) => m[1] ?? []),
+];
+
 /** Every broken link in one Markdown file. */
 export const checkFile = (file: string): Problem[] => {
   const problems: Problem[] = [];
   const lines = proseLines(readFileSync(file, 'utf8'));
 
   lines.forEach((line, index) => {
-    const targets = [
-      ...[...line.matchAll(/\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)].flatMap((m) => m[1] ?? []),
-      ...[...line.matchAll(/^\s*\[[^\]]+\]:\s*<?(\S+?)>?(?:\s+"[^"]*")?\s*$/g)].flatMap((m) => m[1] ?? []),
-    ];
-    for (const target of targets) {
+    for (const target of linkTargets(line)) {
       if (external.test(target) || target.startsWith('<')) continue;
       const hash = target.indexOf('#');
       const path = decodeURIComponent(hash === -1 ? target : target.slice(0, hash));

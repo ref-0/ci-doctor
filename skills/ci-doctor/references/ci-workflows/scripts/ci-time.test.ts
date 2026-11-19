@@ -8,7 +8,7 @@
  */
 import { deepStrictEqual, equal, match, notEqual, ok } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -105,6 +105,8 @@ describe('the settings', () => {
   const template = join(here, '..', '..', 'agent-knowledge', 'repo-facts', 'ci-time.json');
 
   it('has a template that holds every default', () => {
+    // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.
+    deepStrictEqual(Object.keys(JSON.parse(readFileSync(template, 'utf8'))).sort(), Object.keys(DEFAULTS).sort());
     deepStrictEqual(readSettings(template), DEFAULTS);
   });
 
