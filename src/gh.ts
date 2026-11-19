@@ -1,0 +1,139 @@
+// Every GitHub read goes through `gh api`, so it carries the caller's own sign-in and a private repo reads the
+// same as a public one. Nothing here uses unauthenticated HTTP.
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { CliError } from './errors.ts';
+
+const DAY = 24 * 3600e3;
+const NOT_SIGNED_IN = "gh isn't signed in. Run `gh auth login`, then run this again.";
+
+export interface ReadOptions {
+  /** HTTP statuses that mean "there's nothing here", answered as undefined instead of failing. */
+  absentOn?: number[];
+  /** Ask for the file's raw bytes, for `contents/` reads. */
+  raw?: boolean;
+  /** Never cache this answer, such as a job's log. */
+  noCache?: boolean;
+}
+
+/** API answers kept on disk, only when asked, under one gh account's folder. */
+export class ApiCache {
+  readonly dir: string;
+  readonly maxAgeMs: number;
+
+  constructor(dir: string, maxAgeMs = DAY) {
+    this.dir = dir;
+    this.maxAgeMs = maxAgeMs;
+  }
+
+  get(key: string): { body: string; readAt: number } | undefined {
+    const file = this.file(key);
+    if (!existsSync(file)) return undefined;
+
+    const entry = JSON.parse(readFileSync(file, 'utf8')) as { key: string; readAt: number; body: string };
+    if (entry.key !== key || Date.now() - entry.readAt > this.maxAgeMs) return undefined;
+    return entry;
+  }
+
+  set(key: string, body: string) {
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    writeFileSync(this.file(key), JSON.stringify({ key, readAt: Date.now(), body }), { mode: 0o600 });
+  }
+
+  private file(key: string) {
+    return join(this.dir, `${createHash('sha256').update(key).digest('hex')}.json`);
+  }
+}
+
+interface ExecError {
+  code?: string;
+  status?: number | null;
+  stderr?: string;
+}
+
+const statusOf = (stderr: string) => Number(stderr.match(/HTTP (\d{3})/)?.[1]) || undefined;
+
+export class Gh {
+  calls = 0;
+  fromCache = 0;
+  oldestCachedAt: number | undefined;
+  readonly cache: ApiCache | undefined;
+
+  constructor(cache?: ApiCache) {
+    this.cache = cache;
+  }
+
+  /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
+  text(path: string, options: ReadOptions = {}): string | undefined {
+    const key = `${options.raw ? 'raw' : 'api'}:${path}`;
+    const hit = options.noCache ? undefined : this.cache?.get(key);
+    if (hit) {
+      this.fromCache++;
+      this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.readAt, hit.readAt);
+      return hit.body;
+    }
+
+    const body = this.fetch(path, options);
+    if (body !== undefined && !options.noCache) this.cache?.set(key, body);
+    return body;
+  }
+
+  json(path: string, options: ReadOptions = {}): any {
+    const text = this.text(path, options);
+    if (text === undefined) return undefined;
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new CliError(`GitHub's answer to ${path} wasn't JSON.`);
+    }
+  }
+
+  /** The signed-in account's login, to keep cached answers and reports apart per account. */
+  login(): string {
+    const login = this.json('user', { noCache: true })?.login;
+    if (typeof login !== 'string' || !/^[\w-]+$/.test(login)) throw new CliError("Couldn't tell which GitHub account gh is signed in as.");
+    return login;
+  }
+
+  private fetch(path: string, options: ReadOptions): string | undefined {
+    const args = ['api', '--allow-escape-sequences', ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []), path];
+    const run = () => {
+      this.calls++;
+      return execFileSync('gh', args, {
+        encoding: 'utf8',
+        maxBuffer: 512 << 20,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1' },
+        windowsHide: true,
+      });
+    };
+
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return run();
+      } catch (e) {
+        const err = e as ExecError;
+        if (err.code === 'ENOENT') throw new CliError("gh isn't installed or isn't on PATH. Install it from https://cli.github.com, then run `gh auth login`.");
+        if (err.status === 4) throw new CliError(NOT_SIGNED_IN);
+
+        const stderr = String(err.stderr ?? '').trim();
+        const status = statusOf(stderr);
+        if (status !== undefined && options.absentOn?.includes(status)) return undefined;
+        if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
+
+        // A 5xx or a dropped connection gets one more try; a 4xx won't change.
+        const transient = status === undefined || status >= 500;
+        if (transient && attempt < 2) continue;
+
+        const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '') || `gh exited ${err.status}`;
+        const hint = /rate limit/i.test(stderr)
+          ? " GitHub's rate limit for this account ran out; try again once it resets."
+          : status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
+        throw new CliError(`Couldn't read ${path}: ${said}.${hint}`);
+      }
+    }
+  }
+}
