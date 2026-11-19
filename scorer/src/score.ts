@@ -676,7 +676,7 @@ export const fixesOf = (o: any, pr: Practices) => {
   add(o.jobs?.setupShare > 0.35 && o.jobs.spanMin > 4, 7, () => `Setup is ${Math.round(o.jobs.setupShare * 100)}% of job time: cache dependencies and build once`, '06-reuse-work-by-its-real-inputs.md');
   add(o.jobs?.shard && o.jobs.shard.maxOverMedian > 1.25, 7, () => `"${o.jobs.shard.name}": the slowest shard takes ${o.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${Math.round(o.jobs.shard.idleTail * 100)}% idle; balance shards by measured time`, '07-shards-runners-and-billing.md');
   add(slow && !o.jobs?.shard && pr.shardsConfigured === false && o.jobs?.longest.minutes > 8, 6, () => `"${o.jobs?.longest.name}" runs ${Math.round(o.jobs?.longest.minutes)} min in one job: shard it`, '07-shards-runners-and-billing.md');
-  add(o.tests?.over10s > 0, 6, () => `${o.tests?.over10s} test files take over 10 s; the slowest, ${o.tests?.top[0]?.file}, takes ${Math.round(o.tests?.top[0]?.sec)} s`, '10-slow-tests-the-method.md');
+  add(o.tests?.over10s > 0, 6, () => `${o.tests?.over10s} test file${o.tests?.over10s === 1 ? ' takes' : 's take'} over 10 s; the slowest, ${o.tests?.top[0]?.file}, takes ${Math.round(o.tests?.top[0]?.sec)} s`, '10-slow-tests-the-method.md');
   add(o.wait.passedOnRerunRate > 0.03, 6, () => `${Math.round(o.wait.passedOnRerunRate * 100)}% of PR heads went green only on a rerun: track and fix flakes`, '11-flakes.md');
   add(o.wait.p90 > 2 * o.wait.p50 && o.wait.p90 > 10, 5, () => `p90 is ${(o.wait.p90 / o.wait.p50).toFixed(1)}× p50: find what makes the slow runs slow`, '12-budgets-health-and-spend.md');
   add(o.jobs?.queueP90Sec > 60, 5, () => `Jobs wait ${Math.round(o.jobs.queueP90Sec)} s for a runner at p90${/^GitHub/.test(o.jobs.providers[0]?.[0] ?? '') ? ': GitHub-hosted runners are often slow to start, so price a faster provider' : ''}`, '02-runners-blacksmith-and-the-cost-of-getting-fast.md#when-jobs-wait-to-start');
@@ -848,7 +848,8 @@ export const scoreRepo = (gh: Gh, repo: string, days: number) => {
     jobs,
     tests,
     practices: pr,
-    fixes: fixesOf(outcomes, pr),
+    // No workflows: no CI to fix yet, as for a checkout's inventory.
+    fixes: pr.workflows === 0 ? [] : fixesOf(outcomes, pr),
     notes: notesOf(pr, profile.languages[0]?.[0] as string | undefined),
     apiCalls: gh.calls,
   };

@@ -169,6 +169,19 @@ describe('too little history', () => {
     assert.equal(r.code, 0, r.stderr);
     assert.match(json(r.stdout).unscored, /no pull-request runs of GitHub Actions in the last 7 days/);
   });
+
+  it('with no workflows, suggests no fixes, and shows no merged PRs and one author in words', async () => {
+    const routes = fakeRepo({ repo: PUBLIC, heads: 0, workflows: 0 });
+    routes[`repos/${PUBLIC}/commits?page=1`] = { status: 200, json: Array.from({ length: 8 }, () => ({ author: { login: 'pip' } })) };
+    routes['search/issues?merged'] = { status: 200, json: { total_count: 0, items: [] } };
+    const r = await runCli(['--repo', PUBLIC], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^pip\/public-app: unscored\. There are no GitHub Actions workflows on main/);
+    assert.match(r.stdout, / by 1 person \(28 days/);
+    assert.match(r.stdout, /0 PRs merged\/week, – by bots/);
+    assert.doesNotMatch(r.stdout, /null|Fix first:/);
+  });
 });
 
 describe('unknown is not absent', () => {
