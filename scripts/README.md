@@ -6,7 +6,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 ## Read-only, once, for a baseline
 
-Usable during the survey, before the plan is approved ([PROMPT's read-only rule](../skills/ci-doctor/SKILL.md#before-approval-read-only)), because they only read what already exists. Keep each read bounded, and leave an API-call reserve for everyone else on the login.
+Usable during the survey, before the plan is approved ([ci-doctor's read-only rule](../skills/ci-doctor/SKILL.md#before-approval-read-only)), because they only read what already exists. Keep each read bounded, and leave an API-call reserve for everyone else on the login.
 
 | Script | What it reads | Note |
 | --- | --- | --- |

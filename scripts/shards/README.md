@@ -24,7 +24,7 @@ Why each piece is shaped this way: [guide section 7](../../docs/pages/07-shards-
 
 ## Wire it in
 
-Set this up only once the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
+Set this up only once the user approves the plan ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ### Start simple: a fixed split
 

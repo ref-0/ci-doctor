@@ -18,7 +18,7 @@ Opt-in. Skills copied from upstream go stale; this tells you when, and never upd
 
 ## Set it up
 
-Set it up only once the user approves the plan, as a new scheduled job ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
+Set it up only once the user approves the plan, as a new scheduled job ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 1. Copy this folder where your repo keeps scripts, as `<path-to>/upstream-sync/` with `<path-to>` relative to the repo root (for example `tools`), and `adaptations.example.json` to `adaptations.json` beside it. List the locked skills whose description you wrote (`ours`), the upstream skills you skip (`leftOut`), and each hand-edited copy with its upstream repo, path and the commit you copied it from (`edited`).
 2. Install locked skills with the skills CLI (`npx skills add …`), which writes `skills-lock.json`. Keep edited copies, such as [`test-audit`](../../skills/test-audit/UPSTREAM.md), out of the lock, so an update can't overwrite them.

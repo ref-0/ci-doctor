@@ -4,7 +4,7 @@ A Cloudflare Worker that speaks Vite+'s remote task-cache protocol (`vp run`), w
 
 Reference implementation from a production monorepo; adapt to your repo. **It's for Vite+ only.** For Turborepo, Nx, Bazel or Gradle, start from that runner's own remote cache or a server for its protocol, as [guide section 6's table](../../docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches) says. Skip this Worker, its scripts and its OIDC example. The trust design below carries over to any self-hosted cache server.
 
-**Nothing here runs before the user approves the plan.** The commands below are for the approved implementation ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
+**Nothing here runs before the user approves the plan.** The commands below are for the approved implementation ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ## What's here
 

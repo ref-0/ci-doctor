@@ -15,7 +15,7 @@ Pull requests run what a change can reach. A sweep on main runs everything on a 
 
 ## Wire it in
 
-Set these up only once the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). A bisect spends CI by hand, so its allowance is its own approval.
+Set these up only once the user approves the plan ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). A bisect spends CI by hand, so its allowance is its own approval.
 
 [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) already does steps 1, 2 and the snapshot guard, with the job names and `workflow_dispatch` inputs `checks` names (`ref`, `test_paths`, `pack_only`, `bisect`). For a workflow of your own:
 

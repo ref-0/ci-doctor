@@ -12,6 +12,7 @@ Then work in rounds until the target is reached or the levers run out:
 1. **Find what sets the median now:** the slowest shard, the file ending it, setup, a serialized job, or a selection that ran too much.
 2. **Pick the biggest lever** in the approved plan for that constraint.
 3. **Make one change** per pull request, one cause per PR.
+   - For a change to CI, follow [check a change to CI against real output](../checks/ci-check-a-workflow-change.md): its modelled effect on a full and a small run, its cost a month, and which of those numbers the PR's own run observes.
    - For test speedups, the PR body has the CI times before (from history) and after (from the PR's normal CI run), the mutation that still fails, and a local repeat of the whole file with retries off.
    - **Mutations:** only in a disposable checkout, with remote cache writes off and test execution uncached. Check the test fails for the intended reason, restore the source, and confirm the clean whole file passes with retries off. Use the repo's real runner command, and keep both sides of a deadline where it has them. Keep the mutation out of commits and CI.
 4. **Use the repo's existing PR and merge path.** Record the base branch, the required check identity, the allowed merge method and the human approvals before touching a PR. Test the current required ref, including the merge-queue SHA when the repo uses one. If the repo runs drafts, keep doing so unless the plan approved a draft-skip change.
