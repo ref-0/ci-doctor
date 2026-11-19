@@ -11,7 +11,7 @@ const pkgText = (pk: Record<string, number>) =>
 
 /** The block a person pastes into their agent, as ci-score's report has it. */
 const profileLine = (r: Report) =>
-  `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} people (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs}% by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`;
+  `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} ${r.profile.activeAuthors28d === 1 ? 'person' : 'people'} (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs === null ? '–' : `${r.profile.botShareOfMergedPrs}%`} by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`;
 
 export const promptBlock = (r: Report) =>
   [
