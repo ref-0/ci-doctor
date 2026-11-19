@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds ci-doctor's guide for ci.ref0.dev: the repo's Markdown, and the files it links to, as
+ * Builds ci-doctor's guide for ci-doctor.ref0.dev: the repo's Markdown, and the files it links to, as
  * static files at the paths they have in the repo, under `/guide/`, with `/llms.txt` at the root.
  *
  *     node scripts/site/build.ts [<out>]      default out: dist/site
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { linkTargets, proseLines } from '../docs/check-links.ts';
 
-export const ORIGIN = 'https://ci.ref0.dev';
+export const ORIGIN = 'https://ci-doctor.ref0.dev';
 /** Where the repo's files go on the site; the root keeps `/<owner>/<repo>` free for the score site's reports. */
 export const BASE = 'guide';
 
@@ -220,6 +220,8 @@ export const build = (root: string, out: string): { files: number; bytes: number
   write('llms.txt', llms(root, set));
   write(`${BASE}/llms-full.txt`, llmsFull(root, set));
   write('_headers', HEADERS);
+  // Until the score site takes ci-doctor.ref0.dev's root, it leads to the repo, which renders the README.
+  write('_redirects', '/ https://github.com/ref-0/ci-doctor 302\n');
 
   const all = walk(out);
   return { files: all.length, bytes: all.reduce((n, f) => n + statSync(f).size, 0) };

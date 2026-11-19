@@ -16,7 +16,7 @@
  *    release replaced: `code-review`, the hub's five topics as skills, `<root>`, `install.ts`, or
  *    `PROMPT.md`, `docs/prompts/`, `checks/` and `templates/agent-knowledge/` as paths.
  * 6. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
- * 7. **Site:** the guide for ci.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
+ * 7. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
  *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
  *    name every guide page, skill and reference README, and only what's served.
  * 8. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these

@@ -109,8 +109,8 @@ describe('the site check', () => {
     equal(existsSync(join(root, 'out/guide/tools/index.html')), true);
     // A guide page is listed by its title alone; other files keep a description.
     const llms = readFileSync(join(root, 'out/llms.txt'), 'utf8');
-    match(llms, /^- \[1\. A\]\(https:\/\/ci\.ref0\.dev\/guide\/docs\/pages\/01-a\.md\)$/m);
-    match(llms, /^- \[X\]\(https:\/\/ci\.ref0\.dev\/guide\/scripts\/x\/README\.md\): Runs things\.$/m);
+    match(llms, /^- \[1\. A\]\(https:\/\/ci-doctor\.ref0\.dev\/guide\/docs\/pages\/01-a\.md\)$/m);
+    match(llms, /^- \[X\]\(https:\/\/ci-doctor\.ref0\.dev\/guide\/scripts\/x\/README\.md\): Runs things\.$/m);
   });
 
   it('builds the same bytes twice', () => {

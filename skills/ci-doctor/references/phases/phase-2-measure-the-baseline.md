@@ -28,7 +28,7 @@ From the CI provider's API and logs, with no new runs.
 
 This is a bounded, one-time read of metadata and log samples. It isn't a backfill or a standing collector: those need the user's yes (guide section 13). Keep an API-call reserve for other users of the quota.
 
-**A pasted `<ci-report>`,** from `npx @ref0/ci-doctor` or ci.ref0.dev, is dated data from a sample of recent runs, not the baseline. Check each of its headline numbers against the runs you collect, one by one: the PR wait p50, p75 and p90, the queue p90, red heads, green only on rerun, and the critical path. Where they agree, take them and spend the collection on what it left out; where they don't, say so and use yours. Its guide links name pages in this repo's `docs/pages/`.
+**A pasted `<ci-report>`,** from `npx @ref0/ci-doctor` or ci-doctor.ref0.dev, is dated data from a sample of recent runs, not the baseline. Check each of its headline numbers against the runs you collect, one by one: the PR wait p50, p75 and p90, the queue p90, red heads, green only on rerun, and the critical path. Where they agree, take them and spend the collection on what it left out; where they don't, say so and use yours. Its guide links name pages in this repo's `docs/pages/`.
 
 **When evidence is missing,** mark it unavailable with your confidence, and say what would supply it. Don't dispatch a run, install a collector or widen permissions to fill a gap.
 

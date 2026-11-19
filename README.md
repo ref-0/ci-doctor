@@ -21,7 +21,7 @@ To try it without installing anything, paste this instead:
 Clone https://github.com/ref-0/ci-doctor.git into a folder outside this repo, check out its newest release tag, read its skills/ci-doctor/SKILL.md, and follow it for this repo, starting at the beginning.
 ```
 
-If you scored your repo with `npx @ref0/ci-doctor` or on ci.ref0.dev, add `Start from this CI report:` and paste the report's `<ci-report>` block after either prompt.
+If you scored your repo with `npx @ref0/ci-doctor` or on ci-doctor.ref0.dev, add `Start from this CI report:` and paste the report's `<ci-report>` block after either prompt.
 
 Your agent maps your stack, measures your CI's median and p90, and writes a plan for you to review. Until you approve it, it only reads: no installs, test runs, CI runs, account setup or schedules.
 
@@ -101,9 +101,11 @@ Everything is a reference implementation with `<placeholders>`. Adapt it; don't 
 
 ## Updating
 
-Releases are tags. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
+Releases are tags, and `main` is always the newest release, which is what each harness's plugin install reads. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
 
 ## Contributing
+
+Work lands on the `next` branch: branch from it and open pull requests against it. A release merges `next` into `main`, bumps `version` in `plugin.json`, the other manifests, the hub's `SKILL.md` and `scorer/package.json`, and pushes the tag, which publishes the scorer to npm (`.github/workflows/release.yml`).
 
 Before pushing, run the build checks from the repo's root:
 
@@ -113,7 +115,7 @@ node scripts/check.ts
 
 They check that the plugin's manifests agree and each skill loads as one skill, that the hub's phase excerpts match their sources, every link in the repo and in a copy of `skills/` alone, the guide's site and its `llms.txt`, that nothing names what a release replaced, the docs budget, and every skill script's tests, where a skipped test fails. They need Node 24, `git` and `jq`. After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first.
 
-The guide for ci.ref0.dev builds with one command, into `dist/site/`, which Git ignores:
+The guide for ci-doctor.ref0.dev builds with one command, into `dist/site/`, which Git ignores:
 
 ```sh
 node scripts/site/build.ts

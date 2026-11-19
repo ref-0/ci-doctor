@@ -1,13 +1,13 @@
 # The guide's site
 
-ci-doctor's guide on `https://ci.ref0.dev/guide/`, as static files: the repo's Markdown, and the files and folders it links to, at the paths they have in the repo. A relative link resolves on the site as it does in the repo, so a skills-only install can follow the hub's links out of `skills/` there. This is the repo's own build, not a reference implementation: the site doesn't serve this folder.
+ci-doctor's guide on `https://ci-doctor.ref0.dev/guide/`, as static files: the repo's Markdown, and the files and folders it links to, at the paths they have in the repo. A relative link resolves on the site as it does in the repo, so a skills-only install can follow the hub's links out of `skills/` there. This is the repo's own build, not a reference implementation: the site doesn't serve this folder.
 
 ## Files
 
 | File | What it does |
 | --- | --- |
 | `build.ts` | `node scripts/site/build.ts [<out>]`, default `dist/site/`. Node 24 and `git`, no install. The same commit builds the same bytes; build from a clean checkout, since it reads the working tree. |
-| `wrangler.jsonc` | A Worker with static assets only, no code, on the routes `ci.ref0.dev/guide/*` and `ci.ref0.dev/llms.txt`. |
+| `cloudflare.config.ts`, `package.json` | The Worker `ci-doctor-guide` for `cf deploy`: static assets only, no code, on the Custom Domain `ci-doctor.ref0.dev`. Only deploying needs them, after `npm install` here. |
 
 ## What it serves
 
@@ -18,7 +18,7 @@ ci-doctor's guide on `https://ci.ref0.dev/guide/`, as static files: the repo's M
 | `/guide/<path>` | The repo's file at `<path>`: tracked Markdown in `docs/`, `skills/`, `templates/`, `scripts/`, `tools/`, `cache/` and `scorer/`, the README, CHANGELOG and LICENSE, and every tracked file a served Markdown file links to, or that sits in a folder one links to. Never tests' fixtures, `node_modules`, untracked files or this folder |
 | `/guide/<folder>/` | Generated: an `index.html` listing the folder's served files, so a link to a folder resolves |
 
-Markdown is served as `text/markdown`, folder listings as HTML, and everything else as plain UTF-8 text, so a `.ts` script reads as text (`_headers` in the build). The rest of `ci.ref0.dev`, such as `/<owner>/<repo>`, is left for the score site.
+Markdown is served as `text/markdown`, folder listings as HTML, and everything else as plain UTF-8 text, so a `.ts` script reads as text (`_headers` in the build, and `_redirects` sends `/` to the repo). The rest of `ci-doctor.ref0.dev`, such as `/<owner>/<repo>`, is left for the score site.
 
 `node scripts/check.ts` builds into a temporary folder and fails when a relative link in a served Markdown file lands outside what's served, or `llms.txt` misses a guide page, skill or reference README, or names a file that isn't served.
 
@@ -28,17 +28,16 @@ No Cloudflare sign-in is needed:
 
 ```sh
 node scripts/site/build.ts
-cd scripts/site && npx wrangler dev
+npx wrangler dev --assets dist/site
 curl http://localhost:8787/llms.txt
 ```
 
 ## Deploy
 
-Deploying makes the guide public, so do it only when the repo goes public, at a release tag.
+Deploying publishes the guide, so do it from a release tag.
 
 1. Check out the release tag, clean, and run `node scripts/site/build.ts`.
-2. In `wrangler.jsonc`, add the `account_id` of the account that holds the `ref0.dev` zone. A `wrangler login` can see several, and the default may be wrong.
-3. From this folder, `npx wrangler deploy`. It creates the Worker `ci-doctor-guide` and its two routes; `ci.ref0.dev` needs a proxied DNS record for the routes to receive requests.
-4. Check `https://ci.ref0.dev/llms.txt`, a guide page and a script, as under "Try it locally".
+2. From this folder, `npm install`, then `cf deploy ../../dist/site`, signed in with `cf` to the account that holds the `ref0.dev` zone. It creates or updates the Worker `ci-doctor-guide` and its Custom Domain, which makes the DNS record and certificate.
+3. Check `https://ci-doctor.ref0.dev/llms.txt`, a guide page and a script, as under "Try it locally". `/` redirects to the repo on GitHub.
 
-When the score site's Worker takes `ci.ref0.dev`, keep these paths for the guide: either keep this Worker's routes, after checking that requests to `/guide/*` and `/llms.txt` still reach it, or serve this build from the score site's own assets at the same paths, and delete this Worker.
+When the score site's Worker takes `ci-doctor.ref0.dev`, it serves this build from its own assets at the same paths, `/guide/*` and `/llms.txt`, and this Worker is deleted.
