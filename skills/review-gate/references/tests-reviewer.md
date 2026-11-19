@@ -7,11 +7,11 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # The tests reviewer
 
-Part of the [`review-gate`](../SKILL.md) skill. Speed work and flake fixes can quietly weaken what a test proves, so a PR that adds or changes tests, test helpers or test settings gets one reviewer who reads only for that, as [guide section 15](../../../docs/pages/15-the-agent-workflow-around-ci.md) says. Use a second model where you can. Only a tiny, low-risk test change skips it, with a `No review: low risk` line (20 changed test lines or fewer here). [The skill](../SKILL.md) has the whole procedure; this page is the tests reviewer's own.
+Part of the [`review-gate`](../SKILL.md) skill. Speed work and flake fixes can quietly weaken what a test proves, so a PR that adds or changes tests, test helpers or test settings gets one reviewer who reads only for that, as [guide section 15](../../../docs/pages/15-the-agent-workflow-around-ci.md) says. Use a second model where you can. Only a tiny, low-risk test change skips it, with a `No review: low risk` line (20 changed test lines or fewer here). [The skill](../SKILL.md) has the gate; this page is the tests reviewer's own.
 
 ## Rounds and findings
 
-The tests reviewer runs in round 1 only, beside the PR's other reviewers; tests check its fixes, so it gets no round 2. Rounds, when a fix earns another round, and each finding's states are [the skill's](../SKILL.md#2-run-rounds-at-most-three) rules: reproduce a finding before acting on it, fix in-scope P0 and P1 findings in the PR, and file, keep or dismiss the rest with a reason.
+The tests reviewer runs in round 1 only, beside the PR's other reviewers; tests check its fixes, so it gets no round 2. Reproduce a finding before acting on it, fix in-scope P0 and P1 findings in the PR, and file, keep or dismiss the rest with a reason, as [the skill](../SKILL.md#run-the-review) and the record's states say.
 
 ## The reviewer's question
 
