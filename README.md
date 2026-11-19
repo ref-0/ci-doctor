@@ -25,7 +25,7 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - the default branch's file tree, its workflow files and its `package.json`, `nx.json` and `.github/dependabot.yml`;
 - merged and opened PRs from the last 7 days, through GitHub's search.
 
-A run reads about 30 to 80 API calls of your account's hourly limit.
+This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 78 calls. Each workflow file is one more call, up to 40.
 
 **Unknown isn't absent.** When it couldn't check a practice, such as when GitHub cuts a big repo's file tree short or the repo has more than 40 workflow files, that practice shows as `unknown`, with the reason, and no fix is suggested for it. A read that fails for any other reason, such as a 5xx after one retry, a lost connection or a missing permission, stops the run with exit code 1, rather than scoring on partial data.
 
