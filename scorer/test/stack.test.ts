@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { manifestPaths } from '../src/score.ts';
 import type { Source } from '../src/source.ts';
-import { MAX_MANIFESTS, parseManifest, stackOf, type StackInputs } from '../src/stack.ts';
+import { exportsOf, MAX_MANIFESTS, packageGraph, parseManifest, stackOf, type StackInputs } from '../src/stack.ts';
 
 /** A tree of files, read from memory. `unreadable` paths are listed but answer nothing, as a failed read does. */
 const tree = (files: Record<string, string>, { truncated = false, unreadable = [] as string[] } = {}): Source => {
@@ -203,4 +203,63 @@ describe('parseManifest', () => {
   });
 
   it('ignores files that are no manifest', () => assert.equal(parseManifest('README.md', ''), undefined));
+});
+
+describe('stack: the package graph', () => {
+  const s = stack({
+    'package.json': pkg({ private: true, devDependencies: { '@pip/cli': 'workspace:*' } }),
+    'packages/core/package.json': pkg({ name: '@pip/core', exports: { '.': './index.js', './utils': './utils.js', './package.json': './package.json' }, dependencies: { '@pip/util': '1.0.0' } }),
+    'packages/util/package.json': pkg({ name: '@pip/util', exports: './index.js', dependencies: { '@pip/core': 'workspace:^' } }),
+    'packages/ui/package.json': pkg({ name: '@pip/ui', exports: { './button': './button.js' }, dependencies: { '@pip/core': 'workspace:*', react: '19' } }),
+    'packages/cli/package.json': pkg({ name: '@pip/cli', dependencies: { '@pip/ui': 'workspace:*', '@pip/core': '*', '@pip/cli': 'workspace:*' } }),
+    'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\n',
+    'crates/a/Cargo.toml': '[package]\nname = "a"\n\n[dependencies]\nb = { path = "../b" }\n\n[dependencies.c]\npath = "../c"\n',
+    'crates/b/Cargo.toml': '[package]\nname = "b"\n\n[dependencies]\nc = { workspace = true }\nserde = "1"\n',
+    'crates/c/Cargo.toml': '[package]\nname = "c"\n',
+  });
+  const g = s.graph;
+  const of = (name: string) => g.packages.find((p) => p.name === name)!;
+
+  it('lists each package with its edges to the workspace, by protocol, version or path, never to itself', () => {
+    assert.deepEqual(of('@pip/cli').internal, ['@pip/core', '@pip/ui']);
+    assert.deepEqual(of('package.json').internal, ['@pip/cli']);
+    assert.deepEqual(of('a').internal, ['b', 'c']);
+    assert.deepEqual(of('b').internal, ['c']);
+    assert.equal(of('a').ecosystem, 'cargo');
+  });
+
+  it("records each npm package's exports: entries, and whether one is the root", () => {
+    assert.deepEqual(of('@pip/core').exports, { entries: 3, root: true });
+    assert.deepEqual(of('@pip/util').exports, { entries: 1, root: true });
+    assert.deepEqual(of('@pip/ui').exports, { entries: 1, root: false });
+    assert.equal(of('@pip/cli').exports, false);
+    assert.equal('exports' in of('a'), false);
+  });
+
+  it('counts packages and edges, finds cycles, the deepest chain and the most depended on', () => {
+    // The workspace roots, package.json and Cargo.toml, are packages too, as the profile counts them.
+    assert.equal(g.count, 9);
+    assert.equal(g.edges, 9);
+    assert.deepEqual(g.cycles, [['@pip/core', '@pip/util']]);
+    // package.json → cli → ui → core ⇄ util: the cycle counts as one step.
+    assert.equal(g.maxDepth, 3);
+    assert.deepEqual(g.topFanIn, [['@pip/core', 3], ['c', 2], ['@pip/cli', 1], ['@pip/ui', 1], ['@pip/util', 1]]);
+  });
+
+  it("leaves the repo's numbers unknown when a manifest couldn't be read, and lists what was", () => {
+    const partial = stack({ 'packages/a/package.json': pkg({ name: 'a', dependencies: { b: '*' } }), 'packages/b/package.json': pkg({ name: 'b' }) }, { unreadable: ['packages/b/package.json'] }).graph;
+    assert.deepEqual(partial.packages.map((p) => p.name), ['a']);
+    assert.deepEqual([partial.count, partial.edges, partial.cycles, partial.maxDepth, partial.topFanIn], [null, null, null, null, null]);
+  });
+
+  it('with no packages, is empty, not unknown', () => {
+    assert.deepEqual(packageGraph([], true), { packages: [], count: 0, edges: 0, cycles: [], maxDepth: 0, topFanIn: [] });
+  });
+
+  it('reads exports in every form package.json allows', () => {
+    assert.equal(exportsOf(undefined), false);
+    assert.deepEqual(exportsOf(['./a.js', './b.js']), { entries: 1, root: true });
+    assert.deepEqual(exportsOf({ import: './a.mjs', require: './a.cjs' }), { entries: 1, root: true });
+    assert.deepEqual(exportsOf({ '.': { import: './a.mjs' }, './*': './*.js' }), { entries: 2, root: true });
+  });
 });

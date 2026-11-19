@@ -56,7 +56,9 @@ Exit codes: 0 for a report, scored or unscored. 1 when a read fails, or `gh` is 
 
 ## The stack
 
-The report's `stack` says what the repo is built with, so repos can be compared by what they share: languages with their shares and packages by ecosystem, as the profile has them; the package managers and workspace tools, such as pnpm, Turborepo or a Cargo workspace; every test runner found; the lint and format tools; the 20 libraries the most packages depend on, leaving out the workspace's own packages and the tools named in the other fields; the sampled jobs by runner provider; and agent files such as `AGENTS.md` and `.cursor/rules`. Examples, fixtures, templates and vendored code don't count. As with the practices, a field is `unknown` (`null` in the JSON) when nothing was found and some of what it reads couldn't be, and `stack.unknown` says why.
+The report's `stack` says what the repo is built with, so repos can be compared by what they share: languages with their shares and packages by ecosystem, as the profile has them; the package managers and workspace tools, such as pnpm, Turborepo or a Cargo workspace; every test runner found; the lint and format tools; the 20 libraries the most packages depend on, leaving out the workspace's own packages and the tools named in the other fields; the sampled jobs by runner provider; and agent files such as `AGENTS.md` and `.cursor/rules`. Examples, fixtures, templates and vendored code don't count.
+
+`stack.graph` is the workspace's package graph, from the same manifests: each package's edges to the workspace's other packages, of any dependency kind, and for an npm package its `exports` (how many entries, and whether one is the root `.`). For the repo it gives the package and edge counts, the cycles between packages, the longest chain of dependencies, and the 5 packages the most others depend on. Those numbers are `null` unless every manifest was read. As with the practices, a field is `unknown` (`null` in the JSON) when nothing was found and some of what it reads couldn't be, and `stack.unknown` says why.
 
 ## From code
 

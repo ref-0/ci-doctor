@@ -67,6 +67,11 @@ export const practicesBlock = (pr: Practices) => {
 
 const LIBRARIES_SHOWN = 8;
 
+const graphText = (g: Stack['graph']) =>
+  g.count === null
+    ? 'unknown'
+    : `${g.count} package${g.count === 1 ? '' : 's'}, ${g.edges} internal edge${g.edges === 1 ? '' : 's'}, depth ${g.maxDepth}, ${g.cycles.length} cycle${g.cycles.length === 1 ? '' : 's'}${g.topFanIn.length ? `; most depended on: ${g.topFanIn.map(([n, k]) => `${n} (${k})`).join(', ')}` : ''}`;
+
 /** What the repo is built with, each line "unknown" where its inputs couldn't be read. */
 export const stackBlock = (st: Stack) => {
   const or = <T>(v: T | null, f: (x: T) => string) => (v === null ? 'unknown' : f(v) || 'none found');
@@ -79,6 +84,7 @@ export const stackBlock = (st: Stack) => {
     ['Libraries', or(st.libraries, (x) => x.slice(0, LIBRARIES_SHOWN).map((l) => `${l.name} (${l.packages})`).join(', '))],
     ['CI runners', or(st.runners, (x) => x.map(([p, n]) => `${p} (${n} job${n === 1 ? '' : 's'})`).join(', '))],
     ['Agent files', or(st.agentFiles, (x) => x.join(', '))],
+    ['Package graph', graphText(st.graph)],
   ];
   const width = Math.max(...lines.map(([l]) => l.length));
   return ['Stack:', ...lines.map(([l, v]) => `  ${l.padEnd(width)}  ${v}`), ...st.unknown.map((u) => `  Unknown because: ${u}.`)].join('\n');

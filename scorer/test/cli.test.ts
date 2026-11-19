@@ -197,10 +197,12 @@ describe('the stack', () => {
     assert.deepEqual(stack.lintFormat, ['ESLint']);
     assert.deepEqual(stack.runners, json(r.stdout).jobs.providers);
     assert.deepEqual(stack.agentFiles, []);
+    assert.deepEqual(stack.graph, { packages: [{ name: 'app', path: 'package.json', ecosystem: 'npm', internal: [], exports: false }], count: 1, edges: 0, cycles: [], maxDepth: 0, topFanIn: [] });
     assert.equal(r.calls.filter((c) => c.includes('graphql')).length, 1);
 
     const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
     assert.match(text.stdout, /^Stack:\n  Languages\s+TypeScript 98%, JavaScript 3%\n  Workspace\s+pnpm · 1 npm package\n  Tests\s+Vitest\n  Lint, format\s+ESLint$/m);
+    assert.match(text.stdout, /^  Package graph\s+1 package, 0 internal edges, depth 0, 0 cycles$/m);
   });
 
   it("in a checkout, comes from its files, with GitHub's languages and runners unknown", async () => {
