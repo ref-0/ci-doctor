@@ -1,0 +1,32 @@
+{
+  "name": "@ref0/ci-doctor",
+  "version": "0.1.0",
+  "description": "Score a repo's CI from its GitHub Actions history, on your machine, and print how to install ci-doctor's skills.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "ci-doctor": "dist/cli.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ref-0/ci-doctor.git",
+    "directory": "scorer"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build",
+    "test": "npm run build && node --test \"test/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}
