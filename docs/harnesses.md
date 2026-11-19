@@ -1,6 +1,6 @@
 # Harnesses: parallel agents and recurring work
 
-How to run several agents at once, each in its own checkout, and how to schedule the standing work in [guide section 16](pages/16-standing-automations.md), in each harness we know. [PROMPT Phase 0](prompts/phase-0-know-your-harness-and-your-helpers.md) asks you to find out which of these yours has; prefer what the user already uses. One agent and no schedule is a complete way to work: every schedule is opt-in, and the default follow-up is a manual, read-only check.
+How to run several agents at once, each in its own checkout, and how to schedule the standing work in [guide section 16](pages/16-standing-automations.md), in each harness we know. [PROMPT Phase 0](../skills/ci-doctor/references/phases/phase-0-know-your-harness-and-your-helpers.md) asks you to find out which of these yours has; prefer what the user already uses. One agent and no schedule is a complete way to work: every schedule is opt-in, and the default follow-up is a manual, read-only check.
 
 Harnesses change fast. Each row below was checked against its docs in November 2026; check the linked page before you rely on a feature, and if you can't confirm one exists, say so and use a more portable option.
 
@@ -22,7 +22,7 @@ Harnesses change fast. Each row below was checked against its docs in November 2
 
 ## Skills folder and instruction file
 
-Where each harness looks for skills and which instruction file it loads at the start. Skills copied by hand go into that folder (`<skills-dir>` in [`skills/README.md`](../skills/README.md#install)); a plugin install keeps its own copy and put the [agent-knowledge snippet](../templates/agent-knowledge/README.md) in that file.
+Where each harness looks for skills and which instruction file it loads at the start. Skills copied by hand go into that folder (`<skills-dir>` in [`skills/README.md`](../skills/README.md#install)); a plugin install keeps its own copy and put the [agent-knowledge snippet](../skills/ci-doctor/references/agent-knowledge/README.md) in that file.
 
 | Harness | Repo skills folder (`<skills-dir>`) | User skills folder | Instruction file |
 | --- | --- | --- | --- |

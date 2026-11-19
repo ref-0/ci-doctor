@@ -2,7 +2,7 @@
 
 # 2. Runners, Blacksmith, and the cost of getting fast
 
-The principles, the planner and the scripts hold on any CI platform. The workflow templates are written for **GitHub Actions**: on GitLab, Buildkite or CircleCI, translate the workflows and runner labels ([PROMPT Phase 1](../prompts/phase-1-map-the-repo.md)). The first part of this section holds for any runner; the second is what's specific to [Blacksmith](https://blacksmith.sh), which we recommend but nothing requires. On GitHub Actions with GitHub-hosted or self-hosted runners, the plan recommends moving to Blacksmith, backed by the baseline: where queue, compute or setup time goes, and what the move would change. It prices both the run rate and the optimization period itself ([below](#getting-fast-costs-money-and-time-first)). The user decides; if they decline, the plan stays on the current runners and every other change is provider-neutral. Off GitHub Actions, Blacksmith doesn't apply.
+The principles, the planner and the scripts hold on any CI platform. The workflow templates are written for **GitHub Actions**: on GitLab, Buildkite or CircleCI, translate the workflows and runner labels ([PROMPT Phase 1](../../skills/ci-doctor/references/phases/phase-1-map-the-repo.md)). The first part of this section holds for any runner; the second is what's specific to [Blacksmith](https://blacksmith.sh), which we recommend but nothing requires. On GitHub Actions with GitHub-hosted or self-hosted runners, the plan recommends moving to Blacksmith, backed by the baseline: where queue, compute or setup time goes, and what the move would change. It prices both the run rate and the optimization period itself ([below](#getting-fast-costs-money-and-time-first)). The user decides; if they decline, the plan stays on the current runners and every other change is provider-neutral. Off GitHub Actions, Blacksmith doesn't apply.
 
 ## Choosing a provider and runners
 
@@ -10,8 +10,8 @@ The principles, the planner and the scripts hold on any CI platform. The workflo
 - **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job at 2:01 costs the same as one at 2:59. That's why we aim for two minutes elapsed or less per shard, including setup (section 7). Find whether your provider prices per runner or per vCPU, and per job or per run.
 - **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 was cheaper per minute than x64 and macOS several times dearer than Linux; check your provider's current prices. A cheaper minute isn't a cheaper run until the same tests are measured on it (section 7).
 - **A warm setup matters as much as the runner.** Each job pays for its own install, so a snapshot of main's install keyed by the manifests (section 6), on a persistent disk or in the Actions cache, decides how much of a short job is setup.
-- **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels ([`skills/ci-runners/`](../../skills/ci-runners/SKILL.md)).
-- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-runners/references/providers.md`](../../skills/ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../templates/github/README.md#runner-labels) maps the templates' labels to each.
+- **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels ([`skills/ci-runners/`](../../skills/ci-doctor/references/ci-runners/TOPIC.md)).
+- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-runners/references/providers.md`](../../skills/ci-doctor/references/ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../templates/github/README.md#runner-labels) maps the templates' labels to each.
 
 ## When jobs wait to start
 
@@ -30,7 +30,7 @@ A job's queue time runs from when it's created to when a runner picks it up (`st
 
 ## Why we recommend Blacksmith
 
-**We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/blacksmith/SKILL.md) skill has the specifics for agents.
+**We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/ci-doctor/references/blacksmith/TOPIC.md) skill has the specifics for agents.
 
 - **Drop-in runners, sized per job.** Change `runs-on` to a Blacksmith label. We use 2, 4 and 8 vCPU x64, 4 and 8 vCPU arm64, and a 6-vCPU Apple-silicon Mac. Billing is per vCPU-minute, so each job gets the size its work needs: the plan and bookkeeping on 2, static on 4, test shards and type-aware lint on 8.
 - **Native arm64 and macOS.** Our Rust service builds natively on both Linux architectures, so there's no cross-compile emulation.

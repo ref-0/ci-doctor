@@ -1,33 +1,40 @@
 <!--
-What: nine agent skills for CI on GitHub Actions, its runners (on any provider; Blacksmith recommended on GitHub Actions), review, the tests CI runs and the evidence behind them, and how to install them and keep them fresh.
+What: the plugin's five agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for review, merging, test value and proof tiers, and how to keep them fresh.
 Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
-Configure: write your repo's facts files from templates/agent-knowledge/, and fill the placeholders below.
+Configure: write your repo's facts files from the hub's references/agent-knowledge/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # Skills
 
-Each folder is one skill: a `SKILL.md` with a name and a short description, which the harness loads when a task matches, plus `references/` the skill opens by topic and, for some, scripts. Each description names its siblings, so an agent picks the right one.
+Each folder is one skill: a `SKILL.md` with a name and a short description, which the harness loads when a task matches, plus `references/` the skill opens by topic and, for some, scripts. A harness picks a skill by its description, so topics an agent would call CI work share the hub's, and tasks that don't sound like CI have their own.
 
 ## Map
 
 Each topic has one home; the others link to it.
 
-| Skill | Owns | Not here: see |
+| Skill | Owns | Applies when |
 | --- | --- | --- |
-| [`ci-workflows`](ci-workflows/SKILL.md) | Changing or debugging workflows: the checks for a CI change, selection, tiers, caches, slow runs, Rust in CI, and `scripts/ci-time.ts`, which prints where a run's time and minutes went. | Runner size and cost: `ci-runners`. Blacksmith: `blacksmith`. |
-| [`ci-runners`](ci-runners/SKILL.md) | Runner size and architecture, packing against minute rounding, the spend cap, the cost of getting fast, and choosing a provider. | Workflows: `ci-workflows`. One provider's specifics: `blacksmith`. |
-| [`blacksmith`](blacksmith/SKILL.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |
-| [`code-review`](code-review/SKILL.md) | Whether a PR needs review, who reviews, the tests reviewer, and the review record (`scripts/review-record.ts`) CI's gate checks for format and reviewer types. | When review runs in a PR's life: `ci-merge-workflow`. |
-| [`ci-merge-workflow`](ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run: reading the result, runs by hand, merging, releases, then main and the deploy. | Review: `code-review`. Workflow changes: `ci-workflows`. |
-| [`speed-up-tests`](speed-up-tests/SKILL.md) | Slow tests and flakes: CI's records and how to read them (`measuring`, `ci-history-data`), fixes, fakes, and stack pages for [Cloudflare Workers](speed-up-tests/references/workers.md) and [Effect](speed-up-tests/references/effect.md). | Judging a number: `verify-evidence`. A test's value: `test-audit`. |
-| [`test-audit`](test-audit/SKILL.md) | A test's value, weak or duplicate coverage and test-only seams. From openclaw, under its MIT licence: see [`test-audit/UPSTREAM.md`](test-audit/UPSTREAM.md). | Evidence quality: `verify-evidence`. |
-| [`verify-evidence`](verify-evidence/SKILL.md) | Substantiating a measurement or a completion claim: like-for-like comparisons, interleaving, controls, static estimates. The other skills hand evidence to it. | Where CI's records are: `speed-up-tests`' `measuring`. |
-| [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). Optional for stacks with neither. | Which tier runs a file: `ci-workflows`' tiers. |
+| [`ci-doctor`](ci-doctor/SKILL.md) | The rules, `progress.md` and the plan's [phases](ci-doctor/references/phases/), and the CI topics below, CI-result [triage](ci-doctor/references/triage/TOPIC.md), the one-rule [checks](ci-doctor/references/checks/README.md) and the [agent-knowledge templates](ci-doctor/references/agent-knowledge/README.md). | Always |
+| [`code-review`](code-review/SKILL.md) | Whether a PR needs review, who reviews, the tests reviewer, and the review record (`scripts/review-record.ts`) CI's gate checks for format and reviewer types. | The repo adopted the gate (`.agents/repo/review.md`); otherwise the repo's own review process |
+| [`ci-merge-workflow`](ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run: marking ready, runs by hand, merging, releases, then main and the deploy. | Adopted (`.agents/repo/ci.md`); otherwise the repo's own merge path |
+| [`test-audit`](test-audit/SKILL.md) | A test's value, weak or duplicate coverage and test-only seams. From openclaw, under its MIT licence: see [`test-audit/UPSTREAM.md`](test-audit/UPSTREAM.md). | Any repo |
+| [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). | Any repo with them |
+
+The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL.md`, since Codex registers a `SKILL.md` at any depth as a skill of its own:
+
+| Topic | Owns | Not here: see |
+| --- | --- | --- |
+| [`triage`](ci-doctor/references/triage/TOPIC.md) | A PR's CI result: which job failed and why, whether the run counts, and the exceptions. | Readying and merging: `ci-merge-workflow`. |
+| [`ci-workflows`](ci-doctor/references/ci-workflows/TOPIC.md) | Changing or debugging workflows: the checks for a CI change, selection, tiers, caches, slow runs, Rust in CI, and `scripts/ci-time.ts`, which prints where a run's time and minutes went. | Runner size and cost: `ci-runners`. Blacksmith: `blacksmith`. |
+| [`ci-runners`](ci-doctor/references/ci-runners/TOPIC.md) | Runner size and architecture, packing against minute rounding, the spend cap, the cost of getting fast, and choosing a provider. | Workflows: `ci-workflows`. One provider's specifics: `blacksmith`. |
+| [`blacksmith`](ci-doctor/references/blacksmith/TOPIC.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |
+| [`speed-up-tests`](ci-doctor/references/speed-up-tests/TOPIC.md) | Slow tests and flakes: CI's records and how to read them (`measuring`, `ci-history-data`), fixes, fakes, and stack pages for [Cloudflare Workers](ci-doctor/references/speed-up-tests/references/workers.md) and [Effect](ci-doctor/references/speed-up-tests/references/effect.md). | Judging a number: `verify-evidence`. A test's value: `test-audit`. |
+| [`verify-evidence`](ci-doctor/references/verify-evidence/TOPIC.md) | Substantiating a measurement or a claim about CI: like-for-like comparisons, interleaving, controls, static estimates. The other topics hand evidence to it. | Where CI's records are: `speed-up-tests`' `measuring`. |
 
 [`tools/upstream-sync/`](../tools/upstream-sync/README.md) isn't a skill: it's an opt-in weekly check that the skills you copied from upstream changed there, filed as one issue. [`docs/harnesses.md`](../docs/harnesses.md) says how to run agents in parallel and on a schedule in each harness.
 
-The rules each skill relies on are one page each in [`checks/`](../checks/README.md). The skills hold no repo's values: they read them from `.agents/repo/*.md`, written from [the templates](../templates/agent-knowledge/README.md).
+The skills hold no repo's values: they read them from `.agents/repo/*.md`, written from [the templates](ci-doctor/references/agent-knowledge/README.md).
 
 ## Install
 
@@ -35,23 +42,18 @@ Install the plugin, as [the README's Installing](../README.md#installing) says f
 
 The plan the user approves says which skills the repo **adopts**, and the repo's facts files record it. A skill the repo didn't adopt stays installed but defers to the repo's own process.
 
-| Skill | Adopt when |
-| --- | --- |
-| `ci-workflows`, `ci-runners`, `ci-merge-workflow`, `speed-up-tests`, `test-audit`, `verify-evidence` | The plan adopts the CI, merge or test work they cover. |
-| `blacksmith` | The repo runs on Blacksmith, or the user approved a move there. |
-| `proof-tiers` | The repo has bounded models or property tests. |
-| `code-review` | The user approved its review procedure and gate. Otherwise keep the repo's own review process. |
+The map's **Applies when** says when each one applies. In the hub, the `blacksmith` topic applies only when the repo runs on Blacksmith, or the user approved a move there.
 
-1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](../templates/agent-knowledge/README.md). Add the [`AGENTS.md` snippet](../templates/agent-knowledge/AGENTS-snippet.md) to the instruction file your harness loads.
-2. **Configure the scripts the adopted skills use:** `ci-time.ts`'s config block, or its flags (`node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `code-review`, `review-record.ts`'s CONFIG block, wired into the gate as [the record](code-review/references/record.md) says.
-3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `code-review/scripts/` with `code-review`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
+1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](ci-doctor/references/agent-knowledge/README.md). Add the [`AGENTS.md` snippet](ci-doctor/references/agent-knowledge/AGENTS-snippet.md) to the instruction file your harness loads.
+2. **Configure the scripts the adopted skills use:** `ci-time.ts`'s config block, or its flags (`node <skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `code-review`, `review-record.ts`'s CONFIG block, wired into the gate as [the record](code-review/references/record.md) says.
+3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-doctor/references/ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `ci-doctor/references/blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `code-review/scripts/` with `code-review`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
 
 ## Keeping them fresh
 
 [guide section 17](../docs/pages/17-keeping-agent-knowledge-from-going-stale.md) has the method. In short:
 
 - **Code wins.** When a skill and the code disagree, fix the skill in the same change. Scripts do the mechanics, so the words don't have to.
-- **Date each lesson,** and keep what was tried and dropped in the repo's one register, which `.agents/repo/ci.md` names (template: [read what was tried](../checks/ci-read-what-was-tried.md)), so no agent tries it again.
+- **Date each lesson,** and keep what was tried and dropped in the repo's one register, which `.agents/repo/ci.md` names (template: [read what was tried](ci-doctor/references/checks/ci-read-what-was-tried.md)), so no agent tries it again.
 - **Generalize, don't append.** A new lesson replaces the rule it refines. Keep every description under 320 characters, upstream copies' too, and each of your own `SKILL.md` under 10 KB; move detail to `references/`. The [docs budget](../scripts/docs/README.md) checks both: point its `layout.skillPath` at the installed skills and run it in CI.
 - **Sweep for drift** every two weeks: reviewers list `path:line | duplicate, conflict or stale | evidence | change`, and one change fixes them.
 - **Pin what comes from upstream.** `test-audit` records its source commit and stays out of any skills lock. [Upstream sync](../tools/upstream-sync/README.md) diffs upstream weekly and files what changed as one issue; a person applies it, and nothing merges automatically.

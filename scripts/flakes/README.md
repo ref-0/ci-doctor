@@ -16,7 +16,7 @@ The reporter that writes the flakes file and the `tests` records is [`../records
 
 ## Wire it in
 
-Set it up only once the user approves the plan, and the test retry as its own approval ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)). [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) wires all of it, with the retry off until the repository variable `CI_TEST_RETRY` is `1`; the steps below are the parts.
+Set it up only once the user approves the plan, and the test retry as its own approval ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). [`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) wires all of it, with the retry off until the repository variable `CI_TEST_RETRY` is `1`; the steps below are the parts.
 
 1. In each test job, turn on the reporter (see [`../records/README.md`](../records/README.md)) and, once approved, one retry. Write the flakes file outside the checkout, then save it when it exists. `hashFiles()` only sees files inside the workspace, so test for the file in the shell instead:
 

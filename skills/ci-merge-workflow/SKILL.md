@@ -1,22 +1,22 @@
 ---
 name: ci-merge-workflow
-description: "Take a PR from draft to merged by the repo's merge path: read or diagnose its CI result, dispatch existing CI, merge, then check main, deploys and releases. Use when opening, readying or merging a PR, reading its result or dispatching a run. To review, use code-review; change CI, ci-workflows; a flake, speed-up-tests."
+description: "Take a PR from draft to merged by the repo's merge path: dispatch existing CI, merge, then check main, deploys and releases. Use when opening, readying or merging a PR or dispatching a run. To review, use code-review; a failed check or a CI change, ci-doctor; a flake, ci-doctor."
 ---
 
 <!--
 What: the CI side of a pull request's life: draft, review, one CI run, merge, and the checks after.
 Where: read by a coding agent that opens, reviews or merges a pull request, or runs CI by hand.
-Configure: your repo's facts file, `.agents/repo/ci.md`, from templates/agent-knowledge/repo-facts/ci.md.
+Configure: your repo's facts file, `.agents/repo/ci.md`, from the ci-doctor hub's references/agent-knowledge/repo-facts/ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # From draft to merged on one CI run
 
-Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../../templates/agent-knowledge/repo-facts/ci.md)). Its Entry points and gate names the workflow and its gate job, its Selection and tiers says what a run checks and what waits, and its Merge, releases and deploy says the merge rules. `<org>/<repo>` below is your repo's slug. [`ci-workflows`](../ci-workflows/SKILL.md) owns changes to the workflow and [`code-review`](../code-review/SKILL.md) the review before the run; this skill owns the gate, the merge and the checks after it. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) explains why a PR runs CI once.
+Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../ci-doctor/references/agent-knowledge/repo-facts/ci.md)). Its Entry points and gate names the workflow and its gate job, its Selection and tiers says what a run checks and what waits, and its Merge, releases and deploy says the merge rules. `<org>/<repo>` below is your repo's slug. The `ci-doctor` hub owns reading a run's result ([triage](../ci-doctor/references/triage/TOPIC.md)) and changes to the workflow ([ci-workflows](../ci-doctor/references/ci-workflows/TOPIC.md)), and [`code-review`](../code-review/SKILL.md) the review before the run; this skill owns the gate, the merge and the checks after it. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) explains why a PR runs CI once.
 
 **Use the repo's existing merge path.** ci.md's Merge, releases and deploy records its base branches, required checks, merge method, approvals and merge queue. The draft-then-one-run flow below is the source repo's. Where the repo runs CI on every push, keep that until the user approves a change, evaluated on its own with the work it avoids measured. Push, mark ready, rerun, dispatch and merge only as the plan authorized; stop at the first action outside it.
 
-**Checks:** [check what CI ran](../../checks/check-what-ci-ran.md), [run only the checks that decide something](../../checks/run-only-checks-that-decide.md), and for a PR that changes CI, [check a change to CI against real output](../../checks/ci-check-a-workflow-change.md).
+**Checks:** [check what CI ran](../ci-doctor/references/checks/check-what-ci-ran.md), [run only the checks that decide something](../ci-doctor/references/checks/run-only-checks-that-decide.md), and for a PR that changes CI, [check a change to CI against real output](../ci-doctor/references/checks/ci-check-a-workflow-change.md).
 
 ## 1. Open it as a draft
 
@@ -37,16 +37,9 @@ Follow [`code-review`](../code-review/SKILL.md) and the repo's `.agents/repo/rev
 ## 3. Read the PR's CI result
 
 1. Find the PR's target, `<base>`: `gh pr view <pr> --repo <org>/<repo> --json baseRefName`. Update the branch from `origin/<base>`, merged rather than rebased where the repo allows it, so the reviewed commits stay, and push. After each update, `git diff --stat origin/<base>...HEAD` must list only the files the PR meant to change: a bad conflict resolution can revert another's work. Where ci.md says CI runs ready PRs only against `main`, a stacked PR stays a draft until its parent merges; then retarget it to `main`, update it, check that diff, and only then mark it ready. Check again anything CI checks against the base as it was when the run started, such as migration ids, as ci.md lists them. Every dependency from another of your repos is at a released version, as [releases](references/releases.md) says.
-2. Mark it ready with `gh pr ready <pr> --repo <org>/<repo>`. That starts its one run, on the PR merged into its base. Each push while ready starts another and cancels the last. Whether an old run still counts, and what to do when it doesn't, is [the decision table](references/ci-result.md#does-this-run-count).
+2. Mark it ready with `gh pr ready <pr> --repo <org>/<repo>`. That starts its one run, on the PR merged into its base. Each push while ready starts another and cancels the last. Whether an old run still counts, and what to do when it doesn't, is [the decision table](../ci-doctor/references/triage/ci-result.md#does-this-run-count).
 
-```sh
-gh pr checks <pr> --repo <org>/<repo>
-gh run view <run-id> --repo <org>/<repo> --log-failed | grep -E "FAIL|Error|Test Files|Tests  "
-```
-
-Wait with `--interval 60`, or your harness's PR watcher: every run on one login shares 5,000 API calls an hour, and `gh run watch` polls every 3 s by default.
-
-For a missing review record, a failure outside the PR's files, a cancelled run or a moving base, read [CI exceptions](references/ci-result.md). A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure are three different things; [flakes](../speed-up-tests/references/flakes.md#retries-reruns-and-infrastructure) says what each gets.
+Read its result as the hub's [triage](../ci-doctor/references/triage/TOPIC.md) says: which job failed and on what line, whether the run counts, and the exceptions, such as a missing review record, a failure outside the PR's files, a cancelled run or a moving base.
 
 When two open PRs change one shared test helper, the second to merge updates its branch and reruns its type check.
 
@@ -56,7 +49,7 @@ Only to answer what a local run can't, such as a failure CI shows and your machi
 
 ## 5. Post Verification and merge
 
-Post one comment that starts with `Verification:`, naming the run, the PR's head, the `main` it merged, each job's result with test and file totals, and what didn't run and why. The format is in [CI result](references/ci-result.md#the-verification-comment).
+Post one comment that starts with `Verification:`, naming the run, the PR's head, the `main` it merged, each job's result with test and file totals, and what didn't run and why. The format is in the hub's [CI result](../ci-doctor/references/triage/ci-result.md#the-verification-comment).
 
 Merge only when the gate **passed**, not skipped, in a run on the current head after it was marked ready. `gh pr checks` can exit 0 when every check was skipped, and GitHub's required-check setting can accept a skipped job, so read the state yourself. `gh pr view <pr> --repo <org>/<repo> --json mergeable` must answer `MERGEABLE`; `UNKNOWN` means ask again a minute later.
 
@@ -72,11 +65,11 @@ After merging, read [after a merge](references/after-merge.md): the sweep, your 
 
 ## Property tests in CI
 
-A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper from a new seed. Replay a failure's exact inputs and environment to tell a counterexample in the code from a nondeterministic harness. [`proof-tiers`' properties](../proof-tiers/references/properties.md#how-ci-runs-them) owns seeds and replay; [flakes](../speed-up-tests/references/flakes.md) owns intermittent failures.
+A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper from a new seed. Replay a failure's exact inputs and environment to tell a counterexample in the code from a nondeterministic harness. [`proof-tiers`' properties](../proof-tiers/references/properties.md#how-ci-runs-them) owns seeds and replay; [flakes](../ci-doctor/references/speed-up-tests/references/flakes.md) owns intermittent failures.
 
 ## Related
 
 - [`code-review`](../code-review/SKILL.md): the review and its record, before marking ready.
-- [`ci-workflows`](../ci-workflows/SKILL.md): change the workflow, selection, tiers or caches; [`ci-runners`](../ci-runners/SKILL.md) for runners and cost.
-- [`speed-up-tests`](../speed-up-tests/SKILL.md): slow tests and flakes.
+- [`ci-workflows`](../ci-doctor/references/ci-workflows/TOPIC.md): change the workflow, selection, tiers or caches; [`ci-runners`](../ci-doctor/references/ci-runners/TOPIC.md) for runners and cost.
+- [`speed-up-tests`](../ci-doctor/references/speed-up-tests/TOPIC.md): slow tests and flakes.
 - [`test-audit`](../test-audit/SKILL.md): whether a test is worth keeping.

@@ -125,7 +125,7 @@ may still be the independent contract; prove otherwise before removing it.
 
 ## Validation
 
-Never edit source or tests while a test runner is running in the checkout. This skill owns test value; [make the test fail first](../../checks/make-the-test-fail-first.md) and [test the real boundary](../../checks/test-the-real-boundary.md) are the checks behind it. [`verify-evidence`](../verify-evidence/SKILL.md) owns evidence quality: what a check really saw, and what a number really measured.
+Never edit source or tests while a test runner is running in the checkout. This skill owns test value; [make the test fail first](../ci-doctor/references/checks/make-the-test-fail-first.md) and [test the real boundary](../ci-doctor/references/checks/test-the-real-boundary.md) are the checks behind it. [`verify-evidence`](../ci-doctor/references/verify-evidence/TOPIC.md) owns evidence quality: what a check really saw, and what a number really measured.
 
 1. Run each owner or sibling test file by name, filtered to the tests you changed where you can, as the commands block of the repo's `AGENTS.md` says. Never pass a directory, package or glob. Follow it for local checks.
 2. For removed source greps or plan assertions, run the executable script or
@@ -133,6 +133,6 @@ Never edit source or tests while a test runner is running in the checkout. This 
 3. Run the repo's format, lint and type check, as its commands block says, then `git diff --check`.
 4. Leave the full check, and what the commands block keeps off your
    machine, to the PR's CI run, as its `.agents/repo/ci.md` says
-   (template: [`repo-facts/ci.md`](../../templates/agent-knowledge/repo-facts/ci.md)).
+   (template: [`repo-facts/ci.md`](../ci-doctor/references/agent-knowledge/repo-facts/ci.md)).
 5. Inspect `git diff --numstat`; report production/tooling separately from
    tests and test support.

@@ -4,7 +4,7 @@ Workflows and composite actions that show the CI anatomy in [the guide, section 
 
 They live here, not in `.github/`, so they never run in this repo. Copy what you need into your repo's `.github/workflows/` and `.github/actions/`, then fill in the placeholders.
 
-**Nothing here is copied, enabled or scheduled before the user approves the plan.** The commands and setup steps below are for the approved implementation ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)).
+**Nothing here is copied, enabled or scheduled before the user approves the plan.** The commands and setup steps below are for the approved implementation ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 **Start small.** On GitHub-hosted runners, with no Vite+, Rust or Blacksmith, begin from the [minimal starter](#minimal-starter-github-hosted) and add one overlay at a time. `ci.yml` is the full reference: every overlay wired together.
 
@@ -115,7 +115,7 @@ Each exists in this playbook at the path in the first column, with the CLI and e
 
 ## Runner labels
 
-The templates use Blacksmith's labels, sized per job. On other runners, start every job on the label it runs on today. On GitHub-hosted runners that's usually the standard `ubuntu-24.04` for all of them: with one eligible size, keep one static label and delete the plan's size output. Ask for a larger runner only after you've compared queue, startup, capacity and priced cost on it, as the [`ci-runners`](../../skills/ci-runners/references/sizing.md) skill says. Set worker counts and shard targets from the runner you have. Check your provider's current runner list: hosted labels and sizes change.
+The templates use Blacksmith's labels, sized per job. On other runners, start every job on the label it runs on today. On GitHub-hosted runners that's usually the standard `ubuntu-24.04` for all of them: with one eligible size, keep one static label and delete the plan's size output. Ask for a larger runner only after you've compared queue, startup, capacity and priced cost on it, as the [`ci-runners`](../../skills/ci-doctor/references/ci-runners/references/sizing.md) skill says. Set worker counts and shard targets from the runner you have. Check your provider's current runner list: hosted labels and sizes change.
 
 | Template's label | GitHub-hosted, if you've measured a reason to change | Self-hosted or ARC |
 |---|---|---|
@@ -196,7 +196,7 @@ A PR that edits a job only main's runs start (the template's `test-times`) selec
 
 Each step is its own approved change. Nothing below runs before the plan is approved.
 
-1. Start on the runners you have, on the labels they use today. On GitHub-hosted or self-hosted runners the plan recommends Blacksmith, backed by the baseline and with the optimization period priced, and the user decides (guide section 2). If they say yes, the move is its own step: install its GitHub app and swap the labels at today's sizes ([migrate](../../skills/blacksmith/references/migrate.md)). Resize only when three runs agree.
+1. Start on the runners you have, on the labels they use today. On GitHub-hosted or self-hosted runners the plan recommends Blacksmith, backed by the baseline and with the optimization period priced, and the user decides (guide section 2). If they say yes, the move is its own step: install its GitHub app and swap the labels at today's sizes ([migrate](../../skills/ci-doctor/references/blacksmith/references/migrate.md)). Resize only when three runs agree.
 2. Set a spend cap and alerts first (guide section 12): a GitHub Actions budget where your billing scope supports one.
 3. **Add the new gate beside the old ones.** First record the current rulesets or branch protection, the required check names and the Apps that post them, the allowed merge methods, and whether a merge queue is on. Copy the [minimal starter](#minimal-starter-github-hosted) or `ci.yml` with the planner and the scripts in the install layout, and get the plan job's record line into your logs. Let `CI result` run alongside the existing required checks, and check it on: current ready heads, a draft marked ready, a selected job missing from `needs`, a job in `needs` the plan can't select, a failure, a cancellation, and `merge_group` if you use a merge queue. Then switch the required check to `CI result` in an approved cutover, with the old checks written down as the rollback. GitHub's required-check setting counts a skipped job as passing ([GitHub's required-check behaviour](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)), and `CI result` is skipped on a draft. So the merge caller checks for a successful, non-skipped `CI result` from the ready run on the current head, or on the merge queue's commit.
 4. Add `sweep.yml` and the bisect once the sweep is green. Before any check leaves PRs or the release gate trusts the sweep, prove one complete sweep: list every deferred check and the job and success line that shows it ran, and add the jobs this template leaves out (container, replay, deep property, staging) for each check you defer. Schedule a one-off check of the first cron run: a dispatch isn't a pass.

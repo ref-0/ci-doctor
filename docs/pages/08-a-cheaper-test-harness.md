@@ -2,7 +2,7 @@
 
 # 8. A cheaper test harness
 
-Our server ran on Cloudflare Workers, so its tests ran it in workerd under Vitest. The ideas apply to any server with a heavy runtime per test file; what was specific to Workers is in [`skills/speed-up-tests/references/workers.md`](../../skills/speed-up-tests/references/workers.md), if your stack runs on them.
+Our server ran on Cloudflare Workers, so its tests ran it in workerd under Vitest. The ideas apply to any server with a heavy runtime per test file; what was specific to Workers is in [`skills/speed-up-tests/references/workers.md`](../../skills/ci-doctor/references/speed-up-tests/references/workers.md), if your stack runs on them.
 
 - **Bundle the server once per input state.** Build a Wrangler dry-run bundle with a metafile and reuse it until its real inputs change, rebuilding under a file lock and publishing atomically. Each file still gets its own runtime. Locally this cut most of each harness's bundling CPU and about 50 MB of writes, and a generated one-line entry avoided reparsing a ~12 MB bundle. In CI, mean harness copy-and-start fell to about 40% of its old time.
 - **One Postgres, many databases.** One embedded Postgres per run serves every task, and each harness gets a database copied from a lazily migrated template, which takes milliseconds. Run it non-durable, give each run a unique port and directory, and reap only dead owners. Don't import the embedded-Postgres package's exit hook: it could turn a failed Vitest into exit 0.

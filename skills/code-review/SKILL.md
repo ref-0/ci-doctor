@@ -6,13 +6,13 @@ description: "Review a pull request while it's a draft, before its one CI run: w
 <!--
 What: the review procedure a PR goes through before its one CI run: what gets a review, planning reviewers, rounds, findings and the record the gate reads.
 Where: read by the agent that runs a PR's review, before it marks the PR ready.
-Configure: your repo's `.agents/repo/review.md` (template: templates/agent-knowledge/repo-facts/review.md), its review list, and the CONFIG block of scripts/review-record.ts, kept at <review-checker>.
+Configure: your repo's `.agents/repo/review.md` (template: the ci-doctor hub's references/agent-knowledge/repo-facts/review.md), its review list, and the CONFIG block of scripts/review-record.ts, kept at <review-checker>.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # Code review before the one run
 
-A PR is reviewed while it's a draft, so its one CI run checks the reviewed code. Read the repo's `.agents/repo/review.md` first (template: [`repo-facts/review.md`](../../templates/agent-knowledge/repo-facts/review.md)): its systems, review list, review model and account, accepted types and checker. It wins on policy. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) says why. [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md) takes the PR from here to merged.
+A PR is reviewed while it's a draft, so its one CI run checks the reviewed code. Read the repo's `.agents/repo/review.md` first (template: [`repo-facts/review.md`](../ci-doctor/references/agent-knowledge/repo-facts/review.md)): its systems, review list, review model and account, accepted types and checker. It wins on policy. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) says why. [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md) takes the PR from here to merged.
 
 ## What gets a review
 
@@ -72,5 +72,5 @@ Post one comment for the session, before marking ready, in [the record's format]
 
 - [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md): the draft, the one CI run, the Verification comment and the merge.
 - [`test-audit`](../test-audit/SKILL.md): whether a test is worth keeping; the tests reviewer applies its authoring gate.
-- [`verify-evidence`](../verify-evidence/SKILL.md): for a spike's results, the experiment and skeptic reviewers' bar.
+- [`verify-evidence`](../ci-doctor/references/verify-evidence/TOPIC.md): for a spike's results, the experiment and skeptic reviewers' bar.
 - [`proof-tiers`](../proof-tiers/SKILL.md): a change to a model's rule, break or bound.

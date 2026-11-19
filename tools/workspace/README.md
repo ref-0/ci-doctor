@@ -26,7 +26,7 @@ The workspace checks behind [guide section 9](../../docs/pages/09-workspace-tool
 
 ## Set it up
 
-Nothing here is installed before the user approves the plan ([PROMPT, "Before approval"](../../PROMPT.md#before-approval-read-only)). Each command is its own recipe: take only the ones that fit, and keep what your repo already does well. A plain TypeScript repo with a task runner such as Turborepo starts from its existing `tsc`, its project graph and the runner's ordering. Change those only for a named duplicate pass or a measured bottleneck, and skip the Effect notes entirely.
+Nothing here is installed before the user approves the plan ([PROMPT, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)). Each command is its own recipe: take only the ones that fit, and keep what your repo already does well. A plain TypeScript repo with a task runner such as Turborepo starts from its existing `tsc`, its project graph and the runner's ordering. Change those only for a named duplicate pass or a measured bottleneck, and skip the Effect notes entirely.
 
 ### Types, symbols and exports
 

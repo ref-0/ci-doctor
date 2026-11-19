@@ -2,7 +2,7 @@
 
 # 18. Tried and dropped
 
-**When** is the week of our six-week effort in which we tried or decided it. **Outcome** says what kind of evidence ruled it out: *measured*, *modelled* or *replayed* and rejected; *shipped then replaced* or *removed*; *folded into another change*; or *rejected on principle*. The last column says what replaced it, or what would have to change before trying again. Our rows' evidence was our own PRs and runs, which this public copy leaves out; your register keeps an Evidence column, as the [`ci-read-what-was-tried`](../../checks/ci-read-what-was-tried.md) check's template has.
+**When** is the week of our six-week effort in which we tried or decided it. **Outcome** says what kind of evidence ruled it out: *measured*, *modelled* or *replayed* and rejected; *shipped then replaced* or *removed*; *folded into another change*; or *rejected on principle*. The last column says what replaced it, or what would have to change before trying again. Our rows' evidence was our own PRs and runs, which this public copy leaves out; your register keeps an Evidence column, as the [`ci-read-what-was-tried`](../../skills/ci-doctor/references/checks/ci-read-what-was-tried.md) check's template has.
 
 | When | Idea | Outcome | What we saw | Lesson | Replaced by, or retry when |
 |---|---|---|---|---|---|
