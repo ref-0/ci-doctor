@@ -28,6 +28,8 @@ From the CI provider's API and logs, with no new runs.
 
 This is a bounded, one-time read of metadata and log samples. It isn't a backfill or a standing collector: those need the user's yes (guide section 13). Keep an API-call reserve for other users of the quota.
 
+**A pasted `<ci-report>`,** from `npx @ref0/ci-doctor` or ci.ref0.dev, is dated data from a sample of recent runs, not the baseline. Check its headline numbers (the PR wait percentiles, red heads, the critical path) against the runs you collect. Where they agree, take them and spend the collection on what it left out; where they don't, say so and use yours. Its guide links name pages in this repo's `docs/pages/`.
+
 **When evidence is missing,** mark it unavailable with your confidence, and say what would supply it. Don't dispatch a run, install a collector or widen permissions to fill a gap.
 
 **Separate the baseline from experiments.** History gives a retrospective baseline. If its logs lack CPU, memory or the limiter, mark them unknown. Estimate the noise floor from comparable existing runs. A causal comparison (paired runs, telemetry, a control cohort) is a Phase 4 experiment the plan prices and the user approves.

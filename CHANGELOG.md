@@ -8,6 +8,12 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### The AI Quickstart installs the plugin
+
+- The README's AI Quickstart prompt installs the skills by the agent's own method, then starts the plan with the `ci-doctor` skill. The clone prompt stays, for trying it without installing, and now reads `skills/ci-doctor/SKILL.md` directly. `PROMPT.md` still points there, so older copies of the prompt keep working.
+- A `<ci-report>` block, from `npx @ref0/ci-doctor` or ci.ref0.dev, can follow either prompt. Phase 2 checks its numbers against the repo's own runs and collects what it left out. The scorer's output says how to paste it.
+- **Action:** none. If you saved the old clone prompt, it still works; the new one skips `PROMPT.md`.
+
 ### The scorer, `@ref0/ci-doctor`
 
 - `scorer/` holds the scorer as an npm package, not yet published. `npx @ref0/ci-doctor` scores the checkout's repo from its GitHub Actions history, reading everything through `gh`, so a private repo scores the same as a public one. It prints to the terminal and writes no files unless asked. `npx @ref0/ci-doctor agents skills` prints the install steps, which `node scripts/check.ts` keeps in step with this README.
