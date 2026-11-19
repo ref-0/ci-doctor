@@ -3,15 +3,17 @@
 // the JSON file GH_STUB_FIXTURES names, and appends each call to GH_STUB_LOG.
 //   GH_STUB_MODE=signed-out  answers as gh does with no sign-in: exit 4.
 //   GH_STUB_MODE=old         answers as gh before 2.97 does: --allow-escape-sequences is an unknown flag.
+//   GH_STUB_TOKEN=<t>        answers as signed out unless gh was handed GH_TOKEN=<t>.
 // Every call must pin --hostname=github.com and turn gh's telemetry off, or the stub fails it.
 // An answer is { status, json } or { status, raw } (served only with the raw Accept header) or { status, text };
-// a status of 400 or more prints gh's error line and exits 1. A path with no answer is a 404.
+// a status of 400 or more prints gh's error line and exits 1. A path with no answer is a 404. A GraphQL query of
+// files is answered from those files' raw answers.
 const { appendFileSync, readFileSync } = require('node:fs');
 
 const args = process.argv.slice(2);
 if (process.env.GH_STUB_LOG) appendFileSync(process.env.GH_STUB_LOG, `${JSON.stringify(args)}\n`);
 
-if (process.env.GH_STUB_MODE === 'signed-out') {
+if (process.env.GH_STUB_MODE === 'signed-out' || (process.env.GH_STUB_TOKEN && process.env.GH_TOKEN !== process.env.GH_STUB_TOKEN)) {
   process.stderr.write('To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n');
   process.exit(4);
 }
@@ -30,8 +32,10 @@ if (args[0] !== 'api') {
 
 let path;
 const headers = [];
+const fields = [];
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '-H') headers.push(args[++i]);
+  else if (args[i] === '-f' || args[i] === '-F') fields.push(args[++i]);
   else if (args[i].startsWith('-')) continue;
   else path = args[i];
 }
@@ -46,6 +50,21 @@ const keyOf = (full) => {
 };
 
 const routes = JSON.parse(readFileSync(process.env.GH_STUB_FIXTURES, 'utf8'));
+
+// A GraphQL query of aliased blobs, `f0: object(expression: "main:path")`, is answered from the same files' raw
+// answers, null where there's none, unless the fixtures hold a `graphql` answer of their own.
+if (path === 'graphql' && !routes.graphql) {
+  const query = fields.find((f) => f.startsWith('query='))?.slice('query='.length) ?? '';
+  const [, owner, name] = query.match(/repository\(owner: "([^"]+)", name: "([^"]+)"\)/) ?? [];
+  const repository = {};
+  for (const [, alias, ref, file] of query.matchAll(/(\w+): object\(expression: "([^":]+):([^"]+)"\)/g)) {
+    const raw = routes[`repos/${owner}/${name}/contents/${file}?ref=${ref}`]?.raw;
+    repository[alias] = raw === undefined ? null : { isTruncated: false, text: raw };
+  }
+  process.stdout.write(JSON.stringify({ data: { repository } }));
+  process.exit(0);
+}
+
 const key = keyOf(path);
 const answer = routes[key] ?? { status: 404, message: 'Not Found' };
 const wantsRaw = headers.some((h) => /application\/vnd\.github\.raw/.test(h));

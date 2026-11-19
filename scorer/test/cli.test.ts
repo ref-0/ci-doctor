@@ -184,6 +184,38 @@ describe('too little history', () => {
   });
 });
 
+describe('the stack', () => {
+  it('is in the report, its manifests read in one GraphQL call', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
+
+    assert.equal(r.code, 0, r.stderr);
+    const { stack } = json(r.stdout);
+    assert.deepEqual(stack.languages, [['TypeScript', 98], ['JavaScript', 3]]);
+    assert.deepEqual(stack.workspace, { packageManagers: ['pnpm'], tools: [] });
+    assert.deepEqual(stack.packages, json(r.stdout).profile.packages);
+    assert.deepEqual(stack.testRunners, ['Vitest']);
+    assert.deepEqual(stack.lintFormat, ['ESLint']);
+    assert.deepEqual(stack.runners, json(r.stdout).jobs.providers);
+    assert.deepEqual(stack.agentFiles, []);
+    assert.equal(r.calls.filter((c) => c.includes('graphql')).length, 1);
+
+    const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
+    assert.match(text.stdout, /^Stack:\n  Languages\s+TypeScript 98%, JavaScript 3%\n  Workspace\s+pnpm · 1 npm package\n  Tests\s+Vitest\n  Lint, format\s+ESLint$/m);
+  });
+
+  it("in a checkout, comes from its files, with GitHub's languages and runners unknown", async () => {
+    const r = await runCli(['--json'], { cwd: checkout() });
+
+    assert.equal(r.code, 0, r.stderr);
+    const { stack } = json(r.stdout);
+    assert.deepEqual(stack.testRunners, ['Vitest']);
+    assert.deepEqual(stack.workspace.packageManagers, ['npm']);
+    assert.equal(stack.languages, null);
+    assert.equal(stack.runners, null);
+    assert.deepEqual(r.calls, []);
+  });
+});
+
 describe('unknown is not absent', () => {
   it("a truncated tree leaves what it couldn't see unknown, and its fixes out", async () => {
     const routes = fakeRepo({ repo: PUBLIC });
