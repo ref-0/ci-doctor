@@ -111,7 +111,15 @@ Before pushing, run the build checks from the repo's root:
 node scripts/check.ts
 ```
 
-They check that the plugin's manifests agree and each skill loads as one skill, that the hub's phase excerpts match their sources, every link in the repo and in a copy of `skills/` alone, that nothing names what a release replaced, the docs budget, and every skill script's tests, where a skipped test fails. They need Node 24, `git` and `jq`. After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first.
+They check that the plugin's manifests agree and each skill loads as one skill, that the hub's phase excerpts match their sources, every link in the repo and in a copy of `skills/` alone, the guide's site and its `llms.txt`, that nothing names what a release replaced, the docs budget, and every skill script's tests, where a skipped test fails. They need Node 24, `git` and `jq`. After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first.
+
+The guide for ci.ref0.dev builds with one command, into `dist/site/`, which Git ignores:
+
+```sh
+node scripts/site/build.ts
+```
+
+The build checks build it too, and fail on a link that leaves what it serves or a page `llms.txt` misses. `scripts/site/README.md` says what it serves and how to deploy it.
 
 ## License
 

@@ -8,6 +8,13 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 ## Unreleased
 
+### The guide on ci.ref0.dev
+
+- `node scripts/site/build.ts` builds the guide for `https://ci.ref0.dev/guide/`: the Markdown in `docs/`, `skills/`, `templates/`, `scripts/`, `tools/`, `cache/` and `scorer/`, the README, CHANGELOG and LICENSE, and every file or folder they link to, each at the path it has in the repo, so a relative link resolves there as it does here. `/llms.txt` lists the guide's pages, the skills and the reference implementations, and `/guide/llms-full.txt` holds the guide whole. It isn't deployed yet.
+- The hub's "Outside the skills" names `https://ci.ref0.dev/guide/` for a skills-only install, with the repo's paths.
+- `node scripts/check.ts` builds the site and fails on a link that leaves what it serves, or a page `llms.txt` misses or names unserved.
+- **Action:** none. A skills-only install that followed the hub to ci.ref0.dev's root reads under `/guide/` instead.
+
 ### The AI Quickstart installs the plugin
 
 - The README's AI Quickstart prompt installs the skills by the agent's own method, then starts the plan with the `ci-doctor` skill. The clone prompt stays, for trying it without installing, and now reads `skills/ci-doctor/SKILL.md` directly. `PROMPT.md` still points there, so older copies of the prompt keep working.
