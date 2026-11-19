@@ -1,6 +1,7 @@
 /**
  * Who may read and write the task cache, and what admits a request. The policy and admission
  * cases are upstream's `test/service.test.ts` and `test/failures.test.ts` at the pinned commit,
+ * with the tests of the two upstream fixes taken since (`upstream fixes`, below),
  * against this Worker, with the two local changes to the policy: a private repository, and a run by
  * hand on one of its branches.
  *
@@ -16,18 +17,27 @@ import {
   Admission,
   REQUEST_BYTES,
 } from '../vendor/vite-plus-remote-cache-cloudflare/src/admission.ts';
-import { getScope, reserve } from '../vendor/vite-plus-remote-cache-cloudflare/src/database.ts';
+import {
+  cleanup,
+  getScope,
+  reserve,
+} from '../vendor/vite-plus-remote-cache-cloudflare/src/database.ts';
 import {
   defaults,
   MiB,
   PART_SIZE,
 } from '../vendor/vite-plus-remote-cache-cloudflare/src/limits.ts';
+import { multipart } from '../vendor/vite-plus-remote-cache-cloudflare/src/multipart.ts';
 import { Observations } from '../vendor/vite-plus-remote-cache-cloudflare/src/observations.ts';
 import {
   decodeMetadata,
   uploadBlob,
 } from '../vendor/vite-plus-remote-cache-cloudflare/src/store.ts';
-import { collect, Deadline } from '../vendor/vite-plus-remote-cache-cloudflare/src/streams.ts';
+import {
+  collect,
+  Deadline,
+  Input,
+} from '../vendor/vite-plus-remote-cache-cloudflare/src/streams.ts';
 import {
   basic,
   bytes,
@@ -468,5 +478,135 @@ describe('admission', () => {
       .prepare('SELECT expires_at - unixepoch() AS left FROM generations')
       .first();
     expect(Number(generation?.['left'])).toBeGreaterThan(fixturePolicy.retention_seconds - 100);
+  });
+});
+
+/** An R2 binding whose multipart aborts reject with `message`, as a binding error reads. */
+const failingAbort = (bucket: R2Bucket, message: string): R2Bucket =>
+  new Proxy(bucket, {
+    get(target, prop) {
+      if (prop === 'resumeMultipartUpload') {
+        return () => ({
+          abort: async () => {
+            throw new Error(message);
+          },
+        });
+      }
+
+      const value: unknown = Reflect.get(target, prop);
+
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+
+describe('upstream fixes', () => {
+  it('stream a part whose bytes repeat padded boundary prefixes', async () => {
+    // Each prefix is followed by padding up to the header limit and then a byte that isn't CRLF,
+    // so it stays body data. The parser must yield as it reads, not buffer the whole body.
+    const prefix = '\r\n--b' + ' '.repeat(8186) + 'X';
+    const value = prefix.repeat(128);
+    const data = Buffer.from(
+      'preamble\r\n--b\r\nContent-Disposition: form-data; name="metadata"\r\nContent-Type: application/cbor\r\n\r\n' +
+        value +
+        '\r\n--b--\r\n',
+    );
+    let offset = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset >= data.length) return controller.close();
+        controller.enqueue(data.subarray(offset, offset + 65536));
+        offset += 65536;
+      },
+    });
+    const deadline = new Deadline(5000);
+    const input = new Input(stream, data.length, deadline);
+    let largest = 0;
+    const fill = input.fill.bind(input);
+    input.fill = async () => {
+      const more = await fill();
+      largest = Math.max(largest, input.buffer.length);
+
+      return more;
+    };
+
+    try {
+      const read: Array<Uint8Array> = [];
+      for await (const part of multipart(input, 'b', 8192)) {
+        for await (const chunk of part.body) read.push(chunk);
+      }
+
+      expect(Buffer.concat(read).toString()).toBe(value);
+      expect(read.length).toBeGreaterThan(1);
+      expect(largest).toBeLessThan(128 * 1024);
+    } finally {
+      deadline.dispose();
+      input.close();
+    }
+  });
+
+  it('delete a generation whose recorded multipart upload R2 can no longer abort', async () => {
+    const h = await started();
+
+    // Publication clears the ID of the upload it completed.
+    expect(
+      (await h.store(bytes('A'), bytes('S'), bytes('v'), new Uint8Array(PART_SIZE + 1), writer))
+        .status,
+    ).toBe(200);
+    expect(
+      await h.db.prepare('SELECT count(*) AS n FROM generations WHERE upload_id IS NOT NULL').first(),
+    ).toEqual({ n: 0 });
+
+    // A generation published before that still carries the ID, and R2 says the upload is gone.
+    await h.db
+      .prepare("UPDATE generations SET upload_id = 'completed', expires_at = 0, gc_after = 0")
+      .run();
+    const original = await h.mf.getBindings<Env>();
+    await cleanup({
+      ...original,
+      ARTIFACTS: failingAbort(
+        original.ARTIFACTS,
+        'abortMultipartUpload: The specified multipart upload does not exist. (10024)',
+      ),
+    });
+
+    expect(await h.db.prepare('SELECT count(*) AS n FROM generations').first()).toEqual({ n: 0 });
+    expect(await h.db.prepare('SELECT charged_bytes FROM deployment').first()).toEqual({
+      charged_bytes: 0,
+    });
+  });
+
+  it('keep an unfinished upload and its charge when the abort fails for another reason', async () => {
+    const h = await started();
+    const original = await h.mf.getBindings<Env>();
+    // SAFETY: Miniflare's D1 is workerd's, typed by Miniflare's copy of the Workers types.
+    const INDEX = h.db as D1Database;
+    const scope = await getScope(INDEX, namespace);
+    const generation = await reserve(INDEX, scope, Math.floor(Date.now() / 1000) + 300, PART_SIZE);
+    const upload = await original.ARTIFACTS.createMultipartUpload(generation.blob_object);
+    await upload.uploadPart(1, new Uint8Array(PART_SIZE));
+    await h.db
+      .prepare('UPDATE generations SET upload_id = ?, gc_after = 0 WHERE generation_id = ?')
+      .bind(upload.uploadId, generation.generation_id)
+      .run();
+    const remaining = () =>
+      h.db
+        .prepare(
+          'SELECT (SELECT count(*) FROM generations WHERE upload_id IS NOT NULL) AS n, charged_bytes FROM deployment',
+        )
+        .first();
+
+    await cleanup({
+      ...original,
+      ARTIFACTS: failingAbort(
+        original.ARTIFACTS,
+        'abortMultipartUpload: We encountered an internal error. Please try again. (10001)',
+      ),
+    });
+    expect(await remaining()).toEqual({ n: 1, charged_bytes: PART_SIZE });
+
+    // The upload still exists, so a retry aborts it, deletes the generation and frees the charge.
+    await h.db.prepare('UPDATE generations SET gc_after = 0').run();
+    await cleanup(original);
+    expect(await remaining()).toEqual({ n: 0, charged_bytes: 0 });
   });
 });

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { baseDir } from '../src/paths.ts';
 import { parseGitHubUrl } from '../src/repo.ts';
+import { practices } from '../src/score.ts';
 import { standingBody } from '../src/standing.ts';
 
 describe('parseGitHubUrl', () => {
@@ -38,5 +39,22 @@ describe('standingBody', () => {
   it('holds only the score and size, whatever it is handed', () => {
     const report = { score: 81, size: 'medium', repo: 'pip/app', profile: { linesOfCode: 1 } };
     assert.equal(standingBody(report), '{"score":81,"size":"medium"}');
+  });
+});
+
+describe('practices', () => {
+  const of = (files: Record<string, string>) =>
+    practices({ tree: { truncated: false, blobs: Object.keys(files).map((path) => ({ path, size: 1 })) }, read: (path) => files[path] } as Parameters<typeof practices>[0]);
+
+  it('takes Vite+ for Oxlint and Vitest, which it bundles', () => {
+    const found = of({ 'package.json': JSON.stringify({ devDependencies: { 'vite-plus': '1.7.0', eslint: '9.0.0' } }) });
+    assert.equal(found.fastLint, true);
+    assert.equal(found.testRunner, 'vitest');
+    assert.equal(found.taskRunner, 'vite-plus');
+  });
+
+  it("takes Oxlint's TypeScript config", () => {
+    assert.equal(of({ 'package.json': '{}', 'oxlint.config.ts': '' }).fastLint, true);
+    assert.equal(of({ 'package.json': '{}' }).fastLint, false);
   });
 });
