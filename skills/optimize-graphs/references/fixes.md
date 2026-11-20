@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Fixes
 
-Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the user's code: its own step, its own yes, one package per change, measured before and after as [measure](measure.md#verify-a-change) says. [Guide section 21](../../../docs/pages/21-optimize-all-of-your-graphs.md) has what each cost and saved in the source repo.
+Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the user's code: its own step, its own yes, one package per change, measured before and after as [measure](measure.md#verify-a-change) says. [Guide section 21](https://ci-doctor.ref0.dev/guide/docs/pages/21-optimize-all-of-your-graphs.md) has what each cost and saved in the source repo.
 
 ## 1. Declare and hold the package graph
 
@@ -25,8 +25,8 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the 
 - One entry per domain or area. Each entry file lists by name only what another package imports: names nothing outside imports stop being public, and their definitions stay.
 - Heavy families, such as icons, charts or a code highlighter, get entries of their own, so the root loads none of their libraries.
 - No `export *` in an entry file, held by a lint rule that reads entry files from each manifest's `exports`. Inside a package, `export *` is fine.
-- Rewrite the imports by a script, one statement per entry, keeping `import type` as it was. On a rebase, rerun the script rather than resolve conflicts. Each entry needs a build entry too, naming its source first ([guide section 9](../../../docs/pages/09-workspace-tooling.md#no-build-before-checking-or-testing)).
-- **Buys:** in the source repo, one module's edit went from 502 selected test files to 164, of 1,053, once the selector followed entries ([guide section 4](../../../docs/pages/04-run-only-what-a-change-can-reach.md#a-selector-built-from-a-real-dependency-graph)). Packages with few entries keep package edges: following entries buys nothing there.
+- Rewrite the imports by a script, one statement per entry, keeping `import type` as it was. On a rebase, rerun the script rather than resolve conflicts. Each entry needs a build entry too, naming its source first ([guide section 9](https://ci-doctor.ref0.dev/guide/docs/pages/09-workspace-tooling.md#no-build-before-checking-or-testing)).
+- **Buys:** in the source repo, one module's edit went from 502 selected test files to 164, of 1,053, once the selector followed entries ([guide section 4](https://ci-doctor.ref0.dev/guide/docs/pages/04-run-only-what-a-change-can-reach.md#a-selector-built-from-a-real-dependency-graph)). Packages with few entries keep package edges: following entries buys nothing there.
 - **Trap:** a test file that reaches most of the package anyway loads no faster. Measure selection, not import time or the bundle.
 
 ## 3. Layers
@@ -45,21 +45,21 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the 
 
 - Declare each cached task's inputs; narrow global inputs; split a task whose inputs cover most of the repo.
 - Removing package edges (fix 1) narrows every task's closure too.
-- Check a runner's keys as [guide section 6](../../../docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner) says, with its planned hashes and probes, before trusting a hit.
+- Check a runner's keys as [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner) says, with its planned hashes and probes, before trusting a hit.
 
 ## 5. The job graph
 
 **When:** blocked time on the critical path is a large share of the run, or the scorer names a top blocker most jobs wait on.
 
 - Start setup that doesn't depend on the blocker in parallel with it, or depend on the step that makes what's needed instead of the whole job.
-- Shorten the critical path before buying cores, as [guide section 7](../../../docs/pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores) says. Queued time is runners, not the graph.
+- Shorten the critical path before buying cores, as [guide section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores) says. Queued time is runners, not the graph.
 - A change to `needs:` changes what CI runs: inside the ci-doctor plan, it needs the user's yes.
 
 ## Adopt the checks
 
-For a repo whose graphs 1–3 aren't declared. [`tools/workspace/`'s `package-graph`](../../../tools/workspace/README.md#the-package-graph) is the TypeScript checker; for other languages, its README gives the contract.
+For a repo whose graphs 1–3 aren't declared. [`tools/workspace/`'s `package-graph`](https://github.com/ref-0/ci-doctor/blob/next/tools/workspace/README.md#the-package-graph) is the TypeScript checker; for other languages, its README gives the contract.
 
-1. **Generate the graph as it is.** Copy `tools/workspace/` into the repo and install its parser, as [its setup](../../../tools/workspace/README.md#types-symbols-and-exports) says; that's a change to the repo, with its own yes. Then `node tools/workspace/src/bin.ts package-graph --generate > package-graph.json` writes every edge and entry today's imports draw. Fix only what it can't declare: an import of an app, and relative paths out of a package.
+1. **Generate the graph as it is.** Copy `tools/workspace/` into the repo and install its parser, as [its setup](https://github.com/ref-0/ci-doctor/blob/next/tools/workspace/README.md#types-symbols-and-exports) says; that's a change to the repo, with its own yes. Then `node tools/workspace/src/bin.ts package-graph --generate > package-graph.json` writes every edge and entry today's imports draw. Fix only what it can't declare: an import of an app, and relative paths out of a package.
 2. **Turn the check on in CI,** in the static job or lint, so the graph can't widen unseen. Every later step only narrows it.
 3. **Tighten:** `--unused` lists edges and entries nothing uses. Then split the widest roots into entry points (fix 2).
 4. **Layer the packages that need it** (fix 3). A stale exception fails, so the count only falls.

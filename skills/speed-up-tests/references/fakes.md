@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Fakes and real services
 
-Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it when a test talks to a service, or a fake makes tests wait. [guide section 8](../../../../../docs/pages/08-a-cheaper-test-harness.md) covers the harness around them.
+Part of the [`speed-up-tests`](../SKILL.md) skill. Read it when a test talks to a service, or a fake makes tests wait. [guide section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-cheaper-test-harness.md) covers the harness around them.
 
 ## What to fake, what to keep real
 
