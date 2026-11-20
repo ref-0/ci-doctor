@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -39,6 +39,21 @@ const folders: Array<string> = [];
 after(() => {
   for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
+
+// A `git` ahead of the real one on the planner's PATH, which writes a line for each process it
+// starts, so a test can hold the planner to a few Git processes a run. A shell script, so not on
+// Windows.
+const counting = process.platform !== 'win32';
+const shim = mkdtempSync(join(tmpdir(), 'affected-checks-git-'));
+folders.push(shim);
+if (counting) {
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "$1" >> "$PLAN_GIT_LOG"\nexec '${realGit}' "$@"\n`);
+  chmodSync(join(shim, 'git'), 0o755);
+}
+
+/** The Git processes each plan started, by its subcommand, in the order of the runs. */
+const gitRuns: Array<ReadonlyArray<string>> = [];
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -116,11 +131,19 @@ const plan = (changes: Record<string, string | null>, near = true, baseFiles = f
   run('add', '-A');
   run('commit', '-qm', 'change', '--allow-empty');
 
+  const log = join(folder, '.git', 'plan-git.log');
+  writeFileSync(log, '');
   const output = execFileSync(
     process.execPath,
     ['scripts/affected-checks.ts', ...(near ? ['--near'] : []), 'HEAD^1', 'HEAD'],
-    { cwd: folder, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    {
+      cwd: folder,
+      encoding: 'utf8',
+      env: counting ? { ...process.env, PATH: `${shim}:${process.env['PATH'] ?? ''}`, PLAN_GIT_LOG: log } : process.env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    },
   );
+  gitRuns.push(readFileSync(log, 'utf8').split('\n').filter((line) => line !== ''));
 
   return Object.fromEntries(
     output
@@ -278,6 +301,23 @@ describe('the planner', () => {
       'apps/server/src/runner.sandbox.test.ts',
     ]);
     assert.equal(plan({ 'tsconfig.json': '{}\n' }, false).own_jobs, null);
+  });
+
+  // Before each tree was listed once and each file read once a run, a run started 12.6 Git
+  // processes on average across this file, and 6.1 after.
+  it('lists each tree once and reads its files in one batch', { skip: !counting }, () => {
+    plan({ 'packages/lib/src/math.ts': 'export const add = (a: number, b: number) => b + a;\n' });
+    plan({ 'pnpm-lock.yaml': lockfile(2) });
+
+    for (const run of gitRuns.slice(-2)) {
+      const count = (command: string) => run.filter((each) => each === command).length;
+
+      // One listing and one batch for each commit read: the change's and, for a lockfile, its base's.
+      assert.equal(count('show'), 0);
+      assert.ok(count('ls-tree') <= 2, `${count('ls-tree')} tree listings`);
+      assert.ok(count('cat-file') <= 2, `${count('cat-file')} batch reads`);
+      assert.ok(run.length <= 8, `${run.length} Git processes: ${run.join(', ')}`);
+    }
   });
 
   it('runs only the edited job for a CI edit, and nothing for a comment', { skip: !process.env['PLAN_YAML'] }, () => {
