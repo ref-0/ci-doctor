@@ -1,6 +1,6 @@
 <!--
 What: the plugin's fourteen agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for workflows, caches, runners and the bill, Blacksmith, a workspace's graphs, slow and flaky tests, evidence, agents' knowledge, review, merging, test value and proof tiers, and how to keep them fresh.
-Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
+Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installation.
 Configure: write your repo's facts files from the agent-knowledge skill's templates/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
@@ -74,7 +74,7 @@ What moves, and what stays:
 - **The hub keeps links only:** its topic map's row, the phases that used the topic, and its "Not here", each pointing to the skill by name and path. Nothing is copied back.
 - **The description follows [Writing a description](#writing-a-description),** in the asker's words, not CI's, with trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/evals).
 - **It stands alone.** What an agent needs to start, such as the setup step, the facts it reads and the checks it follows, is inside the skill, as a short copy or a reference page of its own. Everything else is a full link, to the guide at `https://ci-doctor.ref0.dev/guide/<path>` or to the repo on GitHub at the release tag `v<version>`, never a relative path out of the folder. A link to what only `next` has points at `next` until the release, which points it at the new tag. The skill names its release in `metadata.version`, which the tag in its links matches, says how to run its tools from a skills-only install, and has its own "Outside this skill" section.
-- **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
+- **It's in the map** above, the README's Installation, the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
 
 The build checks (`scripts/check.ts`) copy each skill's folder alone, as `npx skills add` with one skill chosen installs it, and fail on a link inside it that doesn't resolve in the copy, a relative link out of it, which dangles there, a full link to the guide site, or to GitHub at the release tag or `next`, that names no file in the repo, and a link to GitHub at another tag. Only the hub may link out relatively, to what the guide site serves, since its ["Outside the skills"](ci-doctor/SKILL.md#outside-the-skills) covers it. A new skill gets that check by being a folder here.
 
@@ -84,7 +84,7 @@ The skills hold no repo's values: they read them from `.agents/repo/*.md`, writt
 
 ## Install
 
-Install the plugin, as [the README's Installing](../README.md#installing) says for each harness. It installs every skill at once. Installing is the user's own act, outside the plan's read-only rule.
+Install the plugin, as [the README's Installation](../README.md#installation) says for each harness. It installs every skill at once. Installing is the user's own act, outside the plan's read-only rule.
 
 The plan the user approves says which skills the repo **adopts**, and the repo's facts files record it. A skill the repo didn't adopt stays installed but defers to the repo's own process.
 
