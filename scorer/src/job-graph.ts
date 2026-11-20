@@ -645,7 +645,26 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
       .map((s) => ({ job: j.name, step: s.name, minutes: mins(ms(s.started_at!), ms(s.completed_at!)) })),
   );
 
+  // Today's YAML may not be the YAML a run ran: a PR can add or drop a `needs`. A run whose jobs don't fit the graph
+  // is left out of the chain and the hidden waits, rather than read wrong; the reasons say how it didn't fit.
+  const SAME_MS = 5e3;
+  const AFTER_MS = 20e3;
+  const ends = ran.map((j) => ms(j.completed_at!));
+  const misfit = new Set<string>();
+  if (graph && ran.some((j) => !rkOf.get(j.id))) misfit.add('a job the YAML doesn\'t name, or could name two ways');
+  for (const j of ran) {
+    const rk = rkOf.get(j.id);
+    if (!rk || graphJob(rk)?.opaque) continue;
+    const created = ms(j.created_at);
+    const yamlReady = ready(rk);
+    if (created < yamlReady - SAME_MS) misfit.add('a job GitHub created before a need the YAML names had finished');
+    else if (created > yamlReady + LATE_MIN * 60e3 && ends.some((e) => e <= created && created - e <= AFTER_MS))
+      misfit.add('a job GitHub created as another finished, a need the YAML lacks');
+  }
+
   return {
+    fits: misfit.size === 0,
+    leftOutBecause: [...misfit],
     spanMin,
     jobs,
     path,
@@ -709,13 +728,15 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
     }
     return graphs.get(path);
   };
-  const runs = sampled.flatMap((s) => {
+  const all = sampled.flatMap((s) => {
     const g = runGraph(graphFor(s.path), s.jobs);
     return g ? [{ id: s.id, workflow: s.path, ...g }] : [];
   });
-  if (!runs.length) return undefined;
+  if (!all.length) return undefined;
+  // The runs that fit the default branch's YAML: only they give the chain, the blockers and the hidden waits.
+  const runs = all.filter((r) => r.fits);
 
-  const paths = [...new Set(runs.map((r) => r.workflow))];
+  const paths = [...new Set(all.map((r) => r.workflow))];
   const graph = graphFor(paths[0]!);
   const shape = graph && {
     jobs: graph.jobs.filter((j) => !j.virtual).length,
@@ -727,9 +748,9 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
   // The chain by its graph jobs, so matrix instances that differ by run count as one chain. A list, never a joined
   // string: a job's name can hold any text, so one named "build → test" mustn't read as a chain of two.
   const chainSig = (r: (typeof runs)[number]) => JSON.stringify(r.path.map((l) => (l.key === undefined ? ['name', l.name] : ['job', l.key])));
-  const [topChain, chainRuns] = tally(runs.map(chainSig))[0]!;
+  const [topChain, chainRuns] = tally(runs.map(chainSig))[0] ?? ['', 0];
   const withChain = runs.filter((r) => chainSig(r) === topChain);
-  const chain = withChain[0]!.path.map((l, i) => ({
+  const chain = (withChain[0]?.path ?? []).map((l, i) => ({
     name: l.name,
     minutes: r1(median(withChain.map((r) => r.path[i]!.share * r.spanMin))),
     share: r2(median(withChain.map((r) => r.path[i]!.share))),
@@ -759,7 +780,10 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
 
   const late = runs.filter((r) => r.lateStarts.length);
   return {
-    runsSampled: runs.length,
+    runsSampled: all.length,
+    runsUsed: runs.length,
+    runsLeftOut: all.length - runs.length,
+    leftOutBecause: tally(all.flatMap((r) => r.leftOutBecause)).map(([why, n]) => ({ why, runs: n })),
     workflows: paths,
     ...(shape ?? {}),
     gateEnd: tally(runs.map((r) => r.end)).slice(0, 3).map(([name, n]) => ({ name, runs: n })),
@@ -780,13 +804,15 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
       lateMinP50: r1(median(late.flatMap((r) => r.lateStarts.map((l) => l.lateMin)))),
       waitSteps: tally(runs.flatMap((r) => r.waitSteps.map((w) => `${w.job}: ${w.step}`))).slice(0, 3).map(([step, n]) => ({ step, runs: n })),
     },
-    unmatched: tally(runs.flatMap((r) => r.unmatched)).slice(0, 5).map(([name]) => name),
-    ambiguous: tally(runs.flatMap((r) => r.ambiguous)).slice(0, 5).map(([name]) => name),
+    unmatched: tally(all.flatMap((r) => r.unmatched)).slice(0, 5).map(([name]) => name),
+    ambiguous: tally(all.flatMap((r) => r.ambiguous)).slice(0, 5).map(([name]) => name),
     skippedP50: Math.round(median(runs.map((r) => r.skipped.length))),
     unknown: [...new Set(paths.flatMap((p) => graphFor(p)?.unknown ?? [failures.get(p) ?? `${p} couldn't be found, so its jobs are taken as waiting on nothing`]))],
     // Each run's jobs to scale, for a replay: minutes from the run's start.
-    perRun: runs.map((r) => ({
+    perRun: all.map((r) => ({
       id: r.id,
+      fits: r.fits,
+      leftOutBecause: r.leftOutBecause,
       spanMin: r1(r.spanMin),
       path: r.path.map((l) => l.name),
       topBlocker: r.topBlocker?.name ?? null,
@@ -819,13 +845,15 @@ export const chainText = (g: JobGraph) => g.chain.map((l) => `"${l.name}" ${m(l.
 export const blockerText = (g: JobGraph) => {
   const b = g.topBlockers[0];
   return b
-    ? `"${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; it takes ${m(b.tookMin)} min (${b.runs} of ${g.runsSampled} runs)`
+    ? `"${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; it takes ${m(b.tookMin)} min (${b.runs} of ${g.runsUsed} runs)`
     : 'none: no job waits on another';
 };
 
+const leftOut = (g: JobGraph) => (g.runsLeftOut ? `; ${g.runsLeftOut} of ${g.runsSampled} runs left out, their jobs not fitting today's YAML` : '');
+
 /** The two `<ci-report>` lines. */
 export const promptLines = (g: JobGraph) => [
-  `Chain that sets the wait: ${chainText(g)}; ${g.chainRuns} of ${g.runsSampled} runs; on it p50 blocked ${m(g.blockedMinP50)}, queue ${m(g.queueMinP50)}, setup after a wait ${m(g.setupInPathMinP50)} min`,
+  `Chain that sets the wait: ${g.chain.length ? `${chainText(g)}; ${g.chainRuns} of ${g.runsUsed} runs` : 'unknown'}${leftOut(g)}; on it p50 blocked ${m(g.blockedMinP50)}, queue ${m(g.queueMinP50)}, setup after a wait ${m(g.setupInPathMinP50)} min`,
   `Top blocker: ${blockerText(g)}`,
 ];
 
@@ -834,7 +862,8 @@ export const graphBlock = (g: JobGraph) => {
   const shape = g.jobs === undefined ? '' : `, ${g.jobs} jobs, ${g.edges} needs edges, ${g.matrixJobs} matrix, ${g.reusableCalls} reusable workflow call${g.reusableCalls === 1 ? '' : 's'}`;
   const lines = [
     `Job graph (${g.workflows.join(', ')}${shape}; ${g.runsSampled} runs):`,
-    `  Sets the wait       ${chainText(g)} (${g.chainRuns} of ${g.runsSampled} runs)`,
+    g.chain.length ? `  Sets the wait       ${chainText(g)} (${g.chainRuns} of ${g.runsUsed} runs)` : `  Sets the wait       unknown: no sampled run fits the default branch's YAML`,
+    ...(g.runsLeftOut ? [`  Left out            ${g.runsLeftOut} of ${g.runsSampled} runs, whose jobs don't fit today's YAML: ${g.leftOutBecause.map((w) => `${w.why} (${runs(w.runs)})`).join('; ')}`] : []),
     `  Ends the gate       ${g.gateEnd.map((e) => `"${e.name}" ×${e.runs}`).join(', ')}`,
     `  Critical path p50   ${g.pathJobsP50} job${g.pathJobsP50 === 1 ? '' : 's'}, ${m(g.pathMinP50)} min: work ${m(g.workMinP50)}, queue ${m(g.queueMinP50)}; the last job blocked ${m(g.blockedMinP50)}`,
     `  Top blocker         ${blockerText(g)}`,
@@ -842,7 +871,7 @@ export const graphBlock = (g: JobGraph) => {
     `  Setup in the path   ${m(g.setupInPathMinP50)} min p50 in jobs that first waited on others, which overlapping with upstream work could hide`,
     ...g.stepWaits.slice(0, 2).map((w) => `  One step, a guess   "${w.job}" waits on all of "${w.waitsOn}", whose "${w.step}" ended ${m(w.earlyMin)} min before it did (${runs(w.runs)})`),
     g.hidden.runs
-      ? `  Waits not in YAML   ${g.hidden.runs} of ${g.runsSampled} runs had a job GitHub queued over ${LATE_MIN} minutes after its needs finished (${g.hidden.jobs.map((j) => `"${j.name}"`).join(', ')}, p50 ${m(g.hidden.lateMinP50)} min): it waited on something the YAML doesn't name, such as a concurrency group or an environment`
+      ? `  Waits not in YAML   ${g.hidden.runs} of ${g.runsUsed} runs had a job GitHub queued over ${LATE_MIN} minutes after its needs finished (${g.hidden.jobs.map((j) => `"${j.name}"`).join(', ')}, p50 ${m(g.hidden.lateMinP50)} min): it waited on something the YAML doesn't name, such as a concurrency group or an environment`
       : `  Waits not in YAML   none seen: GitHub queued every job as soon as its needs finished`,
     ...(g.hidden.waitSteps.length ? [`  Waiting steps       ${g.hidden.waitSteps.map((w) => `${w.step} (${runs(w.runs)})`).join(', ')}`] : []),
     ...(g.unmatched.length ? [`  Not in the YAML     ${g.unmatched.map((n) => `"${n}"`).join(', ')}: taken as waiting on nothing`] : []),
@@ -866,7 +895,7 @@ export const graphFixes = (g: JobGraph | undefined) => {
     });
   const b = g.topBlockers[0];
   // Most jobs wait on it, in most runs, and each of them a minute or more past its other needs.
-  if (b && b.runs * 2 >= g.runsSampled && b.heldJobs * 2 >= b.jobs && (b.heldJobMin ?? 0) >= b.heldJobs)
+  if (b && b.runs * 2 >= g.runsUsed && b.heldJobs * 2 >= b.jobs && (b.heldJobMin ?? 0) >= b.heldJobs)
     fixes.push({
       text: `A blocker most jobs wait on: "${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; shorten it, or let them start setup and wait only for what they need`,
       page: '21-optimize-all-of-your-graphs.md#ci-jobs',
