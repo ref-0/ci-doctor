@@ -1,5 +1,6 @@
 // What the terminal shows: the score, the <ci-report> block an agent can start from, each practice as yes, no or
 // unknown, the fixes with their guide pages, and where the numbers came from.
+import { graphPromptLines, graphsBlock } from './graphs.ts';
 import { graphBlock, promptLines } from './job-graph.ts';
 import type { Inventory, Practices, Report } from './score.ts';
 import type { Stack } from './stack.ts';
@@ -24,6 +25,7 @@ export const promptBlock = (r: Report) =>
     `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr ?? NaN)} job-min across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedMinutesPerMergedPr}); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
     r.jobs && `Last to finish: "${r.wait.lastToFinish[0]?.[0]}", ${r.jobs.jobs} jobs, ${m(r.jobs.jobMinutes)} job-min; run ${m(r.jobs.spanMin)} min; longest job "${r.jobs.longest.name}" ${m(r.jobs.longest.minutes)} min; setup ${p(r.jobs.setupShare)} of job time`,
     ...(r.jobGraph ? promptLines(r.jobGraph) : []),
+    ...graphPromptLines(r.graphs),
     r.jobs?.shard && `Shards "${r.jobs.shard.name}": ${r.jobs.shard.shards}, slowest ${r.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${p(r.jobs.shard.idleTail)} idle tail`,
     r.tests?.top.length && `Slowest test files: ${r.tests.top.slice(0, 3).map((t) => `${t.file} ${t.sec.toFixed(1)} s`).join(', ')}`,
     `Fix first: ${r.fixes.slice(0, 3).map((f, i) => `${i + 1}. ${f.text} (${f.guide.split('/').at(-1)!.slice(0, 2)})`).join('  ') || 'nothing urgent'}`,
@@ -133,6 +135,7 @@ export const scoredText = (r: Report, v: Provenance) => {
     r.jobGraph && graphBlock(r.jobGraph),
     practicesBlock(r.practices),
     stackBlock(r.stack),
+    graphsBlock(r.graphs),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),
     provenanceLine(v),
@@ -148,6 +151,7 @@ export const inventoryText = (r: Inventory) => {
     `From the checkout's tracked files: ~${fmtK(pf.linesOfCode)} lines of source, tests ${p(pf.testShare)} of it, ${pkgText(pf.packages)}, ${pf.files} files.`,
     practicesBlock(r.practices),
     stackBlock(r.stack),
+    graphsBlock(r.graphs),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),
     'Read only the checkout: no GitHub calls. Nothing was written to disk.',
