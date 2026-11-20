@@ -7,18 +7,18 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Agent knowledge templates
 
-The [skills](../../../README.md) are shared between repos. What's true of one repo, its workflow file, its gate job, its scripts and settings, goes in that repo's own files, which the skills point at. [guide section 17](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md) explains the split.
+Part of the [`agent-knowledge`](../SKILL.md) skill, which says where each file's knowledge belongs and how to keep it fresh. The [skills](https://github.com/ref-0/ci-doctor/blob/next/skills/README.md) are shared between repos. What's true of one repo, its workflow file, its gate job, its scripts and settings, goes in that repo's own files, which the skills point at. [guide section 17](https://github.com/ref-0/ci-doctor/blob/next/docs/pages/17-keeping-agent-knowledge-from-going-stale.md) explains the split.
 
 | Template | Copy to | Read by |
 | --- | --- | --- |
-| [`AGENTS-snippet.md`](AGENTS-snippet.md) | The instruction file your harness loads at the start, such as `AGENTS.md` for Codex or `CLAUDE.md` for Claude Code; [harnesses](../../../../docs/harnesses.md) covers each | Every agent the harness starts |
+| [`AGENTS-snippet.md`](AGENTS-snippet.md) | The instruction file your harness loads at the start, such as `AGENTS.md` for Codex or `CLAUDE.md` for Claude Code; [harnesses](https://github.com/ref-0/ci-doctor/blob/next/docs/harnesses.md) covers each | Every agent the harness starts |
 | [`repo-facts/ci.md`](repo-facts/ci.md) | `.agents/repo/ci.md` | The `ci-doctor` hub's topics, `ci-merge-workflow` and `fix-flaky-test` |
 | [`repo-facts/ci-time.json`](repo-facts/ci-time.json) | `.agents/repo/ci-time.json`: the workflow, shard prefixes, gate job, runner labels' vCPUs and prices. A key you leave out keeps the script's default | `ci-time.ts`, in the hub's `ci-workflows` topic |
 | [`repo-facts/speed-up-tests.md`](repo-facts/speed-up-tests.md) | `.agents/repo/speed-up-tests.md` | The `speed-up-tests` skill |
 | [`repo-facts/review.md`](repo-facts/review.md) | `.agents/repo/review.md`, where the repo adopts `review-gate`; its list goes in `.agents/repo/review-paths.txt`, as below | `review-gate` |
 | [`repo-facts/review-record.json`](repo-facts/review-record.json) | `.agents/repo/review-record.json`, with `review-gate`: the review types, test code, thresholds, effort and the list's path. A key you leave out keeps the script's default | `review-record.ts`, locally and in CI's gate, from the base branch |
 | [`repo-facts/proof-tiers.md`](repo-facts/proof-tiers.md) | `.agents/repo/proof-tiers.md`, where the repo has models or property tests | `proof-tiers` |
-| [`progress.md`](progress.md) | Next to the plan before approval; then where the authorization record says, such as `.agents/ci-doctor/progress.md` | Every session working the plan, first thing ([`ci-doctor`](../../SKILL.md#pick-up-where-the-last-session-stopped)) |
+| [`progress.md`](progress.md) | Next to the plan before approval; then where the authorization record says, such as `.agents/ci-doctor/progress.md` | Every session working the plan, first thing ([`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md#pick-up-where-the-last-session-stopped)) |
 | [`ledger.md`](ledger.md) | Wherever a campaign keeps its state | A slow-test campaign's coordinator |
 | [`report.md`](report.md) | Next to the ledger, one per run, as `report-<date>.md` | The coordinator, and whoever reads its proposals |
 | [`brief.md`](brief.md) | One per engineer, next to the shared rules | An engineer in a campaign |

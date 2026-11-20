@@ -51,7 +51,7 @@ import { fileURLToPath } from 'node:url';
 // SETTINGS: the repo's, in `.agents/repo/review-record.json`
 // ---------------------------------------------------------------------------------------------
 // The repo owns that file, so updating this script never touches its values. Its template is the
-// ci-doctor hub's references/agent-knowledge/repo-facts/review-record.json. It's read from
+// agent-knowledge skill's templates/repo-facts/review-record.json. It's read from
 // REVIEW_SETTINGS, or from `.agents/repo/review-record.json` in the folder this runs in; CI reads
 // the base branch's copy, as it does the review list. A key it leaves out keeps the default below.
 

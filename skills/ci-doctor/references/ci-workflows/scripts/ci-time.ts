@@ -60,7 +60,7 @@ import { parseArgs } from 'node:util';
 
 // ---- SETTINGS: your repo's layout and runners, in `.agents/repo/ci-time.json` -----------------------
 // The repo owns that file, so updating this script never touches its values. Its template is the
-// ci-doctor hub's references/agent-knowledge/repo-facts/ci-time.json. It's read from the folder this
+// agent-knowledge skill's templates/repo-facts/ci-time.json. It's read from the folder this
 // runs in, or from CI_TIME_SETTINGS; a key it leaves out keeps the default below. Flags override the
 // first three. Patterns are regular expressions, as strings.
 /** The defaults: the source repo's values, as examples. */

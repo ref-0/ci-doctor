@@ -1,7 +1,7 @@
 <!--
 What: how to review and speed up many slow files at once, with read-only readers and engineers in parallel.
 Where: read by the agent that coordinates a slow-test campaign.
-Configure: the ledger, report and brief templates in the hub's references/agent-knowledge/.
+Configure: the ledger, report and brief templates in the agent-knowledge skill's templates/.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 

@@ -11,7 +11,7 @@ Make CI faster, cheaper and more trustworthy. This file holds the rules and rout
 
 ## Pick up where the last session stopped
 
-This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](references/agent-knowledge/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
+This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](../agent-knowledge/templates/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
 
 - **No `progress.md`:** if the user asked for the plan (make CI faster, cut its cost, a CI review, or a pasted `<ci-report>`), ask once whether an earlier session left one, then start at [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md). Otherwise, use the [topic map](#topic-map).
 - **A `progress.md`:** read it before anything else, and resume at the phase and step it records, even right after approval: Phases 4–6 run from there. Trust it, the repo's history and CI's records over your own memory of earlier work. If its playbook version differs from this skill's, read [the changelog](../../CHANGELOG.md) between the two before going on.
@@ -72,8 +72,9 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
 | A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
 | How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
+| Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
-The one-rule [checks](references/checks/README.md) the topics link to, and the [agent-knowledge templates](references/agent-knowledge/README.md) for a repo's facts, are here too.
+The one-rule [checks](references/checks/README.md) the topics link to are here too. The templates for a repo's facts, `progress.md` and a campaign's files are the [`agent-knowledge`](../agent-knowledge/templates/README.md) skill's.
 
 ## Not here
 
@@ -83,6 +84,7 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
 - A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
 - Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
+- Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
 
 ## Outside the skills
 

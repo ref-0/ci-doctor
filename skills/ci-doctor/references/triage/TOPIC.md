@@ -1,7 +1,7 @@
 <!--
 What: reading a PR's CI result: which job failed and why, whether the run counts, and where each kind of failure goes.
 Where: read by any agent whose PR's check failed or was cancelled.
-Configure: your repo's facts file, `.agents/repo/ci.md`, from agent-knowledge/repo-facts/ci.md.
+Configure: your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 

@@ -6,7 +6,7 @@ description: "Keep a bounded model check or a property test honest: writing one,
 <!--
 What: the rules that keep the two deep proofs honest: bounded models of ordering, and property tests of inputs.
 Where: read by a coding agent writing or maintaining either, or moving one between CI's tiers.
-Configure: your repo's `.agents/repo/proof-tiers.md`, from the ci-doctor hub's references/agent-knowledge/repo-facts/proof-tiers.md.
+Configure: your repo's `.agents/repo/proof-tiers.md`, from the agent-knowledge skill's templates/repo-facts/proof-tiers.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
