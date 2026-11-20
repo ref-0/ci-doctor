@@ -214,6 +214,16 @@ describe("graph 2: what an entry's count covers", () => {
     assert.equal(node(g, 'lib#.')!.file, 'packages/lib/src/index.ts');
     assert.equal(node(g, 'lib#.')!.reexports, 3);
   });
+
+  it("stops each entry at the depth bound, though another entry's shorter path read the modules past it", () => {
+    const lib = { 'src/index.ts': "export * from './b1.ts';\n", 'src/b1.ts': "export * from './b2.ts';\n", 'src/b2.ts': "export * from './s0.ts';\n", 'src/s0.ts': "export * from './s1.ts';\n", 'src/s1.ts': "export * from './s2.ts';\n", 'src/s2.ts': 'export const s = 1;\n' };
+    const { g } = graphs(libRepo(lib, { '.': './src/index.ts', './s': './src/s0.ts' }), { limits: { depth: 2 } });
+    assert.equal(node(g, 'lib#./s')!.reexports, 2);
+    const root = node(g, 'lib#.')!;
+    assert.equal(root.reexports, null);
+    assert.equal(root.reexportsAtLeast, 3);
+    assert.equal(root.unknown, 'packages/lib/src/s0.ts, which it re-exports: the walk stops 2 re-exports deep');
+  });
 });
 
 describe('graph 4: tasks', () => {

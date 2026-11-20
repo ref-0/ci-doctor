@@ -296,19 +296,29 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
 
   // Each entry's re-exported modules, from what was read: unknown when the walk reaches a file it couldn't read.
   // An entry with `import` and `require` targets in different files re-exports the union of both.
+  // Breadth first, by this entry's own depth: a module the shared walk reached early, from another entry, still
+  // stops this one at the bound, and a module past it that re-exports more makes the count unknown.
   const walk = (files: ReadonlyArray<string>) => {
     const start = new Set(files);
+    const depth = new Map(files.map((f) => [f, 0]));
+    const queue = [...files];
     const reexports = new Set<string>();
-    const waiting = [...files];
     let why: string | undefined;
-    for (let f = waiting.pop(); f !== undefined; f = waiting.pop()) {
+    const say = (f: string, reason: string) => (why ??= start.has(f) ? `${f}: ${reason}` : `${f}, which it re-exports: ${reason}`);
+    for (let i = 0; i < queue.length; i++) {
+      const f = queue[i]!;
+      const d = depth.get(f)!;
       const reason = failed.get(f) ?? cut.get(f);
+      if (d > limits.depth) {
+        if (MODULE.test(f) && (reason !== undefined || (next.get(f) ?? []).some((t) => !depth.has(t)))) say(f, reason ?? `the walk stops ${limits.depth} re-exports deep`);
+        continue;
+      }
       if (reason !== undefined) {
-        why ??= start.has(f) ? `${f}: ${reason}` : `${f}, which it re-exports: ${reason}`;
+        say(f, reason);
         continue;
       }
       // A cycle back to the entry doesn't count the entry itself.
-      for (const t of next.get(f) ?? []) if (!start.has(t) && !reexports.has(t)) (reexports.add(t), waiting.push(t));
+      for (const t of next.get(f) ?? []) if (!depth.has(t)) (depth.set(t, d + 1), queue.push(t), reexports.add(t));
     }
     return { reexports: reexports.size, why };
   };
