@@ -4,6 +4,8 @@
 
 **Applies when:** CI's records show tests that failed and then passed, or jobs that passed on rerun. **Skip when:** The records show no failed-then-passed tests or jobs.
 
+The [`fix-flaky-test`](../../skills/fix-flaky-test/SKILL.md) skill carries this section for a coding agent: telling a flake from a real or infrastructure failure, matching its symptom, forcing the interleaving, the fix, proving it with retries off, and filing what's left.
+
 - **Retry once, in-process.** A recovered test leaves the run green but is **recorded as a flake**. Local runs and repeat runs that prove a fix use **no retry**. Turning the retry on changes what the gate accepts, so adopt it as its own approved change, apart from adding records, and keep a test-level retry, a failed-job rerun and an infrastructure failure as three different things in reports.
 - **One issue per flaky test, filed by CI.** The aggregate job reads flake records across attempts and opens or updates one issue per test.
   - It also counts a job that failed then passed on rerun.
@@ -27,7 +29,7 @@
 
 **Applies when:** A failure's symptom matches one below, or a fixture forks, spawns, binds a socket, runs Git or uploads a stream. **Skip when:** None of the tests start processes, open sockets or run Git.
 
-Each case is one we hit, forced on purpose to prove its cause, then fixed in the fixture rather than retried around. Match the symptom first, then check the cause before taking the fix.
+Each case is one we hit, forced on purpose to prove its cause, then fixed in the fixture rather than retried around. Match the symptom first, then check the cause before taking the fix. An agent works from the skill's [symptoms](../../skills/fix-flaky-test/references/symptoms.md), which give each one's check and how to force it.
 
 - **A writable executable crosses fork and exec.**
   - *Symptom:* a spawn fails at random with `ETXTBSY` ("Text file busy"), on a program another test just copied in.
