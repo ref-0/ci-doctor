@@ -17,9 +17,9 @@
  *    copy. A link that leaves it must land on a file the guide site serves (`served` in
  *    `scripts/site/build.ts`), so it resolves at ci-doctor.ref0.dev/guide/<path>, with its anchor.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` topic,
- *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
- *    `templates/agent-knowledge/` as paths.
+ *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` and
+ *    `verify-evidence` topics, `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/`
+ *    and `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
  * 8. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
  *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
@@ -52,7 +52,7 @@ export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.tes
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-workflows|ci-runners|blacksmith|speed-up-tests|verify-evidence';
+const TOPICS = 'ci-workflows|ci-runners|blacksmith|speed-up-tests';
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
@@ -65,6 +65,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
   [new RegExp(`\\bskills? \`(${TOPICS})\``), 'the hub\'s <topic> topic'],
   [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
+  [/verify-evidence/, 'skills/prove-it/'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/ci-doctor/references/agent-knowledge/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],

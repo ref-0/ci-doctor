@@ -17,7 +17,7 @@ Fit this into the user's existing layout rather than imposing ours. If they have
   - `campaign.md`: running many fixes at once.
 
   Start each from guide sections 10–11 and keep only what fits this repo.
-- **An evidence check** from [`verify-evidence`](../verify-evidence/TOPIC.md), which owns how to judge a number, linked from the measuring and test-value docs.
+- **An evidence check** from the [`prove-it`](../../../prove-it/SKILL.md) skill, which owns how to judge a number, linked from the measuring and test-value docs.
 - **Stack-specific pages** only for the stacks the repo has, linked from the general text with "if your stack uses X".
 - **Repo-specific values** (commands, settings names, thresholds) go in one facts file the skills point to, so the method and the values can change separately.
 - **A "what was tried" register:** every measured-and-dropped idea, with its numbers, its evidence and its date, in one place `.agents/repo/ci.md`'s Tried and dropped section names ([template](../checks/ci-read-what-was-tried.md)).

@@ -1,7 +1,7 @@
 {
   "name": "ci-doctor",
   "version": "0.1.0",
-  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, how far an edit reaches through a workspace's graphs, review and merge gates, test value and proof tiers.",
+  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, how far an edit reaches through a workspace's graphs, whether a speed-up, saving or fix holds up, review and merge gates, test value and proof tiers.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"

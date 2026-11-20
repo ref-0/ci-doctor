@@ -24,7 +24,7 @@ A pull request that changes a workflow runs its own version, so its run is the t
 
 [`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](../speed-up-tests/references/ci-history-data.md) says. It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label; with `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [the blacksmith topic's adapter](../blacksmith/scripts/blacksmith-bill.ts). Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](../agent-knowledge/repo-facts/ci-time.json)). Its tests: `node --test ci-time.test.ts`, from `scripts/`.
 
-Where CI's records are and how to read them is [measuring](../speed-up-tests/references/measuring.md). Judging what a number means is [`verify-evidence`](../verify-evidence/TOPIC.md).
+Where CI's records are and how to read them is [measuring](../speed-up-tests/references/measuring.md). Judging what a number means is the [`prove-it`](../../../prove-it/SKILL.md) skill.
 
 ## Where each value lives
 
@@ -50,5 +50,5 @@ Tests that run the repo's code against real containers are the slowest, and thei
 - [`blacksmith`](../blacksmith/TOPIC.md): if you run on Blacksmith, its CLI, labels, sticky disks and bill.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): read a PR's result, run CI by hand, merge.
 - [`speed-up-tests`](../speed-up-tests/TOPIC.md): make a slow test faster without losing what it proves.
-- [`verify-evidence`](../verify-evidence/TOPIC.md): before you quote a number from a run.
+- The [`prove-it`](../../../prove-it/SKILL.md) skill: before you quote a number from a run.
 - The repo's tried-and-dropped register, which ci.md names ([the check](../checks/ci-read-what-was-tried.md)), and [guide section 18](../../../../docs/pages/18-tried-and-dropped.md): what each earlier change measured.
