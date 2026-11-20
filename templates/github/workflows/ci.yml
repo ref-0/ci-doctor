@@ -3,8 +3,9 @@
 # Runs on GitHub Actions with Blacksmith runners, for every ready pull request into main, every
 # merge (types only), main's daily sweep and its integration-test slots (started by sweep.yml), and
 # runs by hand. Copy it to .github/workflows/ci.yml and fill in each <placeholder> and TODO. Every
-# script it calls is in this playbook, at the path it calls it by, as ../README.md's install layout
-# says; the rest are <placeholders> that README lists. Reference implementation from a production
+# script it calls is in this playbook, as ../README.md's install layout says, at the path it calls
+# it by but for scripts/shards/, the ci-runners skill's scripts/ copied into your repo; the rest are
+# <placeholders> that README lists. Reference implementation from a production
 # monorepo (distilled from a much longer workflow); adapt to your repo. Why each part exists:
 # the guide's sections 3 (anatomy), 4 (selection), 5 (tiers), 6 (caches) and 7 (shards and runners).
 #

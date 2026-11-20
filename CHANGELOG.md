@@ -10,6 +10,10 @@ Under 1.0, a minor release carries what would be a major one.
 
 ## Unreleased
 
+### Shards
+
+- **`ci-runners` owns shard splitting.** The shard scripts moved from `scripts/shards/` into `skills/ci-runners/scripts/`, with their tests, so they install with that skill alone: the plan (`test-shards.ts`), `test-groups.ts`, the lanes runner (`test-lanes.ts`), the claims (`test-claims.ts`), the Actions cache client (`ci-cache.ts`), `test-tasks.ts` and `container-pack.ts`. `scripts/shards/README.md` is now the skill's `references/shards.md`, which the hub's Phase 3 excerpt, `ci-workflows`, `speed-up-tests` and the guide point to. **Action:** the templates still call the scripts at `scripts/shards/` in your repo; refresh that copy from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link of yours to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md`.
+
 ### Templates
 
 - **The dependencies action commits main's disk after the install copy ran, not `on-change`.** `on-change` skips a change under 4 KB, which a new install can be, and then the disk stays a lockfile behind and every job installs again. The copy step now detaches a disk that already holds this install, as the warm path does. **Action:** if you copied `templates/github/actions/dependencies/action.yml`, take its `commit:` line and the copy step's detach.
@@ -18,6 +22,7 @@ Under 1.0, a minor release carries what would be a major one.
 ### Skills
 
 - **`ci-merge-workflow`'s releases:** an optional handoff of a checked release tarball to its publish job through the Actions cache, keyed and checked by its digest, for when artifact storage runs out.
+- **`speed-up-tests` and `fix-flaky-test`:** an emulator once a file with its state reset per test, a module's settled value, a throttle's remainder, every operation to its hold, a Linux process-kill proof, a rerun's checkout and a single-file job's controls.
 
 ## v0.2.0
 

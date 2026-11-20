@@ -23,7 +23,7 @@ For a pnpm TypeScript + Python monorepo on GitHub-hosted runners with Turborepo,
 
 1. The hub's [SKILL.md](../SKILL.md) and this page, then guide sections 1, 2, 3, 4, 5, 7, 10, 11, 12 and 13. Section 2 is for the runner recommendation the plan makes.
 2. The [`cache-ci`](../../cache-ci/SKILL.md) skill for setup and caches, then guide section 6's [task-runner table](../../../docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches) for Turborepo's cache and how to check it.
-3. The [`speed-up-tests`](../../speed-up-tests/SKILL.md) skill and [`scripts/records/README.md`, Python tests](../../../scripts/records/README.md#python-tests) for pytest timings; [`ci-runners`](../../ci-runners/references/sizing.md)' sizing and [`scripts/shards/README.md`, a fixed split](../../../scripts/shards/README.md#start-simple-a-fixed-split) for the first shards.
+3. The [`speed-up-tests`](../../speed-up-tests/SKILL.md) skill and [`scripts/records/README.md`, Python tests](../../../scripts/records/README.md#python-tests) for pytest timings; [`ci-runners`](../../ci-runners/references/shards.md#start-simple-a-fixed-split)' shards, from a fixed split, and its [sizing](../../ci-runners/references/sizing.md) for the first shards.
 4. The [`ci-workflows`](../../ci-workflows/SKILL.md) skill and [`templates/github/README.md`'s minimal starter](../../../templates/github/README.md#minimal-starter-github-hosted) for a workflow shape.
 5. [`prove-it`](../../prove-it/SKILL.md) before quoting any number, and [`optimize-graphs`](../../optimize-graphs/SKILL.md) for how far a change reaches through the workspace. [`fix-flaky-test`](../../fix-flaky-test/SKILL.md) for section 11's flakes.
 
