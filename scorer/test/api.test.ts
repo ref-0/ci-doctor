@@ -1,29 +1,13 @@
 // scoreRepo from code, with the gh stub first on PATH, as a script that holds a GitHub App's token would call it.
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { CliError, scoreRepo } from '../src/index.ts';
 import { fakeRepo } from './fixtures.ts';
-import { binDir, runCli, scratch } from './helpers.ts';
+import { runCli, withStub as stubbed } from './helpers.ts';
 
 const REPO = 'pip/public-app';
 
-/** Points this process's gh at the stub and its answers, for the length of `f`. */
-const withStub = <T>(env: Record<string, string>, f: () => T): T => {
-  const root = scratch();
-  const fixtures = join(root, 'routes.json');
-  writeFileSync(fixtures, JSON.stringify(fakeRepo({ repo: REPO })));
-  writeFileSync(join(root, 'gh.log'), '');
-  const set = { PATH: binDir(root), GH_STUB_FIXTURES: fixtures, GH_STUB_LOG: join(root, 'gh.log'), GH_TOKEN: '', ...env };
-  const before = Object.fromEntries(Object.keys(set).map((k) => [k, process.env[k]]));
-  Object.assign(process.env, set);
-  try {
-    return f();
-  } finally {
-    for (const [k, v] of Object.entries(before)) v === undefined ? delete process.env[k] : (process.env[k] = v);
-  }
-};
+const withStub = <T>(env: Record<string, string>, f: () => T): T => stubbed(fakeRepo({ repo: REPO }), env, f);
 
 describe('scoreRepo', () => {
   it('returns the report --json prints', async () => {
