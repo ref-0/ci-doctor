@@ -31,8 +31,8 @@ On a 206-package workspace of 2,666 files, measuring the shape and replaying 200
 ## What it reads
 
 - **Packages:** pnpm's `pnpm-workspace.yaml`, or `workspaces` in the root `package.json` for npm, Yarn and Bun. Without either it reads a single package. The root is a package too: in a monorepo it holds the scripts and shared configs outside every package.
-- **Imports:** static `import` and `export … from`, `import()` and `require()` of a string, `new URL('…', import.meta.url)` and `import.meta.glob`, from `.ts`, `.tsx`, `.js` and their `m`/`c` forms, plus `.vue`, `.svelte` and `.astro`. Comments and multi-line template strings are skipped. Only `import type` and `export type` are type-only. `import { type X }` still loads its module under `verbatimModuleSyntax`, so it counts as a value.
-- **Resolution:** relative paths, with TypeScript's `.js`-for-`.ts` mapping and folder indexes; tsconfig `paths` and `baseUrl` through `extends`; a package's `imports` (`#x`); and workspace packages through `exports`, matching conditions and `*` patterns, or `main`, `module`, `source` or `types` when a package has no `exports`. A target that's build output (`dist/x.js`) maps to its source (`src/x.ts`) by convention, and each such import is counted. Third-party packages and Node's built-ins are counted, never followed.
+- **Imports:** static `import` and `export … from`, `import()` and `require()` of a string, `new URL('…', import.meta.url)` and `import.meta.glob`, from `.ts`, `.tsx`, `.js` and their `m`/`c` forms, plus `.vue`, `.svelte` and `.astro`. Comments and multi-line template strings are skipped. Statements are read whatever their spacing, with keywords as names (`import { async as run }`); one it can't read is counted as `unparsed`, never dropped. Only `import type` and `export type` are type-only. `import { type X }` still loads its module under `verbatimModuleSyntax`, so it counts as a value.
+- **Resolution:** relative paths, with TypeScript's `.js`-for-`.ts` mapping and folder indexes; tsconfig `paths` against the effective `baseUrl` (inherited through `extends`), else against the config declaring them; a package's `imports` (`#x`), where a `#` specifier with no match is `missing`; and workspace packages through `exports`, or `main`, `module`, `source` or `types` when a package has no `exports`. `exports` patterns match in Node's order (the longest prefix before `*`, then the longest key), and a `null` target excludes its subpath. Each target is tried as itself, then by extension, before the next condition. A runtime import or `require()` skips `types` and the other format's conditions (`require` for an import, `import` and `module` for a `require()`), and an entry with both an ESM and a CommonJS file reaches both. `types` counts for `import type`, and for a runtime import only as a guess when it names source. A target that's build output (`dist/x.js`) maps to its source (`src/x.ts`) by convention, and each such import is counted. Third-party packages and Node's built-ins are counted, never followed.
 - **Tasks:** Turborepo's `turbo.json` (`tasks`, or v1's `pipeline`), packages' `turbo.json` and `globalDependencies`; Nx's `nx.json` (`targetDefaults`, `namedInputs`, `cacheableOperations`) and `project.json`; Vite+'s `run.tasks` and `run.cache`, when the config's `run` is a plain object literal; and package scripts that call each other. That covers `pnpm run x`, `npm run x`, `yarn x`, `bun run x`, `run-s`/`run-p`, pnpm's `/regex/` selectors, `pre` and `post` scripts, and recursive runs (`-r`, `--filter`, `turbo run`, `nx run-many`, `vp run -r`, `lerna run`), which fan out to every package with that script.
 
 ## Measure the graphs
@@ -74,7 +74,7 @@ The replay takes the last `--commits` first-parent commits of the branch and dif
 
 | Cause | Paths | Reaches |
 |---|---|---|
-| `graph` | A file in the import graph | Its importers, directly or not, across packages |
+| `graph` | A file in the import graph, including any file an import names, such as a `./fixture.txt?raw` | Its importers, directly or not, across packages |
 | `package` | A package's config (`package.json`, `tsconfig`, `*.config.*`), or a file in a package that nothing imports | The package and its dependents, whole |
 | `everything` | CI config, the root manifest, lockfiles, root configs, and unknown files at the root of a monorepo | Every file and test |
 | `none` | Docs, lint and editor config, assets nothing imports | Nothing |
@@ -110,7 +110,7 @@ How to read it:
 |---|---|
 | `schema` | `1` |
 | `repo` | `{ rev, sha, workspace }`; `workspace` is `pnpm`, `npm`, `yarn`, `bun` or `single` |
-| `denominators` | `{ trackedFiles, files, tests, packages, entries, tasks, cachedTasks }`. `files` are the import graph's nodes |
+| `denominators` | `{ trackedFiles, files, tests, packages, packagesWithFiles, entries, tasks, cachedTasks }`. `files` are the import graph's nodes. `packagesWithFiles` are the packages that own at least one, the set the replay's package shares and a flag's `packagesOf` count |
 | `unresolved` | `specifiers` (`total`, `resolved`, `external`, `builtin`, `workspace`, `guessed`, `crossRelative`, `undeclared`) and `reasons`, each `{ count, examples, note }` |
 | `packages` | The package graph |
 | `exports` | The export-path graph |
@@ -124,7 +124,7 @@ Each of the four graphs has `nodes`, `edges` and `flags`, and, except `layers`, 
 | Graph | `nodes[]` | `edges[]` | Other fields |
 |---|---|---|---|
 | `packages` | `{ id, dir, files, tests, dependencies, dependents, importedBy: { packages, files }, depth }` | `{ from, to, declared, importingFiles }`; `declared` is the manifest fields, empty for an import no manifest names | `depth`, `chain`, `replay: { reached }` |
-| `exports` | `{ id, pkg, key, file, importedBy: { packages, files }, reexports, stars, barrel, loads, overload }` | `{ from, to, files }`: a package importing an entry | `replay: { entries, files, tests, packageLevelTests, through }`; `through` maps an entry to the commits whose reach went through it |
+| `exports` | `{ id, pkg, key, pattern?, file, importedBy: { packages, files }, reexports, stars, barrel, loads, overload }`. Each exact `exports` key is an entry; under a `*` pattern, each subpath an import loads is one, `key` being the subpath and `pattern` the key it matched | `{ from, to, files }`: a package importing an entry | `replay: { entries, files, tests, packageLevelTests, through }`; `through` maps an entry to the commits whose reach went through it |
 | `layers` | `{ id, source, place, files, layer, declared }` | `{ source, from, to, imports, example }` | `declared` |
 | `tasks` | `{ id, pkg, name, runner, cached, inputs: { mode, globs, files }, outputs, depth }` | `{ from, to, how }` | `depth`, `chain`, `runners`, `unread`, `replay: { touched, withDependents }` |
 
@@ -137,7 +137,7 @@ A flag is `{ kind, subject, numbers, threshold, detail? }`. `numbers` holds coun
 | `layers` | `folder-cycle`, `layer-violation`, `unplaced-folder` |
 | `tasks` | `no-inputs`, `wide-inputs`, `task-cycle`, `deep-chain` |
 
-Each `perCommit[]` is `{ sha, changed, causes, reached: { files, packages, entries, tests }, packageLevelTests, tasks: { touched, withDependents }, everything, widest?, through, of }`, with `of` the denominators at that commit.
+Each `perCommit[]` is `{ sha, changed, causes, reached: { files, packages, entries, tests }, packageLevelTests, tasks: { touched, withDependents }, everything, widest?, through, of }`, with `of` the denominators at that commit (`of.packages` counts packages with files in the import graph).
 
 ## Limits
 
@@ -145,6 +145,7 @@ It counts what it can't resolve, and never drops it:
 
 | Reason | What |
 |---|---|
+| `unparsed` | An `import` or `export` statement the scanner couldn't read, by its first line |
 | `computed` | `import()` or `require()` of something that isn't a string |
 | `context` | `require.context` folder patterns |
 | `glob-empty` | `import.meta.glob` patterns that match no tracked file |
