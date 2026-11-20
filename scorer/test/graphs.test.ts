@@ -192,6 +192,24 @@ describe('graph 2: export paths, from outside', () => {
   });
 });
 
+/** A package `lib` with these files and exports, imported by `use` packages, each with these files. */
+const libRepo = (lib: Record<string, string>, exports: object, users: Record<string, Record<string, string>> = {}) => {
+  const files: Record<string, string> = { 'package.json': json({ name: 'root', private: true, workspaces: ['packages/*'] }), 'packages/lib/package.json': json({ name: 'lib', exports }) };
+  for (const [path, text] of Object.entries(lib)) files[`packages/lib/${path}`] = text;
+  for (const [name, own] of Object.entries(users)) {
+    files[`packages/${name}/package.json`] = json({ name, exports: { '.': './src/index.ts' }, dependencies: { lib: 'workspace:*' } });
+    for (const [path, text] of Object.entries(own)) files[`packages/${name}/${path}`] = text;
+  }
+  return files;
+};
+
+describe("graph 2: what an entry's count covers", () => {
+  it('leaves the entry itself out of a cycle back to it, and counts each module once', () => {
+    const { g } = graphs(libRepo({ 'src/a.ts': "export * from './b.ts';\n", 'src/b.ts': "export * from './a.ts';\nexport * from './c.ts';\nexport { c } from './c.ts';\n", 'src/c.ts': 'export const c = 1;\n' }, { '.': './src/a.ts' }));
+    assert.equal(node(g, 'lib#.')!.reexports, 2);
+  });
+});
+
 describe('graph 4: tasks', () => {
   it('reads Turborepo: tasks per package script, dependsOn edges, and tasks with no inputs or wide ones', () => {
     const { g } = graphs(barrelRepo());

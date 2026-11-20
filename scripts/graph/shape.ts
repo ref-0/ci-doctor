@@ -208,7 +208,7 @@ const closures = (graph: FileGraph, file: string, byFrom: ReadonlyMap<string, Re
   for (let f = waiting.pop(); f !== undefined; f = waiting.pop()) { if (loads.has(f)) continue; loads.add(f); waiting.push(...(graph.imports.get(f) ?? [])); }
   const reexports = new Set<string>();
   const through = [file];
-  for (let f = through.pop(); f !== undefined; f = through.pop()) for (const to of byFrom.get(f) ?? []) if (!reexports.has(to)) { reexports.add(to); through.push(to); }
+  for (let f = through.pop(); f !== undefined; f = through.pop()) for (const to of byFrom.get(f) ?? []) if (to !== file && !reexports.has(to)) { reexports.add(to); through.push(to); }
   return { loads: loads.size, reexports: reexports.size };
 };
 
