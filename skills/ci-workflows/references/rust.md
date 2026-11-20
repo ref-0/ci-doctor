@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Rust
 
-Part of the [`ci-workflows`](../SKILL.md) skill, if your stack uses Rust. The general rules are in [caches](caches.md); [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#rust-reuse-passes-and-binaries-separately) has the design and what it measured.
+Part of the [`ci-workflows`](../SKILL.md) skill, if your stack uses Rust. The general rules are in [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md)'s [caches](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/references/caches.md); [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#rust-reuse-passes-and-binaries-separately) has the design and what it measured.
 
 ## Two keys: a pass and a binary
 
@@ -28,7 +28,7 @@ Part of the [`ci-workflows`](../SKILL.md) skill, if your stack uses Rust. The ge
 
 ## The toolchain
 
-Cache the toolchain that `rust-toolchain.toml` pins, with its components and targets, keyed by that file and the installing action. Probe it before use, as [caches](caches.md#a-toolchain-cache) says. If you run on Blacksmith, a sticky disk holds it ([disks](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/disks.md#the-rust-toolchains-disk)); elsewhere, cache `~/.rustup` with `actions/cache`, as the [templates' README](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#without-blacksmith) shows.
+Cache the toolchain that `rust-toolchain.toml` pins, with its components and targets, keyed by that file and the installing action. Probe it before use, as [`cache-ci`'s caches](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/references/caches.md#a-toolchain-cache) say. If you run on Blacksmith, a sticky disk holds it ([disks](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/disks.md#the-rust-toolchains-disk)); elsewhere, cache `~/.rustup` with `actions/cache`, as the [templates' README](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#without-blacksmith) shows.
 
 ## Running Rust's tests
 

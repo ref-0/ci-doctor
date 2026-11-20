@@ -70,6 +70,6 @@ A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper fr
 ## Related
 
 - [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md), if the repo adopted it: the review and its record, before marking ready. Otherwise, the repo's own review process.
-- [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md): change the workflow, its jobs, tiers or caches; [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md) for runners and cost.
+- [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md): change the workflow, its jobs or tiers; [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md): caches; [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md) for runners and cost.
 - [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md): slow tests; [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md): flaky ones.
 - [`test-audit`](https://github.com/ref-0/ci-doctor/blob/next/skills/test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping.
