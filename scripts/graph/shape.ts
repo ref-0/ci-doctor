@@ -378,7 +378,7 @@ export const exportsSection = (graph: FileGraph, commitsThrough: ReadonlyMap<str
     })),
     ...wide.map((w) => ({
       kind: 'wide-file', subject: w.file,
-      numbers: { files: w.reaches.files, filesOf: total.length, packages: w.reaches.packages, packagesOf: graph.packages.length, tests: w.reaches.tests, testsOf: testTotal },
+      numbers: { files: w.reaches.files, filesOf: total.length, packages: w.reaches.packages, packagesOf: new Set(total.map((n) => graph.owner(n).name)).size, tests: w.reaches.tests, testsOf: testTotal },
       threshold: { top: THRESHOLDS.top },
     })),
     ...graph.packages.filter((p) => (p.manifest as { private?: boolean }).private === true).flatMap((p) => nodes.filter((n) => n.pkg === p.name && n.importedBy.packages === 0 && p.dir !== '' && !n.key.includes('*')).map((n) => ({

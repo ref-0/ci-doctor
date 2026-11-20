@@ -91,6 +91,7 @@ export const report = (repo: string, options: ReadOptions & { rev?: string; comm
       files: nodes.length,
       tests: nodes.filter(graph.isTest).length,
       packages: graph.packages.length,
+      packagesWithFiles: new Set(nodes.map((n) => graph.owner(n).name)).size,
       entries: exports.nodes.length,
       tasks: tasks.tasks.size,
       cachedTasks: taskShape.cached,
@@ -148,7 +149,7 @@ export const headline = (r: Report) => {
   const lines = [
     `Workspace: ${r.repo.workspace}, ${d.packages} packages, ${d.files.toLocaleString('en-US')} files in the import graph (${d.tests.toLocaleString('en-US')} tests), ${r.repo.rev} at ${r.repo.sha.slice(0, 12)}`,
     `Unresolved: ${of(unresolved, r.unresolved.specifiers.total)} specifiers${unresolved > 0 ? ': ' + Object.entries(r.unresolved.reasons).map(([k, v]) => `${v!.count} ${k}`).join(', ') : ''}`,
-    `1 Packages: depth ${r.packages.depth}, ${flagsOf(r.packages.flags, 'package-cycle').length} cycles, ${flagsOf(r.packages.flags, 'undeclared-import').length} undeclared imports${r.packages.replay ? `; a commit reaches p50 ${pct(r.packages.replay.reached.p50)}, p90 ${pct(r.packages.replay.reached.p90)} of packages` : ''}`,
+    `1 Packages: depth ${r.packages.depth}, ${flagsOf(r.packages.flags, 'package-cycle').length} cycles, ${flagsOf(r.packages.flags, 'undeclared-import').length} undeclared imports${r.packages.replay ? `; a commit reaches p50 ${pct(r.packages.replay.reached.p50)}, p90 ${pct(r.packages.replay.reached.p90)} of the ${d.packagesWithFiles} packages with files` : ''}`,
     `2 Exports: ${d.entries} entries, ${flagsOf(r.exports.flags, 'overloaded-entry').length} overloaded${flagsOf(r.exports.flags, 'overloaded-entry')[0] ? ` (top ${flagsOf(r.exports.flags, 'overloaded-entry')[0]!.subject}: ${flagsOf(r.exports.flags, 'overloaded-entry')[0]!.numbers.reexports} modules × ${flagsOf(r.exports.flags, 'overloaded-entry')[0]!.numbers.importerPackages} packages)` : ''}${r.exports.replay ? `; a commit reaches tests p50 ${pct(r.exports.replay.tests.p50)}, p90 ${pct(r.exports.replay.tests.p90)} (package-level selection: p50 ${pct(r.exports.replay.packageLevelTests.p50)}, p90 ${pct(r.exports.replay.packageLevelTests.p90)})` : ''}`,
     `3 Layers: ${new Set(r.layers.nodes.map((n) => n.source)).size} sources with folders, ${flagsOf(r.layers.flags, 'folder-cycle').length} folder cycles${r.layers.declared ? `, ${flagsOf(r.layers.flags, 'layer-violation').length} layer violations` : ', no layers declared'}`,
     `4 Tasks: ${d.tasks} tasks (${d.cachedTasks} cached; ${r.tasks.runners.join(', ') || 'none'}), depth ${r.tasks.depth}, ${flagsOf(r.tasks.flags, 'no-inputs').length} cached with no declared inputs, ${flagsOf(r.tasks.flags, 'wide-inputs').length} with inputs over ${pct(THRESHOLDS.wideInputs)} of the repo${r.tasks.replay ? `; a commit touches p50 ${pct(r.tasks.replay.touched.p50)}, p90 ${pct(r.tasks.replay.touched.p90)} of cached tasks' inputs` : ''}`,
@@ -174,13 +175,13 @@ export const readable = (r: Report) => {
   list('Most imported (other packages, their files; depth below):', r.packages.nodes.slice(0, 15).map((n) => `${n.id}: ${n.importedBy.packages} packages, ${n.importedBy.files} files; depth ${n.depth}; ${n.files} files, ${n.tests} tests`));
   if (r.packages.chain.length > 1) out.push(`Longest dependency chain (${r.packages.depth + 1} packages): ${r.packages.chain.join(' → ')}`, '');
   list('Flags:', r.packages.flags.map((f) => `${f.kind}: ${f.subject}${f.detail ? ` (${f.detail})` : ''}`));
-  if (r.packages.replay) out.push(`Replay: a commit reaches p50 ${pct(r.packages.replay.reached.p50)}, p90 ${pct(r.packages.replay.reached.p90)} of ${d.packages} packages`, '');
+  if (r.packages.replay) out.push(`Replay: a commit reaches p50 ${pct(r.packages.replay.reached.p50)}, p90 ${pct(r.packages.replay.reached.p90)} of the ${d.packagesWithFiles} packages with files in the import graph`, '');
 
   out.push('## 2. Export paths and the file graph', '');
   const imported = r.exports.nodes.filter((n) => n.importedBy.packages > 0).length;
   out.push(`Entries: ${d.entries} declared or imported; ${of(imported, d.entries)} imported by another package; ${r.exports.nodes.filter((n) => n.barrel).length} barrels, ${r.exports.nodes.filter((n) => n.stars > 0).length} with \`export *\``, '');
   list(`Export-path overload (modules re-exported × packages importing; flagged at ≥ ${THRESHOLDS.overloadModules} × ≥ ${THRESHOLDS.overloadPackages}):`, r.exports.nodes.filter((n) => n.overload > 0).slice(0, 10).map((n) => `${n.id}: ${n.reexports} × ${n.importedBy.packages} = ${n.overload}; loads ${n.loads} files${n.stars ? `, ${n.stars} export *` : ''}${r.exports.replay ? `; ${r.exports.replay.through[n.id] ?? 0} of ${r.replay!.commits} commits reached through it` : ''}`));
-  list(`Files whose change reaches the most (of ${d.files} files, ${d.packages} packages, ${d.tests} tests):`, flagsOf(r.exports.flags, 'wide-file').map((f) => `${f.subject}: ${pct(ratio(f.numbers.files!, d.files))} of files, ${f.numbers.packages} packages, ${pct(ratio(f.numbers.tests!, d.tests))} of tests`));
+  list(`Files whose change reaches the most (of ${d.files} files, ${d.packagesWithFiles} packages with files, ${d.tests} tests):`, flagsOf(r.exports.flags, 'wide-file').map((f) => `${f.subject}: ${pct(ratio(f.numbers.files!, d.files))} of files, ${f.numbers.packages} packages, ${pct(ratio(f.numbers.tests!, d.tests))} of tests`));
   if (r.exports.replay) out.push(`Replay: a commit reaches entries p50 ${pct(r.exports.replay.entries.p50)}, p90 ${pct(r.exports.replay.entries.p90)}; files p50 ${pct(r.exports.replay.files.p50)}, p90 ${pct(r.exports.replay.files.p90)}; tests p50 ${pct(r.exports.replay.tests.p50)}, p90 ${pct(r.exports.replay.tests.p90)}. A package-level selector would run p50 ${pct(r.exports.replay.packageLevelTests.p50)}, p90 ${pct(r.exports.replay.packageLevelTests.p90)} of tests.`, '');
 
   out.push('## 3. Layers inside packages', '');

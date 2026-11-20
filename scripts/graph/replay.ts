@@ -87,6 +87,8 @@ export const commitReach = (
   const beforeNodes = new Set(nodesOf(before));
   const imported = new Set(graph.edges.map((e) => e.to));
   const beforeImported = new Set(before.edges.map((e) => e.to));
+  // Packages are counted among those with files in the import graph, for the reach and its denominator alike.
+  const withFiles = new Set([...nodes].map((n) => graph.owner(n).name));
   const tests = [...nodes].filter(graph.isTest);
   const entries = [...entriesOf(graph)].filter(([, e]) => e.file !== null);
   const causes: Partial<Record<Cause, number>> = {};
@@ -145,7 +147,7 @@ export const commitReach = (
     everything: everything || (tests.length > 0 && reachedTests === tests.length),
     ...(everythingWhy ? { widest: { path: everythingWhy.path, tests: tests.length, why: everythingWhy.why } } : {}),
     through,
-    of: { files: nodes.size, packages: graph.packages.length, entries: entries.length, tests: tests.length, cachedTasks: cachedTasks.length },
+    of: { files: nodes.size, packages: withFiles.size, entries: entries.length, tests: tests.length, cachedTasks: cachedTasks.length },
   };
 };
 

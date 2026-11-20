@@ -258,6 +258,19 @@ describe('replayed changes', () => {
     deepStrictEqual([r.denominators.packages, r.denominators.packagesWithFiles], [4, 2]);
     deepStrictEqual(r.packages.replay!.reached, { p50: 1, p90: 1 });
   });
+
+  it('counts a `*` pattern\'s imported subpath as an entry, with its overload and the commits through it', () => {
+    const r = report(repoOf(workspace({
+      ...lib({ './*': './src/*.ts' }),
+      'packages/lib/src/x.ts': "export * from './leaf.ts';\nexport * from './leaf2.ts';\n",
+      'packages/lib/src/leaf.ts': 'export const leaf = 1;\n',
+      'packages/lib/src/leaf2.ts': 'export const leaf2 = 1;\n',
+      'packages/app/a.ts': "import { leaf } from 'lib/x';\n",
+    }), [{ 'packages/lib/src/leaf.ts': 'export const leaf = 2;\n' }]), { ...options, commits: 2 });
+    deepStrictEqual(r.exports.nodes.map((n) => [n.id, n.pattern, n.file, n.reexports, n.importedBy.packages, n.overload]), [['lib#./x', './*', 'packages/lib/src/x.ts', 2, 1, 2]]);
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual([commit!.reached.entries, commit!.of.entries, commit!.through], [1, 1, ['lib#./x']]);
+  });
 });
 
 describe('the four graphs, measured', () => {
@@ -292,7 +305,7 @@ describe('the four graphs, measured', () => {
     deepStrictEqual(r.exports.flags.filter((f) => f.kind === 'unused-entry').map((f) => f.subject), ['@pip/core#./unused']);
     const widest = r.exports.flags.find((f) => f.kind === 'wide-file')!;
     strictEqual(widest.subject, 'packages/core/src/a/helper.ts');
-    deepStrictEqual(widest.numbers, { files: 10, filesOf: 15, packages: 3, packagesOf: 4, tests: 3, testsOf: 4 });
+    deepStrictEqual(widest.numbers, { files: 10, filesOf: 15, packages: 3, packagesOf: 3, tests: 3, testsOf: 4 });
   });
 
   it('3: finds the folder cycle, and the import that goes against declared layers', () => {
