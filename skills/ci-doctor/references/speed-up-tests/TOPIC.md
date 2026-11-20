@@ -28,7 +28,7 @@ For each file, name the wait before you change anything: what it waits for, how 
 
 Give each file a verdict: slow for a wrong reason (which), real work, or unknown with what to measure. Look across the verdicts for shared causes before fixing any one file, and check the biggest claims against the code yourself.
 
-[The kinds and their fixes](references/fixes.md) give the fix that worked for each: a production period or retry the test inherits; a sleep that arranges a race; a poll; a pace or floor in production code; a rate limit; a slow fake; a wall-clock window; a fake clock; a long file; an expensive prerequisite; and real work, which stays or moves to a later tier. A wait may sit behind another: trace every layer before you pick one.
+[The kinds and their fixes](references/fixes.md) give the fix that worked for each: a production period or retry the test inherits; a sleep that arranges a race; a poll; a pace or floor in production code; a rate limit; a slow fake; a wall-clock window; a fake clock; a long file; an expensive prerequisite; a fixture builder's own CPU; deep setup built one step at a time; a proof that waits for a terminal to go still; and real work, which stays or moves to a later tier. A wait may sit behind another: trace every layer before you pick one.
 
 ## 3. Keep what each test proves
 

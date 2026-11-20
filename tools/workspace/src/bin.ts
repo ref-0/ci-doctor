@@ -6,6 +6,7 @@
  *     node tools/workspace/src/bin.ts symbols find <words...>
  *     node tools/workspace/src/bin.ts symbols check <base> [<head>] | --all
  *     node tools/workspace/src/bin.ts package-exports [--packages <glob>]... [--condition <name>]
+ *     node tools/workspace/src/bin.ts package-graph [--unused | --generate]
  *     node tools/workspace/src/bin.ts check [--fix]
  *
  * Runs: from the repo's root scripts, locally and in CI. Node 24 or later, which runs TypeScript
@@ -40,6 +41,8 @@ const usage = [
   '  symbols check --all                every copy the repo holds',
   '  package-exports [--packages <glob>]... [--condition <name>]',
   "                                     each package's exports name files it has or builds",
+  '  package-graph [--unused]          every import keeps to package-graph.json',
+  '  package-graph --generate           the graph the imports draw today',
   '  check [--fix]                      types, untyped lint everywhere, typed lint on changed files',
 ].join('\n');
 
@@ -86,6 +89,14 @@ const run = async ([name, ...rest]: ReadonlyArray<string>): Promise<number> => {
       const condition = typeof values.condition === 'string' ? values.condition : config.packageExports.condition;
 
       return packageExports(at, { ...config.packageExports, packages, condition });
+    }
+    case 'package-graph': {
+      const values = parsed(rest, { generate: { type: 'boolean' }, unused: { type: 'boolean' } });
+      if (values === undefined) break;
+
+      const { packageGraph } = await import('./graph/command.ts');
+
+      return packageGraph(at, config.packageGraph, { generate: values.generate === true, unused: values.unused === true });
     }
     case 'check': {
       const values = parsed(rest, { fix: { type: 'boolean' } });

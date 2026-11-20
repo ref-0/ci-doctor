@@ -58,7 +58,7 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
     phase: 1,
     title: 'Phase 1: the techniques and the planner',
     parts: [
-      { index: pages(2, 17), why: 'Every technique in guide sections 2–17, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.' },
+      { index: [...pages(2, 17), ...pages(21, 21)], why: 'Every technique in guide sections 2–17 and 21, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.' },
       { from: 'docs/pages/18-tried-and-dropped.md', whole: true, why: 'What was tried and dropped, and what would have to change before trying again.' },
       { from: 'docs/pages/20-thresholds-cheat-sheet.md', whole: true, why: "The source repo's starting values, as examples, not targets." },
       { from: 'docs/pages/04-run-only-what-a-change-can-reach.md', sections: ['Turborepo and Nx: their own affected runs first'], why: 'Selection with Turborepo or Nx.' },
