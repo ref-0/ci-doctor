@@ -9,3 +9,6 @@ export class CliError extends Error {
 }
 
 export const usage = (message: string) => new CliError(message, 2);
+
+/** GitHub's rate limit ran out: the run stops, since every read after it would fail the same way. */
+export class RateLimitError extends CliError {}
