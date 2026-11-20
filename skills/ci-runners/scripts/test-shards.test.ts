@@ -368,6 +368,18 @@ describe('merged', () => {
     strictEqual(read(merged([results({ [a]: longestFile + 1 }, 1)], { now }))[a], undefined);
   });
 
+  test('gives the same bytes for the same inputs in any order', () => {
+    const one = results({ [b]: 20 }, 5);
+    const other = results({ [a]: 10 }, 5);
+    // Two samples at the same time: the order they came in mustn't decide which one is kept.
+    const tie = stored({ [a]: [7, [7, 7]] });
+    const same = [results({ [a]: 9 }, 2), results({ [a]: 8 }, 2)];
+
+    strictEqual(merged([one, other]), merged([other, one]));
+    strictEqual(merged([tie, ...same]), merged([...same.toReversed(), tie]));
+    deepStrictEqual(Object.keys(read(merged([one, other]))), [a, b].sort());
+  });
+
   test('drops a file the checkout no longer tracks', () => {
     deepStrictEqual(Object.keys(read(merged([results({ [a]: 1, [b]: 2 })], { tracked: new Set([a]) }))), [a]);
   });
