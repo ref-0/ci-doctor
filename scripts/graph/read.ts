@@ -8,6 +8,7 @@
  * Reference implementation from a production monorepo; adapt to your repo.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { builtinModules } from 'node:module';
 import { posix } from 'node:path';
 
@@ -528,7 +529,7 @@ const sourceGuess = (path: string, tracked: ReadonlySet<string>) => {
 };
 
 /** Each condition path and target an `exports` value names, in document order. */
-const targetsOf = (target: Target, conditions: ReadonlyArray<string> = []): Array<{ conditions: string[]; path: string }> => {
+const targetsOf = (target: Target, conditions: ReadonlyArray<string> = []): Array<{ conditions: ReadonlyArray<string>; path: string }> => {
   if (typeof target === 'string') return [{ conditions, path: target }];
   if (target === null) return [];
   if (Array.isArray(target)) return target.flatMap((t) => targetsOf(t, conditions));
@@ -545,33 +546,59 @@ export const exportKeys = (manifest: Manifest): ReadonlyMap<string, Target> => {
   return new Map(Object.entries(exports).filter(([k]) => k.startsWith('.')) as Array<[string, Target]>);
 };
 
-/** The key of a map like `exports` that a subpath matches, exact first, then the longest `*` pattern, with what `*` stood for. */
-const matchKey = (keys: Iterable<string>, subpath: string) => {
-  const all = [...keys];
-  if (all.includes(subpath)) return { key: subpath, star: undefined };
-  let best: { key: string; star: string } | undefined;
-  for (const key of all) {
+/** A map like `exports` or `imports`, built once: exact keys, and `*` patterns in the order Node tries them. */
+export interface KeyMap {
+  readonly exact: ReadonlyMap<string, Target>;
+  readonly patterns: ReadonlyArray<{ readonly key: string; readonly before: string; readonly after: string; readonly target: Target }>;
+}
+
+export const keyMap = (entries: Iterable<readonly [string, Target]>): KeyMap => {
+  const exact = new Map<string, Target>();
+  const patterns: Array<KeyMap['patterns'][number]> = [];
+  for (const [key, target] of entries) {
     const at = key.indexOf('*');
-    if (at === -1) continue;
-    const [before, after] = [key.slice(0, at), key.slice(at + 1)];
-    if (subpath.startsWith(before) && subpath.endsWith(after) && subpath.length >= before.length + after.length) {
-      if (!best || before.length > best.key.indexOf('*')) best = { key, star: subpath.slice(before.length, subpath.length - after.length) };
+    if (at === -1) exact.set(key, target);
+    else patterns.push({ key, before: key.slice(0, at), after: key.slice(at + 1), target });
+  }
+  // Node's PATTERN_KEY_COMPARE: the longest prefix before `*` first, then the longest key.
+  patterns.sort((a, b) => b.before.length - a.before.length || b.key.length - a.key.length);
+  return { exact, patterns };
+};
+
+/** The key a subpath matches: exact first, then the first pattern in Node's order whose `*` stands for something. */
+export const matchKey = (map: KeyMap, subpath: string): { key: string; target: Target; star?: string } | undefined => {
+  if (map.exact.has(subpath)) return { key: subpath, target: map.exact.get(subpath)! };
+  for (const p of map.patterns) {
+    if (subpath.length > p.before.length + p.after.length && subpath.startsWith(p.before) && subpath.endsWith(p.after)) {
+      return { key: p.key, target: p.target, star: subpath.slice(p.before.length, subpath.length - p.after.length) };
     }
   }
-  return best;
+  return undefined;
 };
 
 export interface Resolution {
   readonly file?: string;
-  /** For a workspace package specifier: the package, and the entry key it loads. */
+  /** Other runtime files the same entry names: its CommonJS target beside its ESM one, or the reverse. */
+  readonly also?: ReadonlyArray<string>;
+  /** For a workspace package specifier: the package, and the entry it loads (a pattern's concrete subpath). */
   readonly pkg?: string;
   readonly entry?: string;
+  /** The `exports` pattern key the entry matched, when it matched one. */
+  readonly pattern?: string;
   readonly external?: 'builtin' | 'package';
   readonly unresolved?: Unresolved;
   /** A build-output target mapped to its source by the `dist` → `src` convention. */
   readonly guessed?: boolean;
   readonly via?: 'relative' | 'paths' | 'workspace' | 'imports' | 'baseUrl';
 }
+
+/** What an import loads: runtime code through `import` or `require`, or only types through `import type`. */
+export type Mode = 'esm' | 'cjs' | 'types';
+
+export const modeOf = (kind: Kind): Mode => (kind === 'type' ? 'types' : kind === 'require' ? 'cjs' : 'esm');
+
+const TYPES = ['types', 'typings'];
+const NOT_IN: Readonly<Record<Mode, ReadonlyArray<string>>> = { esm: ['require', ...TYPES], cjs: ['import', 'module', ...TYPES], types: [] };
 
 const BUILTINS = new Set(builtinModules);
 
@@ -581,26 +608,46 @@ const splitName = (spec: string) => {
   return { name: parts.slice(0, n).join('/'), sub: parts.slice(n).join('/') };
 };
 
-/** Picks the first target, in document order (or `conditions`' order when given), that is a tracked file. */
-const pickTarget = (pkgDir: string, target: Target, star: string | undefined, tracked: ReadonlySet<string>, preferred: ReadonlyArray<string>) => {
+/**
+ * The tracked file a target names for `mode`. Targets go in document order (or `preferred`
+ * conditions' order when given), each tried as itself and then by extension before the next.
+ * A runtime import skips `types` and the other format's conditions, falling back to a `types`
+ * target only when it names source, and only as a guess; `import type` tries `types` first.
+ */
+const pickTarget = (pkgDir: string, target: Target, star: string | undefined, tracked: ReadonlySet<string>, preferred: ReadonlyArray<string>, mode: Mode) => {
   const all = targetsOf(target).map((t) => ({ ...t, path: posix.normalize(posix.join(pkgDir, star === undefined ? t.path : t.path.replaceAll('*', star))) }));
-  const rank = (t: { conditions: string[] }) => { const i = preferred.findIndex((c) => t.conditions.includes(c)); return i === -1 ? preferred.length : i; };
-  const ordered = preferred.length === 0 ? all : [...all].sort((a, b) => rank(a) - rank(b));
-  for (const t of ordered) if (tracked.has(t.path)) return { file: t.path };
-  for (const t of ordered) { const f = fileFor(t.path, tracked); if (f) return { file: f }; }
-  for (const t of ordered) { const f = sourceGuess(t.path, tracked); if (f) return { file: f, guessed: true }; }
+  const rank = (t: { conditions: ReadonlyArray<string> }) => {
+    if (mode === 'types' && t.conditions.some((c) => TYPES.includes(c))) return -1;
+    const i = preferred.findIndex((c) => t.conditions.includes(c));
+    return i === -1 ? preferred.length : i;
+  };
+  const ordered = [...all].sort((a, b) => rank(a) - rank(b));
+  const runtime = ordered.filter((t) => !t.conditions.some((c) => NOT_IN[mode].includes(c)));
+  const typesOnly = mode === 'types' ? [] : ordered.filter((t) => t.conditions.some((c) => TYPES.includes(c)) && !runtime.includes(t));
+
+  for (const t of runtime) { const f = fileFor(t.path, tracked); if (f) return { file: f }; }
+  for (const t of runtime) { const f = sourceGuess(t.path, tracked); if (f) return { file: f, guessed: true }; }
+  for (const t of typesOnly) {
+    const f = fileFor(t.path, tracked) ?? sourceGuess(t.path, tracked);
+    if (f && !/\.d\.[cm]?ts$/.test(f)) return { file: f, guessed: true };
+  }
   return undefined;
 };
 
-/** The tracked file an `exports` key's target names, as the resolver picks it, or null. */
-export const entryFile = (pkg: Package, target: Target, graph: { readonly files: ReadonlyMap<string, string>; readonly conditions: ReadonlyArray<string> }) =>
-  pickTarget(pkg.dir, target, undefined, new Set(graph.files.keys()), graph.conditions)?.file ?? null;
+/** Whether a target excludes the subpath: `null`, or conditions that are all `null`. */
+const excluded = (target: Target) => target === null || targetsOf(target).length === 0;
 
 export interface Resolver {
-  readonly resolve: (from: string, spec: string) => Resolution;
+  readonly resolve: (from: string, spec: string, mode?: Mode) => Resolution;
+  /** The file a workspace package's entry loads at runtime, or null. */
+  readonly entry: (pkg: string, key: string) => string | null;
 }
 
-/** A resolver over one commit's files, packages and tsconfigs, caching by folder and specifier. */
+/**
+ * A resolver over one commit's tracked paths, manifests and tsconfigs. It builds each package's
+ * `exports` and `imports` maps once and caches by folder, specifier and mode, so commits whose
+ * paths and JSON files match can share it.
+ */
 export const makeResolver = (
   files: ReadonlyMap<string, string>,
   git: Git,
@@ -611,31 +658,61 @@ export const makeResolver = (
   const byName = new Map(packages.map((p) => [p.name, p]));
   const pathsFor = tsconfigs(files, git, packages);
   const cache = new Map<string, Resolution>();
+  const exportMaps = new Map<string, KeyMap>();
+  const importMaps = new Map<string, KeyMap>();
+  const entries = new Map<string, Resolution>();
+  const exportsOf = (pkg: Package) => exportMaps.get(pkg.name) ?? exportMaps.set(pkg.name, keyMap(exportKeys(pkg.manifest))).get(pkg.name)!;
+  const importsOf = (pkg: Package) => importMaps.get(pkg.name) ?? importMaps.set(pkg.name, keyMap(Object.entries(pkg.manifest.imports ?? {}))).get(pkg.name)!;
 
-  const workspaceEntry = (pkg: Package, sub: string): Resolution => {
-    const keys = exportKeys(pkg.manifest);
-    const subpath = sub === '' ? '.' : `./${sub}`;
-    if (keys.size > 0) {
-      const match = matchKey(keys.keys(), subpath);
-      if (!match) return { pkg: pkg.name, entry: subpath, unresolved: 'not-exported', via: 'workspace' };
-      const picked = pickTarget(pkg.dir, keys.get(match.key)!, match.star, tracked, conditions);
-      return picked ? { ...picked, pkg: pkg.name, entry: match.key, via: 'workspace' } : { pkg: pkg.name, entry: match.key, unresolved: 'built-only', via: 'workspace' };
-    }
-    if (sub !== '') {
-      const f = fileFor(posix.join(pkg.dir, sub), tracked) ?? sourceGuess(posix.join(pkg.dir, sub), tracked);
-      return f ? { file: f, pkg: pkg.name, entry: subpath, via: 'workspace', ...(fileFor(posix.join(pkg.dir, sub), tracked) ? {} : { guessed: true }) } : { pkg: pkg.name, entry: subpath, unresolved: 'missing', via: 'workspace' };
-    }
-    const m = pkg.manifest;
-    for (const field of [m.source, m.module, m.main, m.types]) {
-      if (typeof field !== 'string') continue;
-      const picked = pickTarget(pkg.dir, field, undefined, tracked, []);
-      if (picked) return { ...picked, pkg: pkg.name, entry: '.', via: 'workspace' };
-    }
-    const index = fileFor(posix.join(pkg.dir, 'src/index'), tracked) ?? fileFor(posix.join(pkg.dir, 'index'), tracked);
-    return index ? { file: index, pkg: pkg.name, entry: '.', via: 'workspace' } : { pkg: pkg.name, entry: '.', unresolved: 'built-only', via: 'workspace' };
+  /** The pick for `mode`, plus the other runtime format's file when the entry names a different one. */
+  const pickBoth = (pkgDir: string, target: Target, star: string | undefined, mode: Mode) => {
+    const picked = pickTarget(pkgDir, target, star, tracked, conditions, mode);
+    if (!picked || mode === 'types') return picked;
+    const other = pickTarget(pkgDir, target, star, tracked, conditions, mode === 'esm' ? 'cjs' : 'esm');
+    return other && other.file !== picked.file && !other.guessed ? { ...picked, also: [other.file] } : picked;
   };
 
-  const uncached = (fromDir: string, spec: string): Resolution => {
+  const fromFields = (pkg: Package, mode: Mode) => {
+    const m = pkg.manifest;
+    const runtime = mode === 'cjs' ? [m.source, m.main, m.module] : [m.source, m.module, m.main];
+    const fields = mode === 'types' ? [m.types, ...runtime] : runtime;
+    for (const field of fields) if (typeof field === 'string') { const f = pickTarget(pkg.dir, field, undefined, tracked, [], mode); if (f) return f; }
+    if (mode !== 'types' && typeof m.types === 'string') {
+      const f = sourceGuess(posix.join(pkg.dir, m.types), tracked);
+      if (f) return { file: f, guessed: true };
+    }
+    const index = fileFor(posix.join(pkg.dir, 'src/index'), tracked) ?? fileFor(posix.join(pkg.dir, 'index'), tracked);
+    return index ? { file: index } : undefined;
+  };
+
+  const uncachedEntry = (pkg: Package, sub: string, mode: Mode): Resolution => {
+    const map = exportsOf(pkg);
+    const subpath = sub === '' ? '.' : `./${sub}`;
+    const at = { pkg: pkg.name, entry: subpath, via: 'workspace' as const };
+    if (map.exact.size > 0 || map.patterns.length > 0) {
+      const match = matchKey(map, subpath);
+      if (!match || excluded(match.target)) return { ...at, unresolved: 'not-exported' };
+      const picked = pickBoth(pkg.dir, match.target, match.star, mode);
+      const pattern = match.star === undefined ? {} : { pattern: match.key };
+      return picked ? { ...picked, ...at, ...pattern } : { ...at, ...pattern, unresolved: 'built-only' };
+    }
+    if (sub !== '') {
+      const own = fileFor(posix.join(pkg.dir, sub), tracked);
+      const f = own ?? sourceGuess(posix.join(pkg.dir, sub), tracked);
+      return f ? { file: f, ...at, ...(own ? {} : { guessed: true }) } : { ...at, unresolved: 'missing' };
+    }
+    const picked = fromFields(pkg, mode);
+    return picked ? { ...picked, ...at } : { ...at, unresolved: 'built-only' };
+  };
+
+  const workspaceEntry = (pkg: Package, sub: string, mode: Mode) => {
+    const key = `${pkg.name}\0${sub}\0${mode}`;
+    let found = entries.get(key);
+    if (!found) { found = uncachedEntry(pkg, sub, mode); entries.set(key, found); }
+    return found;
+  };
+
+  const uncached = (fromDir: string, spec: string, mode: Mode): Resolution => {
     if (spec.startsWith('.') || spec.startsWith('/')) {
       const base = spec.startsWith('/') ? ownerOf(`${fromDir}/x`, packages).dir + spec.slice(1) : posix.join(fromDir, spec);
       const path = posix.normalize(base.split('?')[0]!);
@@ -643,19 +720,17 @@ export const makeResolver = (
       return file ? { file, via: 'relative' } : { unresolved: 'missing', via: 'relative' };
     }
     if (spec.startsWith('#')) {
+      // A `#` specifier is the importing package's own: with no `imports` match it names nothing.
       const pkg = ownerOf(`${fromDir}/x`, packages);
-      const map = pkg.manifest.imports ?? {};
-      const match = matchKey(Object.keys(map), spec);
-      if (match) {
-        const target = map[match.key]!;
-        const local = targetsOf(target).some((t) => t.path.startsWith('.'));
-        if (local) {
-          const picked = pickTarget(pkg.dir, target, match.star, tracked, conditions);
-          return picked ? { ...picked, via: 'imports' } : { unresolved: 'missing', via: 'imports' };
-        }
-        const bare = targetsOf(target)[0]?.path;
-        if (bare) return uncached(fromDir, bare);
+      const match = matchKey(importsOf(pkg), spec);
+      if (!match || excluded(match.target)) return { unresolved: 'missing', via: 'imports' };
+      const local = targetsOf(match.target).some((t) => t.path.startsWith('.'));
+      if (local) {
+        const picked = pickBoth(pkg.dir, match.target, match.star, mode);
+        return picked ? { ...picked, via: 'imports' } : { unresolved: 'missing', via: 'imports' };
       }
+      const bare = targetsOf(match.target)[0]!.path;
+      return uncached(fromDir, match.star === undefined ? bare : bare.replaceAll('*', match.star), mode);
     }
     const config = pathsFor(fromDir);
     if (config) {
@@ -681,7 +756,7 @@ export const makeResolver = (
     }
     const { name, sub } = splitName(spec);
     const pkg = byName.get(name);
-    if (pkg) return workspaceEntry(pkg, sub);
+    if (pkg) return workspaceEntry(pkg, sub, mode);
     if (spec.startsWith('node:') || BUILTINS.has(name)) return { external: 'builtin' };
     if (config?.baseUrl !== undefined) {
       const file = fileFor(posix.join(config.baseUrl, spec), tracked);
@@ -691,14 +766,25 @@ export const makeResolver = (
   };
 
   return {
-    resolve: (from, spec) => {
+    resolve: (from, spec, mode = 'esm') => {
       const dir = posix.dirname(from) === '.' ? '' : posix.dirname(from);
-      const key = `${dir}\0${spec}`;
+      const key = `${dir}\0${spec}\0${mode}`;
       let found = cache.get(key);
-      if (!found) { found = uncached(dir, spec); cache.set(key, found); }
+      if (!found) { found = uncached(dir, spec, mode); cache.set(key, found); }
       return found;
     },
+    entry: (name, key) => {
+      const pkg = byName.get(name);
+      return pkg ? workspaceEntry(pkg, key === '.' ? '' : key.replace(/^\.\//, ''), 'esm').file ?? null : null;
+    },
   };
+};
+
+/** What a resolver reads from a commit: its tracked paths, every JSON file's blob, and the conditions. */
+export const resolverKey = (files: ReadonlyMap<string, string>, conditions: ReadonlyArray<string>) => {
+  const hash = createHash('sha1').update(conditions.join(',')).update('\0');
+  for (const [path, id] of files) hash.update(path.endsWith('.json') || path.endsWith('.yaml') ? `${path}\0${id}\n` : `${path}\n`);
+  return hash.digest('hex');
 };
 
 // ---- The graph ----------------------------------------------------------------------------------
@@ -709,6 +795,8 @@ export interface Edge {
   readonly kind: Kind;
   readonly pkg?: string;
   readonly entry?: string;
+  /** The `exports` pattern key `entry` matched. */
+  readonly pattern?: string;
 }
 
 /** One commit's workspace: packages, modules, edges and what didn't resolve. */
@@ -726,6 +814,8 @@ export interface FileGraph {
   /** Each file's runtime imports. */
   readonly imports: ReadonlyMap<string, ReadonlyArray<string>>;
   readonly owner: (path: string) => Package;
+  /** The file a workspace package's entry loads at runtime, or null. */
+  readonly entry: (pkg: string, key: string) => string | null;
   /** The `exports` conditions preferred, in order; empty for document order. */
   readonly conditions: ReadonlyArray<string>;
   readonly isTest: (path: string) => boolean;
@@ -740,17 +830,26 @@ export interface ReadOptions {
 
 export const DEFAULT_TESTS = /(?:\.|_|-)(?:test|spec)\.[cm]?[jt]sx?$|(?:^|\/)__tests__\//;
 
-/** The workspace at `rev`, with modules parsed through `parsed`, a cache by blob id that callers share across commits. */
+/**
+ * The workspace at `rev`. Callers replaying commits share `parsed`, modules by blob id, and
+ * `resolvers`, by `resolverKey`, so a commit that adds or removes no path and edits no JSON
+ * reuses its parent's resolutions.
+ */
 export const readGraph = (
   git: Git,
   rev: string,
   options: ReadOptions,
   parsed: Map<string, Parsed> = new Map(),
   files: ReadonlyMap<string, string> = treeAt(git, rev),
+  resolvers: Map<string, Resolver> = new Map(),
 ): FileGraph => {
   const { kind, packages } = readWorkspace(files, git);
   const owner = (path: string) => ownerOf(path, packages);
-  const resolver = makeResolver(files, git, packages, options.conditions);
+  const key = resolverKey(files, options.conditions);
+  const resolver = resolvers.get(key) ?? makeResolver(files, git, packages, options.conditions);
+  resolvers.delete(key);
+  resolvers.set(key, resolver);
+  while (resolvers.size > 2) resolvers.delete(resolvers.keys().next().value!);
   const modulePaths = [...files.keys()].filter((p) => MODULE.test(p) && !p.includes('node_modules/'));
   const fresh = modulePaths.map((p) => files.get(p)!).filter((id) => !parsed.has(id));
   if (fresh.length > 0) for (const [id, text] of git.blobs(fresh)) parsed.set(id, parseModule(text));
@@ -791,7 +890,7 @@ export const readGraph = (
         for (const to of hits) edges.push({ from: path, to, kind });
         continue;
       }
-      const found = resolver.resolve(path, spec);
+      const found = resolver.resolve(path, spec, modeOf(kind));
       if (found.external === 'builtin') { specifiers.builtin++; continue; }
       if (found.external === 'package') { specifiers.external++; continue; }
       if (found.unresolved) { miss(found.unresolved, `${path}: ${spec}`); continue; }
@@ -804,7 +903,8 @@ export const readGraph = (
         const declared = [...from.deps.values()].some((set) => set.has(to.name));
         if (!declared && from.dir !== '') specifiers.undeclared++;
       } else if (to.name !== from.name) specifiers.crossRelative++;
-      edges.push({ from: path, to: found.file, kind, ...(found.pkg !== undefined ? { pkg: found.pkg, entry: found.entry! } : {}) });
+      const through = found.pkg !== undefined ? { pkg: found.pkg, entry: found.entry!, ...(found.pattern ? { pattern: found.pattern } : {}) } : {};
+      for (const to of [found.file, ...(found.also ?? [])]) edges.push({ from: path, to, kind, ...through });
     }
   }
 
@@ -816,5 +916,5 @@ export const readGraph = (
     (imports.get(e.from) ?? imports.set(e.from, []).get(e.from)!).push(e.to);
   }
 
-  return { rev, kind, packages, files, modules, edges, importers, imports, owner, conditions: options.conditions, isTest: (p) => options.tests.test(p), specifiers, unresolved };
+  return { rev, kind, packages, files, modules, edges, importers, imports, owner, entry: resolver.entry, conditions: options.conditions, isTest: (p) => options.tests.test(p), specifiers, unresolved };
 };

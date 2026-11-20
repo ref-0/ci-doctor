@@ -12,7 +12,8 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { headline, readable, report } from '../graph.ts';
-import { DEFAULT_TESTS, globList, parseModule, pnpmGlobs } from '../read.ts';
+import { DEFAULT_TESTS, globList, openGit, parseModule, pnpmGlobs, readGraph } from '../read.ts';
+import { entriesOf } from '../shape.ts';
 import { scriptCalls } from '../tasks.ts';
 
 const fixtures = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -124,6 +125,79 @@ describe('globs', () => {
     deepStrictEqual(r.exports.nodes.length, 0);
     const reach = r.exports.flags.filter((f) => f.kind === 'wide-file').map((f) => `${f.subject} ${f.numbers.files}`).sort();
     deepStrictEqual(reach, ['src/generated.ts 1', 'src/home.ts 2', 'src/pages.ts 1']);
+  });
+});
+
+/** A pnpm workspace of `lib` and `app`, `app` depending on `lib`, with the given files over it. */
+const workspace = (files: Readonly<Record<string, string>>) => ({
+  'package.json': '{ "name": "root", "private": true }',
+  'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+  'packages/app/package.json': '{ "name": "app", "dependencies": { "lib": "workspace:*" } }',
+  ...files,
+});
+const graphOf = (files: Readonly<Record<string, string>>, conditions: ReadonlyArray<string> = []) =>
+  readGraph(openGit(repoOf(workspace(files))), 'main', { tests: DEFAULT_TESTS, conditions });
+const edgesOf = (graph: ReturnType<typeof graphOf>) => graph.edges.map((e) => `${e.from} ${e.kind} ${e.to}`).sort();
+const lib = (exports: unknown) => ({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', exports }) });
+
+describe('resolution', () => {
+  it('resolves runtime imports through runtime conditions, `types` only for `import type`, and both formats', () => {
+    const g = graphOf({
+      ...lib({ '.': { types: './src/types.d.ts', import: './src/index.mjs', require: './src/index.cjs' } }),
+      'packages/lib/src/types.d.ts': 'export declare const x: number;\n',
+      'packages/lib/src/index.mjs': 'export const x = 1;\n',
+      'packages/lib/src/index.cjs': 'exports.x = 1;\n',
+      'packages/app/a.ts': "import { x } from 'lib';\n",
+      'packages/app/b.cjs': "const { x } = require('lib');\n",
+      'packages/app/c.ts': "import type { x } from 'lib';\n",
+    });
+    deepStrictEqual(edgesOf(g), [
+      'packages/app/a.ts static packages/lib/src/index.cjs', 'packages/app/a.ts static packages/lib/src/index.mjs',
+      'packages/app/b.cjs require packages/lib/src/index.cjs', 'packages/app/b.cjs require packages/lib/src/index.mjs',
+      'packages/app/c.ts type packages/lib/src/types.d.ts',
+    ]);
+    strictEqual(entriesOf(g).get('lib#.')!.file, 'packages/lib/src/index.mjs');
+  });
+
+  it('matches `exports` patterns in Node\'s order, and a `null` target excludes', () => {
+    const g = graphOf({
+      ...lib({ './*': './src/*.js', './*.private': null, './internal/*': null }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/lib/src/x.private.ts': 'export const p = 1;\n',
+      'packages/lib/src/internal/y.ts': 'export const y = 1;\n',
+      'packages/app/a.ts': "import 'lib/x';\nimport 'lib/x.private';\nimport 'lib/internal/y';\n",
+    });
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts']);
+    strictEqual(g.unresolved.get('not-exported')?.count, 2);
+  });
+
+  it('maps the preferred condition\'s target by extension before a later condition', () => {
+    const g = graphOf({
+      ...lib({ '.': { source: './src/x.js', default: './dist/x.js' } }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/lib/dist/x.js': 'export const x = 1;\n',
+      'packages/app/a.ts': "import 'lib';\n",
+    }, ['source']);
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts']);
+  });
+
+  it('counts a `#` specifier with no `imports` match as unresolved, not a package', () => {
+    const g = graphOf({ ...lib({ '.': './src/x.ts' }), 'packages/lib/src/x.ts': "import '#missing';\n" });
+    strictEqual(g.specifiers.external, 0);
+    deepStrictEqual(g.unresolved.get('missing')?.examples, ['packages/lib/src/x.ts: #missing']);
+  });
+
+  it('reads 8,000 exports with an import each in a few seconds, and again for a replayed edit', () => {
+    const n = 8000;
+    const files: Record<string, string> = { ...lib(Object.fromEntries(Array.from({ length: n }, (_, i) => [`./m${i}`, `./src/m${i}.ts`]))) };
+    for (let i = 0; i < n; i++) files[`packages/lib/src/m${i}.ts`] = `export const m${i} = ${i};\n`;
+    files['packages/app/a.ts'] = Array.from({ length: n }, (_, i) => `import 'lib/m${i}';\n`).join('');
+    const started = performance.now();
+    const r = report(repoOf(workspace(files), [{ 'packages/lib/src/m1.ts': 'export const m1 = 11;\n' }]), { ...options, commits: 2 });
+    const seconds = (performance.now() - started) / 1000;
+    strictEqual(r.denominators.entries, n);
+    strictEqual(r.replay!.perCommit[0]!.reached.entries, 1);
+    ok(seconds < 8, `took ${seconds.toFixed(1)} seconds`);
   });
 });
 
