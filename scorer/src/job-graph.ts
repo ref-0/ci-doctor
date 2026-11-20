@@ -267,14 +267,50 @@ export interface Graph {
 const MAX_NESTING = 10;
 const EXPR = /\$\{\{[\s\S]*?\}\}/g;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** A name as a pattern: expressions match anything, and a matrix job without one gets GitHub's ` (values)` suffix. */
-const namePattern = (label: string, matrix: boolean) => {
-  const parts = label.split(EXPR).map(escape);
-  const body = parts.join('.*?');
-  return { source: matrix && !EXPR.test(label) ? `${body}(?: \\(.*\\))?` : body, fixed: parts.join('').length };
-};
 const asList = (x: Yaml | undefined): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : typeof x === 'string' ? [x] : []);
 const isMap = (x: Yaml | undefined): x is Record<string, Yaml> => !!x && typeof x === 'object' && !Array.isArray(x);
+const plainValue = (x: Yaml | undefined): x is string => typeof x === 'string' && !x.includes('${{');
+
+/**
+ * The values each `matrix.<key>` can take, such as `os` or `config.os` for a list of objects, from the lists and
+ * `include`. A key set by an expression, such as `fromJSON(...)`, is undefined: its values can't be known here.
+ */
+export const matrixValues = (matrix: Yaml | undefined) => {
+  const values = new Map<string, Set<string> | undefined>();
+  const put = (key: string, v: Yaml | undefined) => {
+    if (values.has(key) && values.get(key) === undefined) return;
+    if (plainValue(v)) values.set(key, (values.get(key) ?? new Set()).add(v));
+    else if (isMap(v)) for (const [k, x] of Object.entries(v)) put(`${key}.${k}`, x);
+    else values.set(key, undefined);
+  };
+  if (!isMap(matrix)) return { values, known: false };
+  for (const [key, list] of Object.entries(matrix)) {
+    if (key === 'exclude') continue;
+    if (key === 'include') {
+      if (!Array.isArray(list)) return { values, known: false };
+      for (const entry of list) if (isMap(entry)) for (const [k, v] of Object.entries(entry)) put(k, v);
+      continue;
+    }
+    if (Array.isArray(list)) for (const v of list) put(key, v);
+    else values.set(key, undefined);
+  }
+  return { values, known: true };
+};
+
+const MATRIX_REF = /^\$\{\{\s*matrix\.([\w.-]+)\s*\}\}$/;
+/**
+ * A name as a pattern. `${{ matrix.os }}` matches only the values the matrix gives `os`, when they're known; any other
+ * expression matches anything. A matrix job whose name holds no expression gets GitHub's ` (values)` suffix.
+ */
+const namePattern = (label: string, matrix: boolean, values = new Map<string, Set<string> | undefined>()) => {
+  const parts = label.split(EXPR).map(escape);
+  const slots = (label.match(EXPR) ?? []).map((e) => {
+    const vs = values.get(e.match(MATRIX_REF)?.[1] ?? '');
+    return vs?.size ? `(?:${[...vs].sort((a, b) => b.length - a.length).map(escape).join('|')})` : '.*?';
+  });
+  const body = parts.map((p, i) => p + (slots[i] ?? '')).join('');
+  return { source: matrix && !slots.length ? `${body}(?: \\(.*\\))?` : body, fixed: parts.join('').length };
+};
 
 /** One workflow file's jobs and their `needs`, with local reusable workflows read through `read` and expanded. */
 export const workflowGraph = (path: string, text: string, read: (path: string) => string | undefined): Graph => {
@@ -293,7 +329,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
       const strategy = isMap(def.strategy) ? def.strategy : undefined;
       const matrix = !!strategy && strategy.matrix !== undefined && strategy.matrix !== null;
       const label = typeof def.name === 'string' && def.name ? def.name : id;
-      const own = namePattern(label, matrix);
+      const own = namePattern(label, matrix, matrixValues(strategy?.matrix).values);
       const key = prefix ? `${prefix.key}/${id}` : id;
       const needs = asList(def.needs).map((n) => (prefix ? `${prefix.key}/${n}` : n));
       const source = prefix ? `${prefix.source} / ${own.source}` : own.source;
@@ -411,11 +447,18 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
   if (!ran.length) return undefined;
   const nodes = new Map((graph?.jobs ?? []).map((j) => [j.key, j]));
 
-  // Each job to the most specific graph job whose name pattern takes it.
-  // A caller of a workflow read here matches only its own name, which GitHub shows when it's skipped.
-  const candidates = [...nodes.values()].sort((a, b) => b.fixed - a.fixed);
+  // Each job to the most specific graph job whose name pattern takes it. Two equally specific ones leave it
+  // unmatched rather than guessed. A caller of a workflow read here matches only its own name, shown when it's skipped.
+  const candidates = [...nodes.values()];
   const keyOf = new Map<number, string | undefined>();
-  for (const j of all) keyOf.set(j.id, candidates.find((n) => n.pattern.test(j.name))?.key);
+  const ambiguous: string[] = [];
+  for (const j of all) {
+    const hits = candidates.filter((n) => n.pattern.test(j.name));
+    const best = Math.max(...hits.map((n) => n.fixed));
+    const top = hits.filter((n) => n.fixed === best);
+    if (top.length > 1) ambiguous.push(j.name);
+    keyOf.set(j.id, top.length === 1 ? top[0]!.key : undefined);
+  }
   const instances = new Map<string, ApiJob[]>();
   for (const j of ran) {
     const k = keyOf.get(j.id);
@@ -563,6 +606,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
     lateStarts,
     waitSteps,
     unmatched: ran.filter((j) => graph && !keyOf.get(j.id)).map((j) => j.name),
+    ambiguous,
     skipped: [...nodes.values()].filter((n) => !n.virtual && !instances.get(n.key)?.length).map((n) => n.label),
   };
 };
@@ -682,6 +726,7 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
       waitSteps: tally(runs.flatMap((r) => r.waitSteps.map((w) => `${w.job}: ${w.step}`))).slice(0, 3).map(([step, n]) => ({ step, runs: n })),
     },
     unmatched: tally(runs.flatMap((r) => r.unmatched)).slice(0, 5).map(([name]) => name),
+    ambiguous: tally(runs.flatMap((r) => r.ambiguous)).slice(0, 5).map(([name]) => name),
     skippedP50: Math.round(median(runs.map((r) => r.skipped.length))),
     unknown: [...new Set(paths.flatMap((p) => graphFor(p)?.unknown ?? [failures.get(p) ?? `${p} couldn't be found, so its jobs are taken as waiting on nothing`]))],
     // Each run's jobs to scale, for a replay: minutes from the run's start.
@@ -744,6 +789,7 @@ export const graphBlock = (g: JobGraph) => {
       : `  Waits not in YAML   none seen: GitHub queued every job as soon as its needs finished`,
     ...(g.hidden.waitSteps.length ? [`  Waiting steps       ${g.hidden.waitSteps.map((w) => `${w.step} (${runs(w.runs)})`).join(', ')}`] : []),
     ...(g.unmatched.length ? [`  Not in the YAML     ${g.unmatched.map((n) => `"${n}"`).join(', ')}: taken as waiting on nothing`] : []),
+    ...(g.ambiguous.length ? [`  Ambiguous names     ${g.ambiguous.map((n) => `"${n}"`).join(', ')}: two jobs in the YAML could be each, so neither is assumed`] : []),
     ...g.unknown.map((u) => `  Unknown because: ${u}.`),
     `  Other workflows, \`workflow_run\` triggers and polling actions can hold a job up without \`needs\`; the YAML of one workflow doesn't show them.`,
   ];
