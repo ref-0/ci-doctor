@@ -133,6 +133,6 @@ Never edit source or tests while a test runner is running in the checkout. This 
 3. Run the repo's format, lint and type check, as its commands block says, then `git diff --check`.
 4. Leave the full check, and what the commands block keeps off your
    machine, to the PR's CI run, as its `.agents/repo/ci.md` says
-   (template: [`repo-facts/ci.md`](../ci-doctor/references/agent-knowledge/repo-facts/ci.md)).
+   (template: [`repo-facts/ci.md`](../agent-knowledge/templates/repo-facts/ci.md)).
 5. Inspect `git diff --numstat`; report production/tooling separately from
    tests and test support.

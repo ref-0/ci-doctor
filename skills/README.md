@@ -1,7 +1,7 @@
 <!--
-What: the plugin's six agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for a workspace's graphs, review, merging, test value and proof tiers, and how to keep them fresh.
+What: the plugin's seven agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for a workspace's graphs, agents' knowledge, review, merging, test value and proof tiers, and how to keep them fresh.
 Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
-Configure: write your repo's facts files from the hub's references/agent-knowledge/, and fill the placeholders below.
+Configure: write your repo's facts files from the agent-knowledge skill's templates/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
@@ -15,12 +15,13 @@ Each topic has one home; the others link to it.
 
 | Skill | Owns | Applies when |
 | --- | --- | --- |
-| [`ci-doctor`](ci-doctor/SKILL.md) | The rules, `progress.md` and the plan's [phases](ci-doctor/references/phases/), and the CI topics below, CI-result [triage](ci-doctor/references/triage/TOPIC.md), the one-rule [checks](ci-doctor/references/checks/README.md) and the [agent-knowledge templates](ci-doctor/references/agent-knowledge/README.md). | Always |
+| [`ci-doctor`](ci-doctor/SKILL.md) | The rules, `progress.md` and the plan's [phases](ci-doctor/references/phases/), and the CI topics below, CI-result [triage](ci-doctor/references/triage/TOPIC.md), and the one-rule [checks](ci-doctor/references/checks/README.md). | Always |
 | [`review-gate`](review-gate/SKILL.md) | The review gate in CI, for a repo that adopts it: what the gate requires before a draft's one CI run, the tests reviewer, and the review record (`scripts/review-record.ts`) CI's result job checks for format and reviewer types. Who reviews and how is the repo's own; [guide section 15](../docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review) has ours. | The repo adopted the gate (`.agents/repo/review.md`); otherwise the repo's own review process |
 | [`ci-merge-workflow`](ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run: marking ready, runs by hand, merging, releases, then main and the deploy. | Adopted (`.agents/repo/ci.md`); otherwise the repo's own merge path |
 | [`test-audit`](test-audit/SKILL.md) | A test's value, weak or duplicate coverage and test-only seams. From openclaw, under its MIT licence: see [`test-audit/UPSTREAM.md`](test-audit/UPSTREAM.md). | Any repo |
 | [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). | Any repo with them |
 | [`optimize-graphs`](optimize-graphs/SKILL.md) | The five graphs that set how far an edit reaches and how long CI waits: package dependencies, export paths, layers inside packages, workspace tasks and CI jobs. How to measure them, what to propose and in what order, and how to adopt the checks. The hub's Phase 1 maps them with it. | Any repo with several packages or jobs |
+| [`agent-knowledge`](agent-knowledge/SKILL.md) | Where agents' knowledge lives and how it stays true: the top-level instruction file, skills, checks, facts files and the register of what was tried; dated lessons, generalizing instead of appending, drift sweeps and size budgets; and the [templates](agent-knowledge/templates/README.md) for a repo's facts, `progress.md` and a campaign's files. The hub's Phase 6 uses it. | Any repo agents work in |
 
 The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL.md`, since Codex registers a `SKILL.md` at any depth as a skill of its own:
 
@@ -47,13 +48,13 @@ What moves, and what stays:
 - **The hub keeps links only:** its topic map's row, the phases that used the topic, and its "Not here", each pointing to the skill by name and path. Nothing is copied back.
 - **The description is in the asker's words,** not CI's, under 320 characters, and names the skill's neighbours where two could claim one task.
 - **It stands alone.** The skill names its release in `metadata.version`, says how to run its tools from a skills-only install, and has its own "Outside this skill" section, as the hub's ["Outside the skills"](ci-doctor/SKILL.md#outside-the-skills) does.
-- **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](ci-doctor/references/agent-knowledge/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
+- **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
 
 The build checks (`scripts/check.ts`) copy each skill's folder alone, as `npx skills add` with one skill chosen installs it, and fail on a link inside it that doesn't resolve in the copy, or a link out of it that the guide site doesn't serve at `https://ci-doctor.ref0.dev/guide/<path>`. A new skill gets that check by being a folder here.
 
 [`tools/upstream-sync/`](../tools/upstream-sync/README.md) isn't a skill: it's an opt-in weekly check that the skills you copied from upstream changed there, filed as one issue. [`docs/harnesses.md`](../docs/harnesses.md) says how to run agents in parallel and on a schedule in each harness.
 
-The skills hold no repo's values: they read them from `.agents/repo/*.md`, written from [the templates](ci-doctor/references/agent-knowledge/README.md).
+The skills hold no repo's values: they read them from `.agents/repo/*.md`, written from [the templates](agent-knowledge/templates/README.md).
 
 ## Install
 
@@ -63,19 +64,17 @@ The plan the user approves says which skills the repo **adopts**, and the repo's
 
 The map's **Applies when** says when each one applies. In the hub, the `blacksmith` topic applies only when the repo runs on Blacksmith, or the user approved a move there.
 
-1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](ci-doctor/references/agent-knowledge/README.md). Add the [`AGENTS.md` snippet](ci-doctor/references/agent-knowledge/AGENTS-snippet.md) to the instruction file your harness loads.
-2. **Configure the scripts the adopted skills use:** `.agents/repo/ci-time.json`, from [its template](ci-doctor/references/agent-knowledge/repo-facts/ci-time.json), or `ci-time.ts`'s flags (`node <skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `review-gate`, `.agents/repo/review-record.json`, from [its template](ci-doctor/references/agent-knowledge/repo-facts/review-record.json), with `review-record.ts` wired into the gate as [the record](review-gate/references/record.md) says.
+1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](agent-knowledge/templates/README.md). Add the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) to the instruction file your harness loads.
+2. **Configure the scripts the adopted skills use:** `.agents/repo/ci-time.json`, from [its template](agent-knowledge/templates/repo-facts/ci-time.json), or `ci-time.ts`'s flags (`node <skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `review-gate`, `.agents/repo/review-record.json`, from [its template](agent-knowledge/templates/repo-facts/review-record.json), with `review-record.ts` wired into the gate as [the record](review-gate/references/record.md) says.
 3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-doctor/references/ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `ci-doctor/references/blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `review-gate/scripts/` with `review-gate`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
 
 ## Keeping them fresh
 
-[guide section 17](../docs/pages/17-keeping-agent-knowledge-from-going-stale.md) has the method. In short:
+The [`agent-knowledge`](agent-knowledge/SKILL.md) skill has the method: code wins, dated lessons, one register of what was tried, generalize don't append, a drift sweep every two weeks, size budgets and pinned upstream skills. For these skills in particular:
 
-- **Code wins.** When a skill and the code disagree, fix the skill in the same change. Scripts do the mechanics, so the words don't have to.
-- **Date each lesson,** and keep what was tried and dropped in the repo's one register, which `.agents/repo/ci.md` names (template: [read what was tried](ci-doctor/references/checks/ci-read-what-was-tried.md)), so no agent tries it again.
-- **Generalize, don't append.** A new lesson replaces the rule it refines. Keep every description under 320 characters, upstream copies' too, and each of your own `SKILL.md` under 10 KB; move detail to `references/`. The [docs budget](../scripts/docs/README.md) checks both: point its `layout.skillPath` at the installed skills and run it in CI.
-- **Sweep for drift** every two weeks: reviewers list `path:line | duplicate, conflict or stale | evidence | change`, and one change fixes them.
-- **Pin what comes from upstream.** `test-audit` records its source commit and stays out of any skills lock. [Upstream sync](../tools/upstream-sync/README.md) diffs upstream weekly and files what changed as one issue; a person applies it, and nothing merges automatically.
+- **The budget:** every description under 320 characters, upstream copies' too, and each of your own `SKILL.md` under 10 KB. Point the [docs budget](../scripts/docs/README.md)'s `layout.skillPath` at the installed skills and run it in CI.
+- **The register** is the one `.agents/repo/ci.md` names (template: [read what was tried](ci-doctor/references/checks/ci-read-what-was-tried.md)).
+- **Upstream:** `test-audit` records its source commit and stays out of any skills lock. [Upstream sync](../tools/upstream-sync/README.md) diffs upstream weekly and files what changed as one issue; a person applies it, and nothing merges automatically.
 
 ## Placeholders
 

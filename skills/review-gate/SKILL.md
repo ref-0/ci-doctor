@@ -6,13 +6,13 @@ description: "The review gate in CI, for a repo that adopted it (.agents/repo/re
 <!--
 What: the review gate in CI: a PR reviewed while it's a draft, what the gate requires, the tests reviewer, and the record CI's result job checks.
 Where: read by the agent that runs a PR's review, before it marks the PR ready.
-Configure: your repo's `.agents/repo/review.md` (template: the ci-doctor hub's references/agent-knowledge/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
+Configure: your repo's `.agents/repo/review.md` (template: the agent-knowledge skill's templates/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # The review gate before the one CI run
 
-A PR is reviewed while it's a draft, so its one CI run tests reviewed code, and CI's result job fails a ready PR without a valid review record. This skill is that gate: what it requires, the tests reviewer, the record and the reviewed head. **Use it only if the repo adopted the gate,** with `.agents/repo/review.md` (template: [`repo-facts/review.md`](../ci-doctor/references/agent-knowledge/repo-facts/review.md)). Otherwise the repo's own review process applies, and nothing here does.
+A PR is reviewed while it's a draft, so its one CI run tests reviewed code, and CI's result job fails a ready PR without a valid review record. This skill is that gate: what it requires, the tests reviewer, the record and the reviewed head. **Use it only if the repo adopted the gate,** with `.agents/repo/review.md` (template: [`repo-facts/review.md`](../agent-knowledge/templates/repo-facts/review.md)). Otherwise the repo's own review process applies, and nothing here does.
 
 Who reviews, with which reviewer types and in how many rounds is the repo's own choice, written in review.md and the checker's settings, and it wins on policy. [Guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review) describes the review we ran: reviewers by what a change reaches, up to three rounds, and how each finding is checked. [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if the repo adopted it, takes the PR from here to merged; otherwise the repo's own merge path does.
 

@@ -59,3 +59,4 @@ pnpm run build                            # every package's build
 - Packages: `optimize-graphs` before adding a package, an edge between packages, an entry point or a barrel file, or moving a package's folders, and when an edit reruns or rebuilds far more than it touches.
 - Tests: `ci-doctor` for a slow test or a flake, `test-audit` for a test's value, `proof-tiers` for models and property tests.
 - Evidence: `ci-doctor`'s `verify-evidence` topic before you call work done or quote a number.
+- Agent docs: `agent-knowledge` before you add to this file, a skill or `.agents/repo/`, and when a doc and the code disagree.

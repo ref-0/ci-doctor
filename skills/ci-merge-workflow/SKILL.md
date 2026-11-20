@@ -6,13 +6,13 @@ description: "Take a PR from draft to merged by the repo's merge path: dispatch 
 <!--
 What: the CI side of a pull request's life: draft, review, one CI run, merge, and the checks after.
 Where: read by a coding agent that opens, reviews or merges a pull request, or runs CI by hand.
-Configure: your repo's facts file, `.agents/repo/ci.md`, from the ci-doctor hub's references/agent-knowledge/repo-facts/ci.md.
+Configure: your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # From draft to merged on one CI run
 
-Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../ci-doctor/references/agent-knowledge/repo-facts/ci.md)). Its Entry points and gate names the workflow and its gate job, its Selection and tiers says what a run checks and what waits, and its Merge, releases and deploy says the merge rules. `<org>/<repo>` below is your repo's slug. The `ci-doctor` hub owns reading a run's result ([triage](../ci-doctor/references/triage/TOPIC.md)) and changes to the workflow ([ci-workflows](../ci-doctor/references/ci-workflows/TOPIC.md)), and [`review-gate`](../review-gate/SKILL.md), if the repo adopted it, the review before the run; this skill owns the gate, the merge and the checks after it. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) explains why a PR runs CI once.
+Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../agent-knowledge/templates/repo-facts/ci.md)). Its Entry points and gate names the workflow and its gate job, its Selection and tiers says what a run checks and what waits, and its Merge, releases and deploy says the merge rules. `<org>/<repo>` below is your repo's slug. The `ci-doctor` hub owns reading a run's result ([triage](../ci-doctor/references/triage/TOPIC.md)) and changes to the workflow ([ci-workflows](../ci-doctor/references/ci-workflows/TOPIC.md)), and [`review-gate`](../review-gate/SKILL.md), if the repo adopted it, the review before the run; this skill owns the gate, the merge and the checks after it. [guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md) explains why a PR runs CI once.
 
 **Use the repo's existing merge path.** ci.md's Merge, releases and deploy records its base branches, required checks, merge method, approvals and merge queue. The draft-then-one-run flow below is the source repo's. Where the repo runs CI on every push, keep that until the user approves a change, evaluated on its own with the work it avoids measured. Push, mark ready, rerun, dispatch and merge only as the plan authorized; stop at the first action outside it.
 

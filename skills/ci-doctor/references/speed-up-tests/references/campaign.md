@@ -1,7 +1,7 @@
 <!--
 What: how to review and speed up many slow files at once, with read-only readers and engineers in parallel.
 Where: read by the agent that coordinates a slow-test campaign.
-Configure: the ledger, report and brief templates in the hub's references/agent-knowledge/.
+Configure: the ledger, report and brief templates in the agent-knowledge skill's templates/.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
@@ -11,7 +11,7 @@ Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it when you review or sp
 
 Before planning a campaign, read the repo's tried-and-dropped register, as [read what was tried](../../checks/ci-read-what-was-tried.md) says: don't plan what was dropped unless its limiting condition has changed.
 
-Templates: [ledger](../../agent-knowledge/ledger.md), [report](../../agent-knowledge/report.md), [brief](../../agent-knowledge/brief.md) and [the shared rules every brief carries](../../agent-knowledge/briefs-README.md).
+Templates: [ledger](../../../../agent-knowledge/templates/ledger.md), [report](../../../../agent-knowledge/templates/report.md), [brief](../../../../agent-knowledge/templates/brief.md) and [the shared rules every brief carries](../../../../agent-knowledge/templates/briefs-README.md).
 
 ## Reviewing every slow file
 

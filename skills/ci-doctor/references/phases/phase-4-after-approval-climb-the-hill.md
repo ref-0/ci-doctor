@@ -2,7 +2,7 @@
 
 # Phase 4: after approval, climb the hill
 
-**Keep `progress.md` current** after each item, where the authorization record says it lives. If you can't write there, as under a sandbox that keeps `.agents/` read-only, ask the user for write access to that folder, and until then put the progress in your answer, in [the template's](../agent-knowledge/progress.md) fields. Never in a temporary folder, which the next session won't find.
+**Keep `progress.md` current** after each item, where the authorization record says it lives. If you can't write there, as under a sandbox that keeps `.agents/` read-only, ask the user for write access to that folder, and until then put the progress in your answer, in [the template's](../../../agent-knowledge/templates/progress.md) fields. Never in a temporary folder, which the next session won't find.
 
 **First, the approved setup.** Do the setup the plan lists, in order, within the authorization record. The user signs in; you check with status commands. Where the plan needs them, the user grants or confirms:
 
