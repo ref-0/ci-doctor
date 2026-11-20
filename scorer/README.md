@@ -23,11 +23,12 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - pull-request and default-branch Actions runs from the last 7 days (`--days`), and the jobs of a few of them;
 - the logs of up to 3 jobs, for test-file timings;
 - the default branch's file tree, its workflow files and its `package.json`, `nx.json` and `.github/dependabot.yml`;
+- for the stack, each package's manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or `Gemfile`), up to 500, and the root's task files, such as a `Makefile` or `justfile`, 100 files to a GraphQL query;
 - merged and opened PRs from the last 7 days, through GitHub's search.
 
 Every call names `github.com`, whatever `GH_HOST` says, and turns `gh`'s own telemetry off (`GH_TELEMETRY=false`). Any `gh` version with `gh api` works.
 
-This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 78 calls. Each workflow file is one more call, up to 40. The job graph, which job waits on which and what sets the wait, comes from those workflow files and the sampled runs' jobs, so it adds none unless the repo has more than 40 workflow files: then the sampled workflow's own file, and each local reusable workflow it calls, is one call if it isn't among the 40 read. A read that fails there leaves that part of the graph unknown, with the reason, rather than stopping the run.
+This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 79 calls, one of them the stack's GraphQL query. Each workflow file is one more call, up to 40. GraphQL queries count against GitHub's separate GraphQL limit. The job graph, which job waits on which and what sets the wait, comes from those workflow files and the sampled runs' jobs, so it adds none unless the repo has more than 40 workflow files: then the sampled workflow's own file, and each local reusable workflow it calls, is one call if it isn't among the 40 read. A read that fails there leaves that part of the graph unknown, with the reason, rather than stopping the run.
 
 **Unknown isn't absent.** When it couldn't check a practice, such as when GitHub cuts a big repo's file tree short or the repo has more than 40 workflow files, that practice shows as `unknown`, with the reason, and no fix is suggested for it. Statistics GitHub is still computing, such as the weekly commit counts, leave the pace unknown for that run. A read that fails for any other reason, such as a 5xx after one retry, a lost connection, a rate limit or a missing permission, stops the run with exit code 1, rather than scoring on partial data.
 
@@ -52,6 +53,25 @@ By default it prints to the terminal and nothing else: no cache, no report files
 | `--standing-url <url>` | The endpoint `--standing` sends to |
 
 Exit codes: 0 for a report, scored or unscored. 1 when a read fails, or `gh` is missing or signed out. 2 for a usage error, such as an ambiguous remote.
+
+## The stack
+
+The report's `stack` says what the repo is built with, so repos can be compared by what they share: languages with their shares and packages by ecosystem, as the profile has them; the package managers and workspace tools, such as pnpm, Turborepo or a Cargo workspace; every test runner found; the lint and format tools; the 20 libraries the most packages depend on, leaving out the workspace's own packages and the tools named in the other fields; the sampled jobs by runner provider; and agent files such as `AGENTS.md` and `.cursor/rules`. Examples, fixtures, templates and vendored code don't count.
+
+`stack.graph` is the workspace's package graph, from the same manifests: each package's edges to the workspace's other packages, of any dependency kind, and for an npm package its `exports` (how many entries, and whether one is the root `.`). Its packages are the ones each workspace declares: npm, Yarn and Bun's `workspaces`, pnpm-workspace.yaml's `packages` with its `!` exclusions, Cargo's `members` and `exclude` (and members' path dependencies), go.work's `use` and uv's workspace members; a manifest no workspace declares around stands alone, as its own package. An edge goes to the package of the same ecosystem by its real name, through npm aliases (`npm:`, `workspace:b@*`) and Cargo's `package =` renames and inherited `[workspace.dependencies]`, or to the member at a dependency's path (`file:`, `link:`, `path =`). For the repo it gives the package and edge counts, the cycles between packages (`{ ecosystem, packages }`), the longest chain of dependencies, and the 5 packages the most others depend on (`{ name, ecosystem, dependents }`). Those numbers are `null` unless every manifest, and every file that declares a workspace, was read and parsed. As with the practices, a field is `unknown` (`null` in the JSON) when nothing was found and some of what it reads couldn't be, and `stack.unknown` says why.
+
+## From code
+
+`scoreRepo` returns the report `--json` prints, so a script can score repos without the CLI:
+
+```ts
+import { scoreRepo } from '@ref0/ci-doctor';
+
+const report = scoreRepo('vitejs/vite', { days: 7, token: process.env.GH_TOKEN });
+console.log(report.score, report.stack.testRunners, report.read.calls);
+```
+
+It reads through `gh api` as the CLI does. `token` is passed to `gh` as `GH_TOKEN`, such as a GitHub App's installation token; without it, `gh`'s own sign-in reads. `cacheDir` keeps and reuses answers up to 24 hours old there. `scoreOf` and the other scoring functions are exported too, to re-score a stored report from its inputs.
 
 ## Windows
 

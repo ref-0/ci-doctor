@@ -10,7 +10,7 @@ import { installText } from './install-steps.ts';
 import { apiCacheDir, reportFile } from './paths.ts';
 import { isRepoName, resolveTarget } from './repo.ts';
 import { inventoryText, scoredText } from './report.ts';
-import { inventoryLocal, scoreRepo } from './score.ts';
+import { inventoryLocal, measure, provenanceOf } from './score.ts';
 import { sendStanding, standingUrl } from './standing.ts';
 
 const HELP = `Score this repo's CI, on your machine, from its GitHub Actions history.
@@ -92,7 +92,7 @@ export const main = async (argv: string[], cwd = process.cwd()) => {
   const login = o.cache || o.save ? new Gh().login() : undefined;
   const cacheDir = o.cache && login ? apiCacheDir(login) : undefined;
   const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined);
-  const report = scoreRepo(gh, target.repo, days);
+  const report = measure(gh, target.repo, days);
 
   let savedTo: string | undefined;
   if (o.save && login) {
@@ -100,7 +100,7 @@ export const main = async (argv: string[], cwd = process.cwd()) => {
     mkdirSync(dirname(savedTo), { recursive: true, mode: 0o700 });
     writeFileSync(savedTo, JSON.stringify({ ...report, readAt: new Date().toISOString(), fromCache: gh.fromCache }, null, 1), { mode: 0o600 });
   }
-  const provenance = { calls: gh.calls, fromCache: gh.fromCache, oldestCachedAt: gh.oldestCachedAt, cacheDir, savedTo };
+  const provenance = provenanceOf(gh, cacheDir, savedTo);
   out(o.json ? JSON.stringify({ ...report, read: provenance }) : scoredText(report, provenance));
 
   if (!endpoint) return;

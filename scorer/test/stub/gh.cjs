@@ -3,15 +3,19 @@
 // the JSON file GH_STUB_FIXTURES names, and appends each call to GH_STUB_LOG.
 //   GH_STUB_MODE=signed-out  answers as gh does with no sign-in: exit 4.
 //   GH_STUB_MODE=old         answers as gh before 2.97 does: --allow-escape-sequences is an unknown flag.
+//   GH_STUB_TOKEN=<t>        answers as signed out unless gh was handed GH_TOKEN=<t>.
 // Every call must pin --hostname=github.com and turn gh's telemetry off, or the stub fails it.
 // An answer is { status, json } or { status, raw } (served only with the raw Accept header) or { status, text };
-// a status of 400 or more prints gh's error line and exits 1. A path with no answer is a 404.
+// a status of 400 or more prints gh's error line and exits 1. A path with no answer is a 404. A GraphQL query of
+// files is answered from those files' raw answers.
 const { appendFileSync, readFileSync } = require('node:fs');
 
 const args = process.argv.slice(2);
-if (process.env.GH_STUB_LOG) appendFileSync(process.env.GH_STUB_LOG, `${JSON.stringify(args)}\n`);
+// A GraphQL query comes as the request body on stdin, never in the arguments; the log keeps it after them.
+const stdin = args.includes('--input') ? readFileSync(0, 'utf8') : undefined;
+if (process.env.GH_STUB_LOG) appendFileSync(process.env.GH_STUB_LOG, `${JSON.stringify(stdin === undefined ? args : [...args, `stdin:${stdin}`])}\n`);
 
-if (process.env.GH_STUB_MODE === 'signed-out') {
+if (process.env.GH_STUB_MODE === 'signed-out' || (process.env.GH_STUB_TOKEN && process.env.GH_TOKEN !== process.env.GH_STUB_TOKEN)) {
   process.stderr.write('To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n');
   process.exit(4);
 }
@@ -30,11 +34,14 @@ if (args[0] !== 'api') {
 
 let path;
 const headers = [];
+let input;
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '-H') headers.push(args[++i]);
+  else if (args[i] === '--input') input = args[++i];
   else if (args[i].startsWith('-')) continue;
   else path = args[i];
 }
+const body = input === '-' ? JSON.parse(stdin) : undefined;
 
 // The key keeps only what tells answers apart: the path and its event, branch, page and ref.
 const keyOf = (full) => {
@@ -46,6 +53,40 @@ const keyOf = (full) => {
 };
 
 const routes = JSON.parse(readFileSync(process.env.GH_STUB_FIXTURES, 'utf8'));
+
+// A GraphQL answer holding errors is printed, and gh exits 1 with the first error's message, as gh does.
+const answerGraphql = (answer) => {
+  process.stdout.write(JSON.stringify(answer));
+  if (!answer.errors?.length) process.exit(0);
+  process.stderr.write(`gh: ${answer.errors[0].message}\n`);
+  process.exit(1);
+};
+if (path === 'graphql' && routes.graphql) answerGraphql(routes.graphql.json);
+
+// A GraphQL query of aliased blobs by id, `f0: object(oid: "…")`, is answered from the raw answer of the file the
+// fixtures' tree lists with that id, at that tree's ref, null where there's none, unless the fixtures hold a `graphql`
+// answer of their own.
+if (path === 'graphql') {
+  if (!body) {
+    process.stderr.write('stub gh: a GraphQL query must come on stdin with --input -\n');
+    process.exit(2);
+  }
+  const query = body.query;
+  const [, owner, name] = query.match(/repository\(owner: "([^"]+)", name: "([^"]+)"\)/) ?? [];
+  const repository = {};
+  const files = new Map();
+  for (const [key, answer] of Object.entries(routes)) {
+    const ref = key.match(new RegExp(`^repos/${owner}/${name}/git/trees/([^?]+)$`))?.[1];
+    for (const t of (ref && answer.json?.tree) || []) if (t.sha) files.set(t.sha, { ref, path: t.path });
+  }
+  for (const [, alias, oid] of query.matchAll(/(\w+): object\(oid: "([^"]+)"\)/g)) {
+    const file = files.get(oid);
+    const raw = file && routes[`repos/${owner}/${name}/contents/${file.path}?ref=${file.ref}`]?.raw;
+    repository[alias] = raw === undefined ? null : { isTruncated: false, text: raw };
+  }
+  answerGraphql({ data: { repository } });
+}
+
 const key = keyOf(path);
 const answer = routes[key] ?? { status: 404, message: 'Not Found' };
 const wantsRaw = headers.some((h) => /application\/vnd\.github\.raw/.test(h));
