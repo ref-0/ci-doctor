@@ -5,7 +5,7 @@
  */
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -16,6 +16,10 @@ import { DEFAULT_TESTS, globList, openGit, parseModule, pnpmGlobs, readGraph } f
 import { changesOf } from '../replay.ts';
 import { entriesOf } from '../shape.ts';
 import { scriptCalls } from '../tasks.ts';
+import { graphsOf } from '../../../scorer/src/graphs.ts';
+import { manifestPaths } from '../../../scorer/src/score.ts';
+import type { Source } from '../../../scorer/src/source.ts';
+import { stackOf } from '../../../scorer/src/stack.ts';
 
 const fixtures = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const made: string[] = [];
@@ -416,5 +420,36 @@ describe('an Nx workspace of project.json projects', () => {
     strictEqual(task('core#test').inputs.files, 5);
     deepStrictEqual(r.tasks.flags.filter((f) => f.kind === 'no-inputs').map((f) => f.subject), ['core#lint']);
     strictEqual(task('web#serve').cached, false);
+  });
+});
+
+// The scorer reads graphs 2 and 4 from GitHub through the same shared code (`scorer/src/graph-core.ts`), but walks
+// re-exports itself, from entry files batch by batch, where this tool has every file. On one fixture, both agree.
+describe('the scorer, reading the same workspace from outside', () => {
+  const root = join(fixtures, 'mono');
+  const files = new Map(readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => {
+    const path = join(e.parentPath, e.name).slice(root.length + 1).split('\\').join('/');
+    return [path, readFileSync(join(root, path), 'utf8')] as const;
+  }));
+  const source: Source = {
+    tree: { truncated: false, blobs: [...files].map(([path, text]) => ({ path, size: text.length })) },
+    read: (p) => files.get(p),
+    readMany: (paths) => ({ texts: new Map(paths.flatMap((p) => (files.has(p) ? [[p, files.get(p)!] as const] : []))), failed: new Map() }),
+  };
+  const stack = stackOf({ source, manifestPaths: manifestPaths(source.tree), workflows: { texts: [], complete: true }, languages: undefined, packages: { npm: 0 }, runners: undefined });
+  const scorer = graphsOf({ source, stack });
+  const tool = report(repo('mono'), options);
+
+  it("gives each entry the tool's file, re-exported modules, `export *` count and barrel", () => {
+    const shape = (n: { id: string; file: string | null; reexports: number | null; stars: number | null; barrel: boolean | null }) => ({ id: n.id, file: n.file, reexports: n.reexports, stars: n.stars, barrel: n.barrel });
+    const ours = tool.exports.nodes.filter((n) => n.file !== null && n.pattern === undefined).map(shape).sort((a, b) => a.id.localeCompare(b.id));
+    deepStrictEqual(scorer.exports.nodes.filter((n) => ours.some((o) => o.id === n.id)).map(shape).sort((a, b) => a.id.localeCompare(b.id)), ours);
+    strictEqual(ours.length, 5);
+  });
+
+  it("gives the tool's tasks, inputs, edges and flags", () => {
+    deepStrictEqual(scorer.tasks.nodes, tool.tasks.nodes);
+    deepStrictEqual(scorer.tasks.edges, tool.tasks.edges);
+    deepStrictEqual(scorer.tasks.flags, tool.tasks.flags);
   });
 });
