@@ -1,7 +1,7 @@
 {
   "name": "@ref0/ci-doctor",
   "version": "0.1.0",
-  "description": "Score a repo's CI from its GitHub Actions history, on your machine, and print how to install ci-doctor's skills.",
+  "description": "Score GitHub Actions CI from 0 to 100 on your machine, see what to fix first, and find ci-doctor's playbook and coding-agent skills.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -36,5 +36,14 @@
   "devDependencies": {
     "@types/node": "24.19.2",
     "typescript": "7.0.2"
-  }
+  },
+  "homepage": "https://ci-doctor.ref0.dev/",
+  "keywords": [
+    "ci",
+    "continuous-integration",
+    "github-actions",
+    "ci-performance",
+    "ci-scoring",
+    "coding-agents"
+  ]
 }
