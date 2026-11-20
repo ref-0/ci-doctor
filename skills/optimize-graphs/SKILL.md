@@ -1,6 +1,6 @@
 ---
 name: optimize-graphs
-description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrel files, layers, task inputs, the CI job graph and which checks a change selects. Use when one edit reruns most tests or builds, caches miss, or CI runs everything. Not for a slow CI job (ci-workflows); a slow test (speed-up-tests)."
+description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrels, layers, task inputs, the CI job graph and which checks run. Use when one edit reruns most tests or builds, an unrelated edit misses a task cache, or CI runs everything. Not for setup caches (cache-ci); a slow job (ci-workflows)."
 metadata:
   version: "0.1.0"
 ---
@@ -82,11 +82,11 @@ For each proposal give: the graph and its measured width, the change by file or 
 
 Replay the last merges through the graph before and after, and compare like with like: the same commits, the same test pattern, the same conditions. [Measure](references/measure.md#verify-a-change) says how. A selector that follows the new graph must still pick every test the real import graph reaches: check a handful of modules against an independent listing, such as `vitest list --filesOnly --changed` with one line added to the module.
 
-The bundle is the wrong measure: a bundler already drops unused modules. Measure selection, cache keys and the type checks that rerun.
+The bundle is the wrong measure, since a bundler drops unused modules: measure selection, cache keys and reruns of type checks.
 
 ## Which checks a change runs
 
-The selector, the script or rule that picks a change's jobs and test files, walks these graphs. Before changing it, lockfile routing or test selection, read [selection](references/selection.md): where to start, with or without `.agents/repo/ci.md`, its rules, and replaying past regressions.
+The selector, which picks a change's jobs and tests, walks these graphs. Before changing it, lockfile routing or test selection, read [selection](references/selection.md): where to start, with or without `.agents/repo/ci.md`, its rules, and replaying past regressions.
 
 ## 5. Adopt the checks in a repo that has none
 
@@ -95,6 +95,7 @@ Graphs 1–3 are declared in one file and held by one check. [Fixes](references/
 ## Not here
 
 - Editing a workflow, its jobs, tiers and slow runs: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Runners, the bill and the ci-doctor plan: the `ci-doctor` skill. Its Phase 1 maps these graphs with this skill.
+- Slow setup, and a setup cache that misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md).
 - Whether a test is worth keeping: `test-audit`.
 
 ## Outside this skill
