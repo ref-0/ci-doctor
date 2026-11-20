@@ -116,7 +116,6 @@ const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: nu
 const startOf = (r: Run) =>
   r.run_attempt === 1 && Date.parse(r.run_started_at) - Date.parse(r.created_at) > 60 * 60e3 ? r.run_started_at : r.created_at;
 
-/** For each pushed head: the wait from the first workflow's start to the last one's end. */
 /** A rerun run's first attempt: failed, cancelled or green. One call each, capped per report. */
 const firstAttempts = (gh: Gh, repo: string, cap: number) => {
   const seen = new Map<number, string | undefined>();
@@ -127,7 +126,20 @@ const firstAttempts = (gh: Gh, repo: string, cap: number) => {
   };
 };
 
-const waits = (runs: Run[], first: (run: Run) => string | undefined = () => undefined, heavy?: Set<string>) => {
+// A first attempt that took over an hour with no jobs never ran: GitHub failed it while it waited,
+// such as a fork's run nobody approved, closed days later with its pull request. Its hours aren't
+// CI time and its failure isn't a red check. One call each, capped per report.
+const ranJobs = (gh: Gh, repo: string, cap: number) => {
+  const seen = new Map<number, boolean>();
+  return (run: Run): boolean => {
+    if (run.run_attempt > 1 || Date.parse(run.updated_at) - Date.parse(run.run_started_at) <= 60 * 60e3) return true;
+    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, readAllJobs(gh, repo, run.id).length > 0);
+    return seen.get(run.id) ?? true;
+  };
+};
+
+/** For each pushed head: the wait from the first workflow's start to the last one's end. */
+const waits = (runs: Run[], first: (run: Run) => string | undefined = () => undefined, heavy?: Set<string>, didRun: (run: Run) => boolean = () => true) => {
   const heads = groupBy(runs, (r) => r.head_sha);
   const clean: { sha: string; wait: number; last: string; red: boolean }[] = [];
   let rerunHeads = 0;
@@ -136,16 +148,21 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
   let redHeads = 0;
   let botHeads = 0;
   let lightHeads = 0;
+  let neverRan = 0;
+  const bots: string[] = [];
   const redBy: string[] = [];
   for (const [sha, rs] of heads) {
     // One push starts its runs together. A run created later came from another event, such as a
     // label, a comment or an approval, so it isn't part of this push's wait.
-    const ran = rs.filter((r) => r.conclusion !== 'skipped' && r.conclusion !== 'neutral' && r.conclusion !== 'action_required');
+    const started = rs.filter((r) => r.conclusion !== 'skipped' && r.conclusion !== 'neutral' && r.conclusion !== 'action_required');
+    const ran = started.filter(didRun);
+    neverRan += started.length - ran.length;
     if (!ran.length) continue;
     const pushedAt = Math.min(...ran.map((r) => Date.parse(r.created_at)));
     const counted = ran.filter((r) => Date.parse(r.created_at) - pushedAt <= PUSH_WINDOW);
     const startedAt = counted.map(startOf).sort()[0]!;
     const byBot = counted.every((r) => isBotActor(r.actor?.login));
+    if (byBot) bots.push(counted[0]?.actor?.login ?? '');
     const reruns = counted.filter((r) => r.run_attempt > 1);
     // Green only on a rerun: the first attempt failed and the latest passed.
     const flaked = reruns.some((r) => r.conclusion === 'success' && first(r) === 'failure');
@@ -192,6 +209,9 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
     cancelledRate: share(cancelledHeads, all),
     botHeads,
     lightHeads,
+    neverRan,
+    botPushes: bots.length,
+    bots: count(bots, (n) => n).slice(0, 3),
     lastToFinish: count(clean, (c) => c.last).slice(0, 3),
     redBy: count(redBy, (n) => n).slice(0, 3),
   };
@@ -737,9 +757,10 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
   const ci = ciMinutes(gh, repo, gating);
   const first = firstAttempts(gh, repo, 25);
-  const wait = waits(gating, first, ci.heavy);
-  const allPushes = waits(gating, first);
-  const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)));
+  const ranAny = ranJobs(gh, repo, 60);
+  const wait = waits(gating, first, ci.heavy, ranAny);
+  const allPushes = waits(gating, first, undefined, ranAny);
+  const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)), undefined, undefined, ranAny);
   const bots = share(runs.filter((r) => r.actor?.login.endsWith('[bot]')).length, runs.length);
 
   // Jobs of the workflow that most often finishes last.
@@ -859,7 +880,9 @@ export const measure = (gh: Gh, repo: string, days: number) => {
       ? `There are no GitHub Actions workflows on ${meta.default_branch}, so there's no CI history to score.`
       : prRuns.length === 0
         ? `There were no pull-request runs of GitHub Actions in the last ${days} days.`
-        : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
+        : wait.botPushes >= 0.8 * wait.heads
+          ? `${wait.botPushes} of ${wait.heads} PR pushes in the window came from bots (${wait.bots.map(([name]) => name).join(', ')}), and only pushes people make are timed; ${MIN_TIMED} are needed.`
+          : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
 
   return {
     repo,

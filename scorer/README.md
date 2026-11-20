@@ -13,7 +13,7 @@ It needs Node 24 or newer and the [GitHub CLI](https://cli.github.com), signed i
 
 Run it in a Git checkout. If the checkout's `package.json` pins a Node version in `devEngines` that isn't yours, npm refuses to run `npx` there (`EBADDEVENGINES`): run it from outside the checkout with `--repo owner/name`, or add `--force`. It scores the GitHub repo that `origin` points at. If `origin` isn't on github.com, it takes the only remote that is. If several remotes point at GitHub and none is `origin`, it stops and asks you to name one with `--repo owner/name`. `--repo` also works outside a checkout.
 
-A checkout with no GitHub remote has no Actions history to read. It then lists what it finds in the checkout's tracked files, says "unscored" and gives the reason. A repo with no pull-request runs in the window, or fewer than 5 timed PR pushes, is unscored too, with its practices still listed.
+A checkout with no GitHub remote has no Actions history to read. It then lists what it finds in the checkout's tracked files, says "unscored" and gives the reason. A repo with no pull-request runs in the window, or fewer than 5 timed PR pushes, is unscored too, with its practices still listed. A PR push is timed from its first run's start to its last run's end. It isn't timed when a bot made it, and a run that took over an hour with no jobs is left out, since it never ran: GitHub failed it while it waited, such as a fork's run nobody approved. When bots made nearly every push, the reason says so.
 
 ## What it reads
 
