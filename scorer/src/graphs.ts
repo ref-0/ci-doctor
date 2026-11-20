@@ -373,14 +373,14 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
   // 4. Tasks: the configs from the batch above, the scripts from the manifests.
   const configFailed = configsRead.filter((p) => !texts.has(p));
   const taskGraph = readTaskGraph({ paths: tracked, text: (p) => texts.get(p), packages, owner });
-  const shape = taskShape(taskGraph, tracked);
+  const shape = taskShape(taskGraph, tracked, { partial: source.tree.truncated });
   const tasksUnknown = [
     ...(configFailed.length ? [`${plural(configFailed.length, 'task config file')} couldn't be read, such as ${configFailed[0]}`] : []),
-    ...(source.tree.truncated ? ["GitHub cut the file tree short, so tasks' input counts cover only the files it listed"] : []),
+    ...(source.tree.truncated ? ["GitHub cut the file tree short, so how many files each task's inputs cover is unknown, and none is flagged wide"] : []),
     ...taskGraph.unread.slice(0, 3),
   ];
   const tasksGraph = {
-    count: { nodes: shape.nodes.length, edges: shape.edges.length, cached: shape.cached, trackedFiles: tracked.size },
+    count: { nodes: shape.nodes.length, edges: shape.edges.length, cached: shape.cached, trackedFiles: source.tree.truncated ? null : tracked.size },
     // Nx's inputs expand to dozens of globs a task: the first few, and how many there are.
     nodes: shape.nodes.slice(0, MAX_LISTED).map((n) => (n.inputs.globs.length > MAX_GLOBS ? { ...n, inputs: { ...n.inputs, globs: n.inputs.globs.slice(0, MAX_GLOBS), globsOf: n.inputs.globs.length } } : n)),
     edges: shape.edges.slice(0, MAX_LISTED),
@@ -523,7 +523,7 @@ export const graphsBlock = (g: Graphs) => {
   const cachedNoInputs = t.flagCounts['no-inputs'] ?? 0;
   const tasksText = t.count.nodes === 0
     ? 'no tasks: no package scripts or task runner config'
-    : `${t.runners.join(', ') || 'none'}: ${plural(t.count.nodes, 'task')} (${t.count.cached} cached), ${plural(t.count.edges, 'edge')}, depth ${t.depth}; ${cachedNoInputs} cached with no declared inputs, ${t.flagCounts['wide-inputs'] ?? 0} with inputs over ${pc(THRESHOLDS.wideInputs)} of the ${t.count.trackedFiles} files${
+    : `${t.runners.join(', ') || 'none'}: ${plural(t.count.nodes, 'task')} (${t.count.cached} cached), ${plural(t.count.edges, 'edge')}, depth ${t.depth}; ${cachedNoInputs} cached with no declared inputs, ${t.count.trackedFiles === null ? 'input coverage unknown, as the file tree was cut short' : `${t.flagCounts['wide-inputs'] ?? 0} with inputs over ${pc(THRESHOLDS.wideInputs)} of the ${t.count.trackedFiles} files`}${
         t.count.cached === 0 ? '; nothing is cached, so no task runner keys these' : ''
       }`;
   const j = g.jobs;
