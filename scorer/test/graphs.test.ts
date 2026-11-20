@@ -269,6 +269,27 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     assert.deepEqual(edgesFrom(g, 'app#build'), ['core#build']);
     assert.equal(task(g, 'ui#build'), undefined);
   });
+
+  it("takes Nx's target defaults by executor first, then by name, then by the longest glob", () => {
+    const { g } = graphs({
+      'package.json': json({ name: 'nxroot', private: true }),
+      'nx.json': json({
+        targetDefaults: {
+          '@nx/js:tsc': { cache: true, inputs: ['{projectRoot}/src/**'], dependsOn: ['^build'] },
+          build: { cache: true, inputs: ['{projectRoot}/**/*'] },
+          'e2e-*': { cache: true, inputs: ['{projectRoot}/e2e/**'] },
+          'e2e-ci-*': { cache: true, inputs: ['{projectRoot}/ci/**'] },
+        },
+      }),
+      'libs/core/project.json': json({ name: 'core', targets: { build: { executor: '@nx/js:tsc' }, 'e2e-ci-web': {}, 'e2e-local': {} } }),
+      'libs/core/src/index.ts': 'export {};\n',
+      'apps/web/project.json': json({ name: 'web', targets: { build: { executor: '@nx/vite:build' } } }),
+    });
+    assert.deepEqual(task(g, 'core#build')!.inputs.globs, ['libs/core/src/**']);
+    assert.deepEqual(task(g, 'web#build')!.inputs.globs, ['apps/web/**/*']);
+    assert.deepEqual(task(g, 'core#e2e-ci-web')!.inputs.globs, ['libs/core/ci/**']);
+    assert.deepEqual(task(g, 'core#e2e-local')!.inputs.globs, ['libs/core/e2e/**']);
+  });
 });
 
 describe('the graphs in the report', () => {
