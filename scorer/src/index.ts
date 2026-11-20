@@ -7,3 +7,6 @@ export { stackOf, parseManifest, MAX_MANIFESTS, TOP_LIBRARIES, TEST_RUNNERS, LIN
 export type { Ecosystem, Manifest, Stack, StackInputs } from './stack.ts';
 export { ApiCache, Gh } from './gh.ts';
 export { CliError } from './errors.ts';
+export { graphsOf, MAX_GRAPH_FILES, MAX_TASK_FILES, MAX_REEXPORT_DEPTH } from './graphs.ts';
+export type { EntryNode, Graphs } from './graphs.ts';
+export { THRESHOLDS } from './graph-core.ts';

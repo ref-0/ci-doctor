@@ -898,20 +898,31 @@ export const graphBlock = (g: JobGraph) => {
   return lines.join('\n');
 };
 
+/** Setup minutes on the critical path, in jobs that first waited on others, when they're a minute and a tenth of the path or more. */
+export const setupInPath = (g: JobGraph) => {
+  const setup = g.setupInPathMinP50 ?? 0;
+  return setup >= 1 && setup >= 0.1 * (g.pathMinP50 ?? Infinity) ? setup : undefined;
+};
+
+/** The top blocker when most jobs wait on it, in most runs, and each of them a minute or more past its other needs. */
+export const heavyBlocker = (g: JobGraph) => {
+  const b = g.topBlockers[0];
+  return b && b.runs * 2 >= g.runsUsed && b.heldJobs * 2 >= b.jobs && (b.heldJobMin ?? 0) >= b.heldJobs ? b : undefined;
+};
+
 /** Fixes the graph shows, in `fixesOf`'s shape. */
 export const graphFixes = (g: JobGraph | undefined) => {
   if (!g) return [];
   const fixes: { text: string; page: string; weight: number }[] = [];
-  const setup = g.setupInPathMinP50 ?? 0;
-  if (setup >= 1 && setup >= 0.1 * (g.pathMinP50 ?? Infinity))
+  const setup = setupInPath(g);
+  if (setup !== undefined)
     fixes.push({
       text: `Setup on the critical path: ${m(setup)} min of setup in jobs that first wait on others; start it while they wait, and wait only for the step you need`,
       page: '07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores',
       weight: 6,
     });
-  const b = g.topBlockers[0];
-  // Most jobs wait on it, in most runs, and each of them a minute or more past its other needs.
-  if (b && b.runs * 2 >= g.runsUsed && b.heldJobs * 2 >= b.jobs && (b.heldJobMin ?? 0) >= b.heldJobs)
+  const b = heavyBlocker(g);
+  if (b)
     fixes.push({
       text: `A blocker most jobs wait on: "${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; shorten it, or let them start setup and wait only for what they need`,
       page: '21-optimize-all-of-your-graphs.md#ci-jobs',
