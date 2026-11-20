@@ -48,5 +48,5 @@ In the source repo:
 
 ## Pointed at from
 
-- [`ci-workflows`](../ci-workflows/references/change-checks.md), while you build a CI change and before it merges.
-- [`ci-workflows`](../ci-workflows/references/selection.md), on changing selection.
+- [`ci-workflows`](../../../ci-workflows/references/change-checks.md), while you build a CI change and before it merges.
+- [`optimize-graphs`](../../../optimize-graphs/references/selection.md), on changing selection.

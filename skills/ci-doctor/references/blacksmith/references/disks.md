@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Labels, disks and caches
 
-Part of the [`blacksmith`](../TOPIC.md) topic. The provider-neutral rules these follow, a warm install keyed by the manifests, who may write a cache and probing a toolchain, are in [`ci-workflows`' caches](../../ci-workflows/references/caches.md). The template actions are [`dependencies` and `rust-toolchain`](../../../../../templates/github/README.md#composite-actions), each with an `actions/cache` fallback for other runners.
+Part of the [`blacksmith`](../TOPIC.md) topic. The provider-neutral rules these follow, a warm install keyed by the manifests, who may write a cache and probing a toolchain, are in [`cache-ci`'s caches](../../../../cache-ci/references/caches.md). The template actions are [`dependencies` and `rust-toolchain`](../../../../../templates/github/README.md#composite-actions), each with an `actions/cache` fallback for other runners.
 
 ## Runner labels
 
@@ -30,7 +30,7 @@ It holds main's newest install: `node_modules`, each project's links, and the to
 
 It holds main's install of the Rust that `rust-toolchain.toml` pins, with rustfmt, Clippy, the runner's musl target and musl-tools' packages, one disk for each architecture, under a GB each. A shared `rust-toolchain` action, by a full commit, mounts it in the jobs that build and test Rust. A job whose disk's stamp is the hash of `rust-toolchain.toml` and the action's own `action.yml` takes the toolchain as an overlay, read only, in a few seconds, where any other job installs with rustup and apt, several times slower. Only main's own runs commit it, and a release installs fresh, with no disk.
 
-**A job takes the disk's toolchain only once rustc checks a small crate with it within a minute,** and otherwise installs fresh with a warning: once the arm64 disk mounted but none of its files' data read, and every arm64 job hung until its timeout. [Rust](../../ci-workflows/references/rust.md) has the rest of Rust's caching.
+**A job takes the disk's toolchain only once rustc checks a small crate with it within a minute,** and otherwise installs fresh with a warning: once the arm64 disk mounted but none of its files' data read, and every arm64 job hung until its timeout. [Rust](../../../../ci-workflows/references/rust.md) has the rest of Rust's caching.
 
 ## The Docker disk
 

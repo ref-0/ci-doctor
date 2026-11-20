@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Blacksmith
 
-[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](../../../ci-runners/references/providers.md#choosing) says how the plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](../ci-workflows/TOPIC.md) (workflows, selection, tiers, caches) and [`ci-runners`](../../../ci-runners/SKILL.md) (sizing, packing, cost). [guide section 2](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order.
+[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](../../../ci-runners/references/providers.md#choosing) says how the plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](../../../ci-workflows/SKILL.md) (workflows, selection, tiers, caches) and [`ci-runners`](../../../ci-runners/SKILL.md) (sizing, packing, cost). [guide section 2](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order.
 
 ## What to read
 
@@ -24,7 +24,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 - **Run macOS only in a release, or by hand with a person's yes:** a Mac minute costs several Linux ones.
 - **Check current pricing and labels** in [Blacksmith's docs](https://docs.blacksmith.sh) before quoting either; they change.
 
-`ci-time.ts --bill blacksmith`, in [`ci-workflows`](../ci-workflows/TOPIC.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through [`scripts/blacksmith-bill.ts`](scripts/blacksmith-bill.ts). The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`.
+`ci-time.ts --bill blacksmith`, in [`ci-workflows`](../../../ci-workflows/SKILL.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through [`scripts/blacksmith-bill.ts`](scripts/blacksmith-bill.ts). The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`.
 
 ## Why we recommend it
 
@@ -39,5 +39,5 @@ These are what the source repo leaned on, as [guide section 2](../../../../docs/
 ## Related
 
 - [`ci-runners`](../../../ci-runners/SKILL.md): sizing, packing, the cap and choosing a provider.
-- [`ci-workflows`](../ci-workflows/TOPIC.md): changing workflows, selection, tiers and caches.
+- [`ci-workflows`](../../../ci-workflows/SKILL.md): changing workflows and tiers; [`cache-ci`](../../../cache-ci/SKILL.md): caches.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): a PR's result, runs by hand and the merge.

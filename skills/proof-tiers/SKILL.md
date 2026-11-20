@@ -34,7 +34,7 @@ A stack with neither can skip this skill. Read the repo's `.agents/repo/proof-ti
 
 ## Moving one to a slower tier
 
-Follow [the tiers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/references/tiers.md). Keep a cheap run on the pull requests that touch what it covers, keep its breaks running there, and say in the PR which bound or count moved and how long a fault it would catch can now sit on `main`.
+Follow [the tiers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/references/tiers.md). Keep a cheap run on the pull requests that touch what it covers, keep its breaks running there, and say in the PR which bound or count moved and how long a fault it would catch can now sit on `main`.
 
 ## Related
 
