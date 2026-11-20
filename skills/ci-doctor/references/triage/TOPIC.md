@@ -35,6 +35,6 @@ When setup or install fails with a summary that points at a log on the runner, t
 | --- | --- |
 | A real failure in the PR's code or tests | Fix it locally, by file, and push |
 | A flake | The [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md) skill |
-| The workflow: setup, install, caches, the job graph | [ci-workflows](../ci-workflows/TOPIC.md) |
+| The workflow: setup, install, caches, the job graph | [ci-workflows](../../../ci-workflows/SKILL.md) |
 | A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../../../ci-runners/SKILL.md) |
 | Green, and ready to merge | `ci-merge-workflow`, if adopted |

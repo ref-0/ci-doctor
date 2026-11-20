@@ -7,13 +7,13 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # What a change selects
 
-Part of the [`ci-workflows`](../TOPIC.md) topic: how to change which checks a change runs. Read it when changing what selects checks, lockfile routing or test selection. The repo's own cases, what each kind of change reaches, are in `.agents/repo/ci.md`'s Selection and tiers: read them first. [guide section 4](../../../../../docs/pages/04-run-only-what-a-change-can-reach.md) explains the selector.
+Part of the [`optimize-graphs`](../SKILL.md) skill: how to change which checks a change runs. A selector walks the graphs this skill measures, so it can only be as narrow as they are. Read it when changing what selects checks, lockfile routing or test selection. The repo's own cases, what each kind of change reaches, are in `.agents/repo/ci.md`'s Selection and tiers: read them first. [guide section 4](https://ci-doctor.ref0.dev/guide/docs/pages/04-run-only-what-a-change-can-reach.md) explains the selector.
 
 ## Changing selection
 
 - Read the selected files in a run's log, not its checks: a run of all-green checks once ran nearly two hundred server files and neither of the two the change was for.
 - Apply a left-out list after grouping files into tasks, not only to the shard lists. A group runs all its files, so two slow left-out oracles ran in every run that missed their group's cache.
-- Read the [plan's selection reasons](../../../../../templates/plan/README.md#selection-reasons) to audit a missed test or a selection that looks too broad.
+- Read the [plan's selection reasons](https://github.com/ref-0/ci-doctor/blob/next/templates/plan/README.md#selection-reasons) to audit a missed test or a selection that looks too broad.
 - An edge no import shows, a generated bundle or a file read from disk, goes in as a named edge, as an SDK bundle the tests read from disk did. Prefer it to running everything for that path.
 - Replay real pull requests' diffs through the old and new selector, and read every decision that changed: one change replayed about 150 and narrowed about one in fourteen.
 - Run the selector from the checkout whose source it reads. A selector that finds the repo from its own path, not the shell's folder, reads the wrong tree when a copy runs elsewhere.
@@ -23,7 +23,7 @@ Part of the [`ci-workflows`](../TOPIC.md) topic: how to change which checks a ch
 - Selection and reuse are separate decisions. Adopting a standard task runner or cache doesn't justify replacing semantic selection with its package graph: replay the replacement against historical diffs and the explicit disk, generated-code, bundle and config edges, and keep the existing selector until it preserves the coverage. A manifest-only replacement once missed tests on most of the PRs it was replayed on.
 - Track discovery too: a directory listing a test enumerates, a path it probes that's missing, a symlink it resolves. A new config or test file changes behaviour without changing any file the last run opened. Exclude only listings proved irrelevant, and test additions, deletions and missing-to-present as well as edits.
 - Record how the selector treats a path it doesn't know, in ci.md's Selection and tiers: a planner that falls back to every job, or one that needs each new job or path registered. Test that fallback, and the sentinel cases ci.md lists, with each change.
-- Treat the selector like production code: test it, and check a change to it against real output, as [check a change to CI against real output](../../checks/ci-check-a-workflow-change.md) says.
+- Treat the selector like production code: test it, and check a change to it against real output, as [check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md) says.
 
 ## Replay past regressions
 

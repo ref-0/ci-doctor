@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "Plans CI speed and cost work and triages a failed or cancelled PR check: the PR, a flake or the runner. Use when CI is slow or costly overall, a check failed, or a workflow needs changing. Not for runners or the bill (ci-runners), flaky tests (fix-flaky-test), slow tests (speed-up-tests) or claims (prove-it)."
+description: "Plans CI speed and cost work and triages a failed or cancelled PR check: the PR, a flake or the runner. Use when CI is slow or costly overall or a check failed. Not for editing a workflow (ci-workflows), runners or the bill (ci-runners), flaky tests (fix-flaky-test), slow tests (speed-up-tests) or claims (prove-it)."
 metadata:
   version: "0.1.0"
 ---
@@ -65,13 +65,13 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | Task | Topic |
 | --- | --- |
 | A PR's check failed or was cancelled: reading the run, telling a test failure from a flake or an infrastructure failure, whether the run counts | [triage](references/triage/TOPIC.md) |
-| Change or debug a workflow: the job graph, setup, selection, tiers, caches, the checks for a CI change, a slow run's job order or setup | [ci-workflows](references/ci-workflows/TOPIC.md) |
+| Change or debug a workflow: the job graph, setup, tiers, caches, the checks for a CI change, a slow run's job order or setup | The [`ci-workflows`](../ci-workflows/SKILL.md) skill |
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
 | The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, jobs that wait for a runner, changing provider | The [`ci-runners`](../ci-runners/SKILL.md) skill |
 | A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
 | A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
-| How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
+| How far an edit reaches, and which checks a change selects: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
 | Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
 The one-rule [checks](references/checks/README.md) the topics link to are here too. The templates for a repo's facts, `progress.md` and a campaign's files are the [`agent-knowledge`](../agent-knowledge/templates/README.md) skill's.
@@ -81,7 +81,8 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 - The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
-- How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
+- Editing a workflow, its jobs, tiers and caches, and a slow run: `ci-workflows`.
+- How far an edit reaches through packages, `exports`, folders, task inputs and jobs, and which checks a change selects: `optimize-graphs`.
 - A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
 - Runner size, queues, the bill, the spend cap and choosing a provider: `ci-runners`.
 - Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
