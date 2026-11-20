@@ -7,11 +7,11 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Running a campaign
 
-Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it when you review or speed up many files at once, with engineers in parallel. Its examples are from a production monorepo's campaigns. [guide section 10](../../../../../docs/pages/10-slow-tests-the-method.md) and [section 15](../../../../../docs/pages/15-the-agent-workflow-around-ci.md) say how it fits the rest.
+Part of the [`speed-up-tests`](../SKILL.md) skill. Read it when you review or speed up many files at once, with engineers in parallel. Its examples are from a production monorepo's campaigns. [guide section 10](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md) and [section 15](https://ci-doctor.ref0.dev/guide/docs/pages/15-the-agent-workflow-around-ci.md) say how it fits the rest.
 
-Before planning a campaign, read the repo's tried-and-dropped register, as [read what was tried](../../checks/ci-read-what-was-tried.md) says: don't plan what was dropped unless its limiting condition has changed.
+Before planning a campaign, read the repo's tried-and-dropped register, as [read what was tried](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-read-what-was-tried.md) says: don't plan what was dropped unless its limiting condition has changed.
 
-Templates: [ledger](../../agent-knowledge/ledger.md), [report](../../agent-knowledge/report.md), [brief](../../agent-knowledge/brief.md) and [the shared rules every brief carries](../../agent-knowledge/briefs-README.md).
+Templates: [ledger](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/ledger.md), [report](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/report.md), [brief](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/brief.md) and [the shared rules every brief carries](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/briefs-README.md).
 
 ## Reviewing every slow file
 
@@ -38,4 +38,4 @@ Templates: [ledger](../../agent-knowledge/ledger.md), [report](../../agent-knowl
   - **Separate what the work did from what moved anyway.** Compare files the campaign didn't touch over the same window, and the common files on both sides; flag files with few observations and new or split files.
   - **Modelled, observed, not yet observed.** A merged fix's saving is modelled until normal post-merge runs show it. Don't dispatch extra broad CI just to fill the report.
   - **Keep the epic open** until its original finish line and child issues are met. A lower total and merged briefs don't establish that.
-  - Add what was dropped, and why, to the repo's tried-and-dropped register ([read what was tried](../../checks/ci-read-what-was-tried.md)).
+  - Add what was dropped, and why, to the repo's tried-and-dropped register ([read what was tried](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-read-what-was-tried.md)).

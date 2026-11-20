@@ -56,14 +56,14 @@ Check the artifact itself: run the feature, read the actual value, inspect the d
 
 CI's records and the rules particular to them are in the `ci-doctor` plugin's hub. Links go to the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/next) on `next`:
 
-- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
+- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
 - A cost: [budget CI at list price](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
 - A slow-test campaign's report: its template carries [the report](references/report.md)'s fields for each headline number.
 - A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md) says.
 
 ## Not here
 
-- Why a CI run failed, what made it slow, or making a test or a run faster: the `ci-doctor` skill. How far an edit reaches through a workspace: `optimize-graphs`.
+- Why a CI run failed or what made it slow: the `ci-doctor` skill. Making a slow test faster: `speed-up-tests`; a flaky one: `fix-flaky-test`. How far an edit reaches through a workspace: `optimize-graphs`.
 - Whether a test is worth keeping, or what it covers: `test-audit`.
 
 ## Outside this skill

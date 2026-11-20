@@ -21,7 +21,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Apply this when the change relies on a platform guarantee or an outside API's shape, not to every change. Read the probes and their raw results first, where ci.md's Platform probes keep them. Run a probe for any assumption still unanswered, only in an environment ci.md authorizes for it, and only once the plan allows it.
 
-Keep the caller alive beyond a timeout and observe whether the remote work continues. Compare fresh and warm instances, and repeat measurements at another hour. A local copy of the server's runtime and CI's containers don't prove the platform's limits or networking. If your stack runs on Cloudflare Workers, [Workers](../speed-up-tests/references/workers.md#what-only-the-deployed-platform-shows) has what this meant there.
+Keep the caller alive beyond a timeout and observe whether the remote work continues. Compare fresh and warm instances, and repeat measurements at another hour. A local copy of the server's runtime and CI's containers don't prove the platform's limits or networking. If your stack runs on Cloudflare Workers, [Workers](../../../speed-up-tests/references/workers.md#what-only-the-deployed-platform-shows) has what this meant there.
 
 Read an outside API's real rows as soon as its token works. Record the field names, units and mapping the code uses. Run the whole deployed path and inspect its trace and logs.
 
@@ -38,4 +38,4 @@ In the source repo, on its serverless platform:
 ## Pointed at from
 
 - [`test-audit`](../../../test-audit/SKILL.md), validation.
-- [`speed-up-tests`](../speed-up-tests/references/fakes.md), on what a fake can't prove, and its [Workers page](../speed-up-tests/references/workers.md).
+- [`speed-up-tests`](../../../speed-up-tests/references/fakes.md), on what a fake can't prove, and its [Workers page](../../../speed-up-tests/references/workers.md).
