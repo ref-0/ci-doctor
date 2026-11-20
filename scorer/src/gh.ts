@@ -70,10 +70,16 @@ export class Gh {
 
   /** A token to read with instead of gh's own sign-in, such as a GitHub App's, passed to gh as GH_TOKEN. */
   private readonly token: string | undefined;
+  // Cached answers are keyed by a hash of the token they were read with, never the token, so two clients that share a
+  // cache folder never see each other's answers, such as a private repo's files. Without a token, gh's sign-in reads,
+  // and the CLI keeps each signed-in account's cache in its own folder.
+  private readonly scope: string;
 
   constructor(cache?: ApiCache, token?: string) {
     this.cache = cache;
     this.token = token;
+    const credential = token ?? process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+    this.scope = credential ? `${createHash('sha256').update(credential).digest('hex').slice(0, 32)}:` : '';
   }
 
   /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
@@ -82,7 +88,7 @@ export class Gh {
     const seen = options.noCache ? undefined : this.memo.get(key);
     if (seen !== undefined) return seen;
 
-    const hit = options.noCache ? undefined : this.cache?.get(key);
+    const hit = options.noCache ? undefined : this.cache?.get(this.scope + key);
     if (hit) {
       // Only answers from an earlier run count toward how stale this one is.
       if (hit.readAt < this.startedAt) {
@@ -97,7 +103,7 @@ export class Gh {
     // An empty body is a 202 still being computed; keeping it would hide the real answer next time.
     if (body !== undefined && body.trim() !== '' && !options.noCache) {
       this.memo.set(key, body);
-      this.cache?.set(key, body);
+      this.cache?.set(this.scope + key, body);
     }
     return body;
   }
