@@ -7,7 +7,7 @@
 - **Keep PRs in draft until done.** Under our merge policy, engineer agents open draft PRs while a manager agent marks them ready and merges, so each PR aims for a single CI run. On another repo, preserve its existing trigger and merge policy (base branch, required checks, merge method, approvals, stale-review dismissal, merge queue) until the user approves a change, and always test the current required ref (including the merge-queue commit if applicable).
   - Asking engineers for "after" timings once caused two agents to dispatch ~15 draft runs. Read after-timings from the ready run instead.
   - Dispatching tests manually on a draft doubles CI spend because marking the PR ready reruns them.
-- **Read the run's logs before merging.** Confirm the plan selected the right files, those files actually ran, and their timings make sense. Post a concise `Verification:` comment noting head SHA, tested base, jobs and totals, and review status.
+- **Read the run's logs before merging.** Confirm the plan chose the changed files, those files actually ran, and their times match. Post a concise `Verification:` comment noting head SHA, tested base, jobs and totals, and review status.
 - **Watch CI via events, not polling loops.** Three-second polling loops drained our shared 5,000/hour GitHub API quota for everyone.
 - **Guard against the ready-after-push race:** running `gh pr ready` immediately after `git push` can start CI on the *previous* head. Compare the run's SHA against the remote head before trusting it.
 - **Remember that failed-job reruns keep the old merge ref.** Push a new commit to pick up a fix from `main`.
@@ -27,7 +27,7 @@ The review gate verifies that a well-formed review record exists. Below is the r
 
 **What requires a review.** Changes touching areas where a miss creates a security hole, loses data, or is hard to reverse: sign-in, tokens, secrets, and permissions; audit or provenance writers; contracts at repo boundaries; stored state and migrations; bounded-model rules, breaks, and bounds; and spike results that decide what gets built. The review list names these paths.
 
-**Before starting:** Name the review session after the PR and short starting commit (e.g., `<pr>-<head-sha>`) so it can never mistake an earlier session's output for its own. Check for colliding PRs with `gh pr list --repo <org>/<repo> --search "<file>"` on each touched file—watching for overlapping lines, renamed headings, or reflowed tables—then narrow the diff, stack on the other PR, or record which merges first.
+**Before starting:** Name the review session after the PR and short starting commit (e.g., `<pr>-<head-sha>`) so it can never mistake an earlier session's output for its own. Check for colliding PRs with `gh pr list --repo <org>/<repo> --search "<file>"` on each touched file—watching for overlapping lines, renamed headings, or a table reflowed for one row—then narrow the diff, stack on the other PR, or record which merges first.
 
 **Plan the reviewers.** Read the diff and assign a matching reviewer type to each area the change touches: red team for tokens, system design for leases, storage for migrations, program design for contracts, fuzzing for parsers, bounded verification for model rules, stress test for inputs, and experiment + skeptic for spike results (using the evidence bar in [`verify-evidence`](../../skills/ci-doctor/references/verify-evidence/TOPIC.md)). If one type covers multiple distinct areas, assign one reviewer per area. We used 1 to 8 reviewers per round.
 
@@ -38,7 +38,7 @@ The review gate verifies that a well-formed review record exists. Below is the r
 
 **Verify every finding.** Reproduce it with a failing test, command, or code trace—agreement isn't evidence, and any finding without a real consumer and reproduction is dismissed. Put unrelated pre-existing issues in a follow-up issue. Assign severity P0–P3 and one disposition:
 - **Fixed:** fixed on the PR branch with a regression test that fails before and passes after. Every in-scope P0 and P1 must be fixed in the PR.
-- **Filed:** real, but out of scope or below P1—tracked in a linked issue.
+- **Filed:** real, but out of scope or below P1—tracked in an issue linked from the PR.
 - **Kept:** intentionally retained per a brief or decision, citing the reason and decision-maker.
 - **Dismissed:** wrong, unreproducible, or unreachable, with a one-sentence evidence note.
 - **Question:** requires a human decision—keep working on everything else and ask at the end.
@@ -50,7 +50,7 @@ A finding reopens only with new evidence that its dismissal was wrong or its fix
 **Applies when:** The slow-file inventory is large enough to divide across agents, and your harness can run parallel agents in separate worktrees. **Skip when:** Your harness doesn't support parallel agents, or one agent can handle the list.
 
 1. **Collect records** since the last run and rank every file past 10 s, every shard-ending file, every wide spread, and every flake. Combine that list with open items from the ledger.
-2. **Triage slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` report for each file: what it waits for, how long, what it proves, the proposed fix, and the proof to preserve. Spot-check the biggest claims yourself.
+2. **Review every item, slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` report for each file: what it waits for, how long, what it proves, the proposed fix, and the proof to preserve. Spot-check the biggest claims yourself.
 3. **Group findings by shared root cause** into briefs. Each brief is a file specifying one finish line, CI before-timings, proof requirements, the local test command, and review requirements. Shared rules live in one README that every brief links to.
 4. **Assign one engineer per brief,** each in its own git worktree. Cap concurrency by account limits and machine load (on one day load climbed well past the core count, so we paused new starts). Check for overlapping PRs (`gh pr list --search <file>`) before launching work.
 5. **Manager marks ready and merges** once CI is green, review is resolved, and logs confirm the target files actually ran. Rerun a flaky failure once; a second failure becomes an issue.

@@ -45,7 +45,7 @@ Turborepo and Nx already ship package-level selection (`turbo run <task> --affec
 
 **Applies when:** Every integration test boots the whole server, making the import graph say everything reaches everything, and `main`'s sweeps run the full suite as a safety net. **Skip when:** The import graph already narrows selection, or no sweep on `main` covers what "near" leaves out.
 
-Because every server integration test boots the whole Worker, a plain import-graph traversal says *everything reaches everything*—picking 494 of 1,035 files for a single model edit. Instead, the selector combines four signals:
+Because every server integration test boots the whole Worker, the import graph says *everything reaches everything*—a plain changed-files traversal picked 494 of 1,035 files for a single model edit. Instead, the selector combines four signals:
 
 - tests edited by the change;
 - tests importing a changed module (or a production module that calls it), walking upward while **stopping at modules with more than 20 importers**;

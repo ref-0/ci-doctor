@@ -8,7 +8,7 @@
 
 Start simple: a fixed per-suite assignment built from each file's recorded duration, passed as an exact file list to the test runner and checked against the collected inventory, delivers most of the balance ([`scripts/shards/`](../../scripts/shards/README.md#start-simple-a-fixed-split)). Keep test families that share fixture state together, cap matrix size to your organization's concurrency limits, and split any single file that dominates a shard before tuning the layout. Work stealing and independent lanes (below) are follow-on optimizations to measure separately.
 
-Vitest's built-in sharding splits by file *count*, which left our shards differing by roughly a quarter in test-seconds. Instead, the plan computes one split from **each file's latest timing on `main`** and passes it to every shard:
+Vitest's built-in sharding splits by file *count*; two shards once differed by roughly a quarter in test-seconds. Instead, the plan computes one split from **each file's latest timing on `main`** and passes it to every shard:
 
 ```text
 shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per_worker)), 1, max_shards)
@@ -21,13 +21,13 @@ shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per
 
 ## Work stealing over cache-key claims
 
-**Applies when:** Time-based fixed shards are already in place and runner speed variance still creates long tails—measured on its own. **Skip when:** Fixed time-based shards aren't in place yet.
+**Applies when:** Time-based fixed shards are already in place and runner speed still varies—measured on its own. **Skip when:** Fixed time-based shards aren't in place yet.
 
-Runner performance fluctuates: we observed a single shard running 1.6× slower than the median.
+Runner performance fluctuates: one shard ran 1.6× the median.
 
 - **Half fixed, half queued.** Keep roughly half of estimated work in fixed shard assignments (each shard's first group, untimed groups, and explicitly pinned groups stay fixed even if that exceeds the 50% target). Put the rest into a shared queue ordered slowest-first, grouped into batches of whole task groups until each batch's summed estimated work (file durations plus modelled startup) reaches ~60 seconds—note that's *summed work*, not 60 seconds of wall clock. Single-shard runs skip the queue.
 - **Claim batches with cache reservations.** A shard claims a batch by **reserving a unique Actions cache key**; the first reservation wins. In contention tests of 10 and 20 contenders over 540 keys, every key had exactly one winner and claims completed in a fraction of a second.
-- **Handle ambiguity by running.** Claims use a 10 s deadline and 3 retries. **If a claim result is ambiguous, run the batch anyway:** duplicate work is far better than a silently dropped batch.
+- **Handle ambiguity by running.** Claims use a 10 s deadline and 3 tries. **If a claim result is ambiguous, run the batch anyway:** duplicate work is far better than a silently dropped batch.
 - **Reruns and completeness.** Reruns restore claims from every attempt, and the aggregate result job fails if any batch has no recorded owner.
 - **Result:** The gap between the slowest shard and the median shard shrank roughly sevenfold.
 
@@ -42,8 +42,8 @@ Each shard runs one independent lane per worker, and each lane grabs its next ta
 **Applies when:** Per-job CPU over at least three runs (including the high tail) shows a runner is mis-sized, or tiny selections are paying a large runner's minimum-minute cost. **Skip when:** Fewer than three runs agree.
 
 - **Route small selections to 2 vCPU with 2 workers.** We define "small" as `server_files + other_files/10 ≤ 6`. In one sample, 28 of 40 single-shard runs were tiny—tests took about half the job and setup took the rest. Running them on 8 vCPU would pay 4× for the minimum minute.
-- **More workers doesn't mean faster.** Running 9 workers on 8 vCPU took 1.5–1.8× longer than 6 workers and introduced timing failures.
-- **Resize only when three runs agree.** Check per-job CPU across at least three runs before changing runner size (`blacksmith jobs stats` on Blacksmith, or in-job CPU sampling elsewhere), inspecting the high tail as well as the median. On GitHub-hosted runners, start jobs on the repo's existing label and compare queue time, concurrency caps, startup, and total priced cost before moving to a larger runner.
+- **More workers doesn't mean faster.** Running 9 workers on 8 vCPU took 1.5–1.8× as long as 6 workers and introduced timing failures.
+- **Resize only when three runs agree.** Check per-job CPU across at least three runs before changing runner size (`blacksmith jobs stats` on Blacksmith, or in-job CPU sampling elsewhere), inspecting the high tail as well as the median. On GitHub-hosted runners, start jobs on the repo's existing label and compare queue time, concurrency caps, startup, and total priced cost before asking for a larger runner.
 - **Split static checks from type-aware lint.** Combined, they had been one of our longest jobs. Type-aware lint got an 8-vCPU / 32 GB runner after p95 memory hit 97% of 16 GB.
 - **Pack container tests longest-first** into jobs targeting ~150 s, running one file at a time on a small runner (2 vCPU for us; size yours from measured CPU). Re-estimate a file only when actual time drifts by more than 20%.
   - **Measure whole-command wall clock for packing,** including collection and setup, from successful files that actually executed. Vitest's per-module duration (stored in our records, with collection separate) omits collection, so don't use it directly for packing. Summing printed test-case durations gives only a lower bound: if it exceeds your estimate, the estimate is too low, but being lower proves nothing. Never replace estimates with case sums, and remember skipped files have no execution time.

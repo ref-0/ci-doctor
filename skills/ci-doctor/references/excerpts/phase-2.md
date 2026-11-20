@@ -31,7 +31,7 @@ gh api --paginate "repos/$slug/pulls?state=all&per_page=100"
 gh api --paginate "repos/$slug/issues/$pr/timeline?per_page=100"
 ```
 
-Repeat the workflow-runs query without `event=` when measuring spend so pushes, schedules, and dispatches are included. Document partial reruns, expired logs, and any denied endpoints along with how much of the window they cover. If current access can't read a resource, ask for that exact scope or a user-redacted export—never widen tokens or archive unfiltered logs. Sources: GitHub's [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs) and [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs) APIs.
+Repeat the workflow-runs query without `event=` when measuring spend so pushes, schedules, and dispatches are included. Document partial reruns, expired logs, and anything you were denied along with how much of the window they cover. If current access can't read a resource, ask for that exact scope or a user-redacted export—never widen tokens or archive unfiltered logs. Sources: GitHub's [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs) and [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs) APIs.
 
 ## Records: evidence of what ran
 
@@ -84,11 +84,11 @@ From [docs/pages/12-budgets-health-and-spend.md](../../../../docs/pages/12-budge
 ### Audit spend over comparable windows
 
 - **Audit spend over comparable windows:**
-  - use equal, complete UTC windows; label any partial window as partial and never extrapolate growth from it;
+  - use equal, complete UTC windows; label any partial window as partial and don't claim growth from it;
   - reconcile job renames and splits across windows;
   - for each logical category, report job and run counts, runner size, average rounded duration, and platform price. Price GitHub-hosted runs by each job's actual runner SKU at its verified per-minute rate across all attempts. Attribute only measured jobs to categories, track cache storage and other approved costs separately, and take actual spend from authorized billing reports rather than estimates;
   - keep raw compute minutes distinct from price-normalized units;
-  - read the authorized cap from the watcher's config (`cap` and optional `warn`) or the approved change that set it, and fix any stale doc that disagrees. Because the health report's projection copies only `cap`, name who keeps the watcher config and health report in sync. An audit never authorizes raising the cap on its own;
+  - read the authorized cap from the watcher's config (`cap` and optional `warn`) or the approved change that set it, and fix any stale doc that disagrees. Because the health report's projection copies only `cap`, name who keeps the watcher config and health report in sync. An audit never authorizes raising the cap;
   - keep first-attempt latency and all-attempt spend as separate populations.
 
 ## 14. Local speed, and many agents on one machine
@@ -104,14 +104,14 @@ From [docs/pages/14-local-speed-and-many-agents-on-one-machine.md](../../../../d
   - The pool coordinates one user sharing one `/tmp`. Separate users, containers, or VMs need an explicit shared coordinator or separate capacity budgets. Confirm the pool is actually active (Perl with `flock` installed) before trusting load or slot-wait logs.
   - Three concurrent runs of three workers each had pushed system load past the core count.
   - In our observations under shared load, cap 4 produced zero timeouts (one socket closure, one failed test), cap 6 produced three timeouts, and cap 8 produced many—evidence of reliability under contention rather than a clean speed benchmark.
-  - **Log slot-wait time separately from execution time.** Tie each record to a worktree and work interval, and report ambiguous, unmatched, and missing completions (a killed process logs none). State your denominator (all active engineer time vs. covered work only). Because waits summed across parallel files overlap, merge or partition intervals before estimating lost engineer time. By our measure, slot waits were a meaningful share of active time—enough to keep tracking.
+  - **Log slot-wait time separately from execution time.** Tie each record to a worktree and work interval, and report ambiguous, unmatched, and missing completions (a killed file logs none). State your denominator (all active engineer time vs. covered work only). Waits summed across parallel files overlap, so they aren't a causal estimate of lost engineer time; merge or partition the intervals first. By our measure, slot waits were a meaningful share of active time—enough to keep tracking.
 - **Disable implicit installs.** Set `verifyDepsBeforeRun: false` in pnpm. Concurrent auto-installs near ext4's ~65,000 hard-link limit forced pnpm to fall back to copying and **truncated shared store files**—8,543 files in one reproduction—corrupting sibling worktrees. Install once, alone, per checkout.
 - **Don't let one agent starve the machine.** A single related-tests run consumed enough memory to trigger the OOM killer on an agent session. When memory is tight, run specific files and leave broader suites to CI.
 - **Check load and disk space first** whenever unrelated tests fail in bulk. A full temp disk once caused SQL and template-copy errors completely unrelated to the code change.
 - **Run best-effort Linux housekeeping timers:**
   - a weekly sweep of idle Rust `target/` directories that rechecks eligibility right before deletion (one sweep freed 18 GiB);
   - a low-priority temp-leftovers sweep every 6 hours, based on a single process snapshot taken at startup;
-  - never share a single Cargo `target/` directory across worktrees—Cargo returned another worktree's binary as "fresh."
+  - never share a single Cargo `target/` directory across worktrees—it returned the wrong binary as "fresh."
 
   Both sweeps can race with brand-new work and can't inspect processes they lack permission to see, so neither guarantees a directory will stay idle. Explicitly exclude the slot directory and any control-plane state, and review a dry run and agree on cleanup scope before enabling deletion on a new machine ([`scripts/local/README.md`, section 4](../../../../scripts/local/README.md#4-housekeeping-timers)).
 - **Kill processes by PID only.** Pattern kills (`pkill -f`, etc.) can terminate another engineer's active run.

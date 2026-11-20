@@ -17,7 +17,7 @@
 
 **Applies when:** Expensive files run on every PR: bounded model checks, large-fixture or long-history/large-dataset tests, wide grids, or full oracle corpora. **Skip when:** No PR test is expensive enough to tie to the specific inputs it proves.
 
-- **Covered-only table.** Map expensive files to the exact inputs they prove (bounded model checks, large fixtures, long-history or large-dataset tests, wide grids, full oracle corpora). A PR runs one only when it touches a covered path—**even when the PR otherwise falls back to selecting everything.** Sweeps always run them.
+- **Covered-only table.** Map expensive files to the exact inputs they prove (bounded model checks, large fixtures, long-history or large-dataset tests, wide grids, full oracle corpora). A PR runs one only when it touches a covered path—**even when the PR otherwise selects everything.** Sweeps always run them.
 - **Split before moving.** Keep light regression cases on PRs and move only the scale proof. In one file, 17 light cases stayed on PRs while three scale proofs—representing most of the file's runtime—moved out.
 - **Keep moved proofs honest.** A bounded model check or fuzz run in a slower tier is only worth its slot if it stays faithful to the code: actions that correspond to real code, a deliberate break each rule catches, recorded scope and bounds, and generators that reach edge cases. [`skills/proof-tiers/`](../../skills/proof-tiers/) covers this (optional for stacks without model checks or property tests).
 - **Never shrink a proof to make it fit.** Change *when* it runs, not its bounds or input size so it proves less.
@@ -32,14 +32,14 @@
 
 **Applies when:** GitHub's scheduled runs carry checks such as sweeps or `main`-only jobs. **Skip when:** The repo has no scheduled or `main`-only jobs.
 
-GitHub's scheduled runs frequently arrived **hours late**, and during one period 7 of 9 never started at all.
+GitHub's scheduled runs arrived **hours late**, and during one period 7 of 9 never started at all.
 
 - **Merge fallback:** The first merge after each scheduled slot checks whether a run has started since that slot and dispatches one if not. Serialized controller concurrency groups prevent duplicates, and slots recognize each other's coverage.
 - **Verify the schedule itself:** A dispatch isn't a pass. Schedule a one-off follow-up check at the time of a new job's first run and read its result.
 - **Plan `main`-only jobs before merging.** A notice and later check only produce evidence once something actually runs, and a new `workflow_dispatch` workflow can't be dispatched until it lands on the default branch. Before merging:
-  - verify syntax and event logic locally, and explicitly name the job and what remains untested;
+  - verify syntax and event logic locally, and explicitly name the exact job and what remains untested;
   - for an existing dispatchable workflow, present the command, ref, inputs, permissions, and run budget for user approval;
-  - stage any new or `main`-only job so it cannot affect gates, releases, or issues until its first eligible run is reviewed, and record a deadline, owner, and rollback plan in case it never starts.
+  - stage any new or truly `main`-only job so it cannot affect gates, releases, or issues until its first eligible run is reviewed, and record a deadline, owner, and rollback plan in case it never starts.
 
 ## One issue for a red main, and a bisect with a budget
 
@@ -50,7 +50,7 @@ GitHub's scheduled runs frequently arrived **hours late**, and during one period
 - **Bisect:** A still-failing server run reruns at most four failed files, then halves the merge range in up to six midpoint runs.
 - **Record verdicts on the issue:** Confirmed-failing files and completed verdicts are posted to the issue so later slots don't pay to rediscover them.
 - **Bounded spend:** The bisect controller charges every probe job against a **monthly vCPU-minute allowance**—cancelled and in-flight jobs included—and refuses new probes if its accounting is incomplete.
-- **Skip unrepeatable checks:** Don't bisect non-deterministic checks. A run-seeded property test can only be bisected with the failing run's recorded seed, case count, size, and versions held fixed.
+- **Skip unrepeatable checks:** Don't bisect checks that can't be repeated. A run-seeded property test can only be bisected with the failing run's recorded seed, case count, size, and versions held fixed.
 
 ## Releasing what the sweep checked
 

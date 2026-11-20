@@ -11,7 +11,7 @@ Agents wait on local checks far more often than on CI, so local feedback got the
 - **Run the narrowest check that covers your change:**
   - While iterating: run a single test file by path (`vp test run <file> -t '<name>'`), and format and lint only changed files.
   - Before pushing: run `check`, `build`, and `test:cached`.
-  - Document these exact commands in `AGENTS.md` so agents don't invent broader ones.
+  - These commands are spelled out in `AGENTS.md` so agents don't invent broader ones.
 - **`test:cached` selects tests near the diff.** It inspects committed and uncommitted changes since the merge base—selecting edited tests, name matches, direct importers, and explicit config, bundle, and disk-read edges. Locally, selection takes 0.8–1.8 s versus 8.6–13.5 s for Vitest's built-in changed-file mode, and cached passes replay from local and remote task caches. `--all` and folder paths remain available. We rejected a separate "fast" command: the default command *is* the fast one.
   - [`scripts/local/`](../../scripts/local/) provides the selector. The local cached-test runner itself isn't ported—implement it against the contract in [`scripts/local/README.md`, section 3](../../scripts/local/README.md#3-testcached-the-near-tests-as-cached-groups) (group before filtering, enforce the slot cap, fall back to all tests, validate paths, serialize the summary directory, account for every file, and fail on interrupted or unrun files), summarized below.
 - **Reuse work across worktrees:**
@@ -30,13 +30,13 @@ Agents wait on local checks far more often than on CI, so local feedback got the
   4. Compare a cold and warm build and inspect `sccache --show-stats`.
 
   Inside a sandbox that can't reach the `sccache` server, build with `RUSTC_WRAPPER= cargo build`. Keep `sccache` local-only unless measurements justify CI use (section 6), and note that it doesn't reclaim `target/` disk space. Full setup and validation: [`scripts/local/README.md`, section 5](../../scripts/local/README.md#5-rust-compile-cache-local-only).
-- **Leave container, proof, and replay tests to CI**—along with Docker and full CI commands. An agent dispatches a manual single-file CI run locally only when a decision depends on it.
+- **Leave container, proof, and replay tests to CI**—along with Docker and full CI commands. From local work, an agent dispatches a manual single-file CI run only when a decision depends on it.
 
 ## The local runner contract
 
 **Applies when:** A local runner executes a selected subset of tests (such as `test:cached` or a custom driver). **Skip when:** Local runs don't use selection.
 
-`test:cached` combines a selector with a runner. A naive runner that simply invokes a selected file list can report green even when files failed to execute. Because [`scripts/local/`](../../scripts/local/) ships only the selector, make sure any runner you write satisfies every requirement below:
+`test:cached` combines a selector with a runner. A naive runner that simply invokes a selected file list can report green even when files failed to execute. Ours satisfies all of the following; because [`scripts/local/`](../../scripts/local/) ships only the selector, make sure any runner you write or use meets every point:
 
 - **Form stable groups from the entire ordinary suite before filtering,** so group keys never depend on the selection. Keep local grouping separate from CI's.
 - **Bound concurrent tasks** using the machine's file-slot cap.
@@ -45,7 +45,7 @@ Agents wait on local checks far more often than on CI, so local feedback got the
 - **Serialize callers** sharing a summary or cache directory: tag each invocation and round, and reject foreign or missing summaries.
 - **Account for every selected file** as replayed, passed, failed, interrupted, or not run—and fail the run if execution is incomplete.
 - **Support `--no-cache`** to disable reads and writes in both local and remote caches.
-- **Support sampled uncached hit verification** to check cache soundness, and never count a replay as a fresh flake observation.
+- **Optionally re-run a sample of hits uncached** to check cache soundness, and never count a replay as a fresh flake observation.
 
 Let each repo supply its own database and codegen setup; the contract is independent of our stack.
 
@@ -58,14 +58,14 @@ Let each repo supply its own database and codegen setup; the contract is indepen
   - The pool coordinates one user sharing one `/tmp`. Separate users, containers, or VMs need an explicit shared coordinator or separate capacity budgets. Confirm the pool is actually active (Perl with `flock` installed) before trusting load or slot-wait logs.
   - Three concurrent runs of three workers each had pushed system load past the core count.
   - In our observations under shared load, cap 4 produced zero timeouts (one socket closure, one failed test), cap 6 produced three timeouts, and cap 8 produced many—evidence of reliability under contention rather than a clean speed benchmark.
-  - **Log slot-wait time separately from execution time.** Tie each record to a worktree and work interval, and report ambiguous, unmatched, and missing completions (a killed process logs none). State your denominator (all active engineer time vs. covered work only). Because waits summed across parallel files overlap, merge or partition intervals before estimating lost engineer time. By our measure, slot waits were a meaningful share of active time—enough to keep tracking.
+  - **Log slot-wait time separately from execution time.** Tie each record to a worktree and work interval, and report ambiguous, unmatched, and missing completions (a killed file logs none). State your denominator (all active engineer time vs. covered work only). Waits summed across parallel files overlap, so they aren't a causal estimate of lost engineer time; merge or partition the intervals first. By our measure, slot waits were a meaningful share of active time—enough to keep tracking.
 - **Disable implicit installs.** Set `verifyDepsBeforeRun: false` in pnpm. Concurrent auto-installs near ext4's ~65,000 hard-link limit forced pnpm to fall back to copying and **truncated shared store files**—8,543 files in one reproduction—corrupting sibling worktrees. Install once, alone, per checkout.
 - **Don't let one agent starve the machine.** A single related-tests run consumed enough memory to trigger the OOM killer on an agent session. When memory is tight, run specific files and leave broader suites to CI.
 - **Check load and disk space first** whenever unrelated tests fail in bulk. A full temp disk once caused SQL and template-copy errors completely unrelated to the code change.
 - **Run best-effort Linux housekeeping timers:**
   - a weekly sweep of idle Rust `target/` directories that rechecks eligibility right before deletion (one sweep freed 18 GiB);
   - a low-priority temp-leftovers sweep every 6 hours, based on a single process snapshot taken at startup;
-  - never share a single Cargo `target/` directory across worktrees—Cargo returned another worktree's binary as "fresh."
+  - never share a single Cargo `target/` directory across worktrees—it returned the wrong binary as "fresh."
 
   Both sweeps can race with brand-new work and can't inspect processes they lack permission to see, so neither guarantees a directory will stay idle. Explicitly exclude the slot directory and any control-plane state, and review a dry run and agree on cleanup scope before enabling deletion on a new machine ([`scripts/local/README.md`, section 4](../../scripts/local/README.md#4-housekeeping-timers)).
 - **Kill processes by PID only.** Pattern kills (`pkill -f`, etc.) can terminate another engineer's active run.

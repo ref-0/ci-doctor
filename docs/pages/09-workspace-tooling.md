@@ -49,7 +49,7 @@ The type driver and its cache, symbol search and copy detection, the export guar
   mkdir -p bin && ln -s ../../../node_modules/tsrs/bin/tsrs-lint bin/tsgolint
   ```
 
-  Exporting *only* the binary is intentional: with nothing else exported, a framework patcher won't try to inspect the replaced `tsgolint`. Run your native checker and any framework patcher in `prepare` ([If you use Effect](#if-you-use-effect)). Re-verify tool version compatibility after any upgrade—the override alone doesn't prove they match.
+  Exporting *only* the binary is intentional: with nothing else exported, a framework patcher won't try to inspect the replaced `tsgolint`. Use your native checker; a framework's patcher, if you have one, runs in `prepare` ([If you use Effect](#if-you-use-effect)). Re-verify tool version compatibility after any upgrade—the override alone doesn't prove they match.
 
   In one quiet local run, types took 6.6 s (3.1 GiB) and type-aware lint took 13.4 s (4.5 GiB), reporting the same 37 warnings as before—105 CPU-seconds total, compared to 169 CPU-seconds and 7.8 GiB for the older setup measured locally on another day. Remove an adapter like this as soon as the tool supports selecting a backend natively.
 - **Per-project native type driver.** Runs one native check per project—largest first, four at a time—and attributes each diagnostic to the project that owns the file (`tools/workspace/src/types/`).
@@ -59,7 +59,7 @@ The type driver and its cache, symbol search and copy detection, the export guar
 **Applies when:** One consolidated type check covers the workspace via project references. **Skip when:** Each project is checked independently.
 
 - **One root `tsconfig.json`** with no files of its own, referencing every app, library, script, and tooling project, built on strict base options including `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
-- **A type-coverage guard** enumerates all tracked `.ts` files and fails if any file isn't covered by a project reachable from the root `tsconfig`, or if lint ignores a hand-written file. Without this guard, a consolidated check creates blind spots: turning it on exposed 44 hidden errors in one program, and an ignored custom-rules folder had hidden 57 more.
+- **A type-coverage guard** enumerates all tracked `.ts` files and fails if any file isn't covered by a project reachable from the root `tsconfig`, or if lint ignores a hand-written file. Without this guard, a consolidated check creates blind spots: turning it on exposed 44 hidden errors in one program, and lint ignoring the custom-rules folder had hidden 57 more.
 
 ## Type results follow content across worktrees
 
@@ -106,11 +106,11 @@ The type driver and its cache, symbol search and copy detection, the export guar
 
 ## Custom lint rules that guard the shortcuts
 
-**Applies when:** The repo relies on conventions that a lint rule can enforce: explicit build inputs, seeded property tests, restricted runtimes, or package boundaries. **Skip when:** None of those apply.
+**Applies when:** The repo takes shortcuts a lint rule can guard: explicit build inputs, seeded property tests, restricted runtimes, or package boundaries. **Skip when:** None of those apply.
 
 - **Complete build inputs.** Production and staging build tasks must declare transitive workspace source, manifests, and `tsconfig` files. Before this rule, a deliberately broken dependency source *replayed a green build*. We use explicit inputs for builds because automatic read tracking hit `spawn EBUSY` on our dev platform.
 - **Seeded property tests.** Property tests must use the shared seeded options so PR runs reproduce deterministically while sweeps pick fresh seeds.
-- **Boundaries:** forbid undeclared package access and cross-layer imports; restrict each sandbox or isolate entry's transitive import closure to what that runtime supports; and allow environment-variable reads only at entry points. Identify your restricted runtime entry points before enabling the isolate rule—for us it covers code executing inside a sandboxed isolate, not all Worker code.
+- **Boundaries:** forbid undeclared package access and forbidden layer imports; restrict each sandbox or isolate entry's transitive import closure to what that runtime supports; and allow environment-variable reads only at entry points. Identify your restricted runtime entry points before enabling the isolate rule—for us it covers code executing inside a sandboxed isolate, not all Worker code.
 - **Hygiene:** keep `index.ts` barrels re-export-only, require explicit entry re-exports, require justification comments on unsafe assertions, and forbid quadratic accumulator copies.
 - **Publish shared rules as a package** consumed by each repo, with repo-specific domain rules layered on top. Test the shared package by installing its *packed tarball* into a temporary consumer so you verify what users actually receive.
 
@@ -142,7 +142,7 @@ Each package exports **source first** under a custom export condition, followed 
 - **Inventory every generated artifact:** its source inputs, whether it is tracked in git, and the command that proves freshness. Verify tracked outputs against their source, and verify ignored bundles with a source-equivalence test.
 - **Invoke generation explicitly** after editing a generator or dependencies, and before consumers such as cached tests, builds, and deploys. Git hooks only supplement explicit calls: they miss editor changes, and an already-current install won't rerun `prepare`.
 - **Git hooks** (`core.hooksPath`, configured once per clone so every worktree inherits them) regenerate after checkout, merge, and rebase. They skip revisions lacking dependencies or the generator, print the repair command on failure, and never abort the git operation.
-- **Test from a truly clean checkout.** Initial `prepare` must succeed with zero generated outputs present. Local "cold" runs often retain old generated files and hide bootstrap import bugs.
+- **Test from a truly clean checkout.** Initial `prepare` must succeed with zero generated outputs present. Local "cold" runs kept old generated files and hid a bootstrap import bug.
 
 ## Find existing code before writing more
 
@@ -150,7 +150,7 @@ Each package exports **source first** under a custom export condition, followed 
 
 Agents duplicate code readily, so we gave them two tools:
 
-- **`symbols find <words>`** (`node tools/workspace/src/bin.ts symbols find`, or `pnpm symbols:find` via [`tools/workspace/`](../../tools/workspace/README.md#set-it-up)) parses top-level declarations with Oxc and ranks matches by name, doc comment, signature, and path, returning the top ten with signatures and locations. `AGENTS.md` instructs agents to run it before writing a new function. Locally, lookup took ~5.4 s uncached, 6.7 s on a cold cache, and 0.5 s warm—a warm local speedup, not a measured CI saving.
+- **`symbols find <words>`** (`node tools/workspace/src/bin.ts symbols find`, or `pnpm symbols:find` via [`tools/workspace/`](../../tools/workspace/README.md#set-it-up)) parses top-level declarations with Oxc and ranks matches by name, then doc comment, signature, and path, returning the top ten with signatures and locations. `AGENTS.md` instructs agents to run it before writing a new function. Locally, lookup took ~5.4 s uncached, 6.7 s on a cold cache, and 0.5 s warm—a warm local speedup, not a measured CI saving.
 - **`symbols check`** (`node tools/workspace/src/bin.ts symbols check <base> HEAD`) fails on new **exact** copies (with parameter and local names normalized) and warns on near copies (≥ 85% similar). It skips tests, types, and bodies under 40 syntax nodes, and allows intentional copies annotated with a `CLONE` comment explaining why.
 - **Cache parsed facts per file,** keyed by file content plus parser and extractor identity; file listing and comparisons always run fresh. The initial cleanup consolidated 12 of 15 exact-copy groups.
 

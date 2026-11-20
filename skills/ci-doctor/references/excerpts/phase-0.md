@@ -14,7 +14,7 @@ Harnesses evolve quickly. Every entry below was verified against its documentati
 
 ### What you need from a harness
 
-- **Parallel work:** The ability to start child agents in isolated git worktrees and branches so their edits and test runs don't collide, ideally with a second model available for reading and review. Always start each worktree from an explicit ref—the default branch for independent work.
+- **Parallel work:** The ability to start child agents in isolated git worktrees and branches so their edits and test runs don't collide, ideally with a second model available for reading. Always start each worktree from an explicit ref—the default branch for independent work.
 - **A schedule,** choosing from four options, each with its own identity and cost profile:
 
   | Kind | Runs where | Signed in as | Costs |
@@ -53,7 +53,7 @@ Docs: [Claude Code skills](https://code.claude.com/docs/en/skills), [Claude Code
 
 - **`codex exec "<task>"`** runs non-interactively without the TUI, writing progress to stderr and the final message to stdout. It is read-only by default; pass `--sandbox workspace-write` to allow edits. Use `--json` to stream events, `-o <file>` to save the final message, and `codex exec resume --last` to continue a session. Docs: [non-interactive mode](https://developers.openai.com/codex/non-interactive-mode).
 - **Parallel work:** Launch one `codex exec` per git worktree, each from its own directory, and wait for all of them to finish. Always name the starting ref—otherwise `git worktree add` branches from your current `HEAD`: `git fetch origin && git worktree add ../<repo>-<task> -b <branch> origin/<default-branch>`.
-- **In CI:** Use [`openai/codex-action`](https://github.com/openai/codex-action). Pass the provider key only as the action's input, never as a job-level environment variable in a workflow that executes repository code. The action protects the key only when configured with its documented privilege safeguard (`safety-strategy: drop-sudo` or an unprivileged user) on a compatible runner—read [its credential safeguards](https://github.com/openai/codex-action/blob/main/docs/security.md#protecting-your-openai_api_key) before enabling it. Let a separate job, with its own scoped credentials and no model key, apply any resulting changes.
+- **In CI:** Use [`openai/codex-action`](https://github.com/openai/codex-action). Pass the provider key only as the action's input, never as a job-level environment variable in a workflow that executes repository code. The action protects the key only when configured with its documented privilege safeguard (`safety-strategy: drop-sudo` or a configured unprivileged user) on a compatible runner—read [its credential safeguards](https://github.com/openai/codex-action/blob/main/docs/security.md#protecting-your-openai_api_key) before enabling it. Let a separate job, with its own scoped credentials and no model key, apply any resulting changes.
 
 ### T3 Code
 
@@ -67,7 +67,7 @@ A scheduled workflow (`on: schedule:` plus `workflow_dispatch:`) runs in a fresh
 
 - **Script-only first.** The sweep in [`templates/github/`](../../../../templates/github/README.md) is a script-only cron: it dispatches ordinary CI without running an agent. Use that pattern for anything a script can decide.
 - **Headless agent when needed.** When a job genuinely requires judgement, run the harness's headless command and pass the provider key only to the step or action that needs it.
-- **Don't trust cron timing.** GitHub often starts scheduled runs late or skips them under load. Have a merge or manual dispatch trigger missed runs, as our sweep does ([guide section 5](../../../../docs/pages/05-tiers-what-runs-where.md#cron-is-not-a-scheduler-you-can-trust)).
+- **Don't trust cron timing.** GitHub starts scheduled runs late or skips them under load. Have a merge or a dispatch trigger missed runs, as our sweep does ([guide section 5](../../../../docs/pages/05-tiers-what-runs-where.md#cron-is-not-a-scheduler-you-can-trust)).
 - **Least privilege.** Grant only the permissions the job requires, and let a separate job without the model key apply changes, as in Codex's auto-fix pattern. Both [Claude Code's GitHub Actions](https://code.claude.com/docs/en/github-actions) and [`openai/codex-action`](https://github.com/openai/codex-action) document their setups.
 - **Count both costs.** You pay runner minutes at your CI provider's rate, plus model usage if the job runs an agent. Include both in the budget.
 

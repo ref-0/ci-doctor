@@ -8,7 +8,7 @@ This is a field report from a TypeScript and Rust monorepo:
 
 Over about six weeks, we reshaped CI around a single rule: **pay for a check only where it can change a decision, and never make a test faster by making it prove less.** We held to that rule throughout, with one deliberate, recorded tradeoff: dropping a debug-profile Rust run ([section 7](pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores)).
 
-**Our stack is an example, not a requirement.** Effect, Cloudflare Workers, Vite+, the Rust service, and our Git-oracle tests happen to be what *we* had. The techniques generalize even where the details don't fit your stack; an agent applying this guide decides what's relevant.
+**Our stack is an example, not a requirement.** Effect, Cloudflare Workers, Vite+, the Rust service, and our Git-oracle tests happen to be what *we* had. The techniques generalize, even though the details may not fit your stack; an agent applying this guide decides what's relevant.
 
 This guide is long on purpose. Each section explains what we do, how it works, and why.
 

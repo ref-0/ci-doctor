@@ -4,7 +4,7 @@
 
 **Applies when:** A recurring read-only or deterministic follow-up would otherwise be run by hand, and the user approves its schedule. **Skip when:** The user hasn't approved a schedule—a manual, read-only follow-up is the default.
 
-Each row below labels how it runs, because the four mechanisms have very different costs and trust boundaries:
+Each row below labels how it runs, because these are distinct mechanisms:
 - **CI:** a script-only GitHub Actions cron or dispatch (no model usage);
 - **agent:** a scheduled agent task in a harness, cloud job, or session loop (spends model usage plus any runner minutes);
 - **machine:** a timer or service running on a host.
@@ -14,15 +14,15 @@ Prefer a plain script for anything deterministic. Every schedule is opt-in and r
 | Cadence | Job | What it does |
 |---|---|---|
 | Daily (CI) | Health report | Budgets, shard balance, slow files, retries, and spend projection, updated in a single issue |
-| Daily or weekly (agent) | **Runner review** | Compares each job's CPU and memory since the last review against its runner size. Proposes downsizing underutilized runners, upsizing jobs near memory limits or CPU-bound on the critical path, and adjusting shard counts when runner sizes change. Run daily when PR volume yields a fair sample each day; weekly otherwise. Proposes only—every resize needs user approval ([`ci-runners` sizing](../../skills/ci-doctor/references/ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule)). |
-| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for missed or late cron runs. |
+| Daily or weekly (agent) | **Runner review** | Compares each job's CPU and memory since the last review against its runner size. Proposes downsizing jobs that stay well under their CPU, upsizing jobs near memory limits or CPU-bound on the critical path, and adjusting shard counts when runner sizes change. Run daily when PR volume yields a fair sample each day; weekly otherwise. Proposes only—every resize needs user approval ([`ci-runners` sizing](../../skills/ci-doctor/references/ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule)). |
+| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for late cron runs. |
 | Daily (CI) | Latest external tools | Tests the newest versions of integrated external tools against our latest release without packing a snapshot, tracked in one compatibility issue |
-| Daily (CI) | Infra drift | Read-only diff of production resources against applied state; one issue per stage, closed only when fully in sync |
+| Daily (CI) | Infra drift | Read-only diff of production resources against applied state; one issue per stage, closed only when all are in sync |
 | Every 2 h (CI) | Startup watch | Reads Worker startup time from build logs and warns well before the platform's hard limit |
 | Weekly (CI) | Load baseline | Runs only when the deployed server changed since the last passing baseline |
 | Three times a week (agent) | **Slow tests and flakes** | Runs the end-to-end campaign from section 15, within the guardrails below |
 | Every 2 weeks (agent) | **Docs drift sweep** | Section 17 |
-| Weekly (agent) | PR-time re-measure | Tracks where engineers' PR time actually goes using Phase 2's delivery-interval fields. Because CI waits were a small share of PR-hours compared to questions and approvals, this keeps us optimizing the real bottleneck. |
+| Weekly (agent) | PR-time re-measure | Tracks where engineers' PR time actually goes using Phase 2's delivery-interval fields. CI waits were a small share of PR-hours—questions and approvals were far larger—so this keeps us optimizing the real bottleneck. |
 | Weekly (agent) | Review-value check-in | Audits review escapes ("Caused by #n" PRs) to verify the streamlined review still catches enough |
 | Weekly (agent) | Skills/memories review | Folds useful agent memories into skills and deletes stale ones |
 | Nightly (machine timer) | CI-records collector | Section 13 |

@@ -15,7 +15,7 @@ From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../..
 - **Size each job to its actual work.** Planning and bookkeeping need very little; static checks need somewhat more; test shards and type-aware lint need the most. A provider that offers per-job sizing and bills accordingly lets each job take only what it uses. Resize only from measured CPU, and only when at least three runs agree (section 7).
 - **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job finishing at 2:01 costs the same as one finishing at 2:59. That's why we aim for two minutes elapsed or less per shard, setup included (section 7). Check whether your provider prices per runner or per vCPU, and per job or per run.
 - **Architecture and OS change both price and speed.** At the list prices we checked, arm64 was cheaper per minute than x64, and macOS was several times more expensive than Linux—verify your provider's current rates. A cheaper minute isn't a cheaper run until you measure the same tests on it (section 7).
-- **Warm setup matters as much as runner speed.** Because each job pays for its own install, keeping a snapshot of `main`'s install keyed by the manifests (section 6)—on a persistent disk or in the Actions cache—often decides how much of a short job is lost to setup.
+- **Warm setup matters as much as runner speed.** Because each job pays for its own install, keeping a snapshot of `main`'s install keyed by the manifests (section 6)—on a persistent disk or in the Actions cache—decides how much of a short job is setup.
 - **Measure per-job CPU and cost.** Without both, runner sizing is guesswork. Some providers report them directly; elsewhere, sample CPU inside the job and price minutes from runner labels ([`skills/ci-doctor/references/ci-runners/`](../ci-runners/TOPIC.md)).
 - **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-doctor/references/ci-runners/references/providers.md`](../ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../../../templates/github/README.md#runner-labels) maps the templates' runner labels to each.
 
@@ -26,8 +26,8 @@ From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../..
 A job's queue time runs from creation to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos this is seconds. When the slowest tenth of jobs wait minutes, engineers are waiting on capacity rather than tests, and faster tests won't fix it.
 
 - **Measure it first:** compute p50 and p90 queue time by runner label over a normal week, and compare it against total PR wait time. If queueing is a large share of the wait, fix it first.
-- **Diagnose the cause by when it happens:**
-  - **Long waits even when few jobs are running:** the provider itself. GitHub-hosted runners can take minutes to start during busy periods even under light load; this is what moved us to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Price a provider move as the plan's runner recommendation (see section 7 for the measured comparison) and propose it.
+- **The usual cause is the runners themselves—diagnose it by when waits happen:**
+  - **Long waits even with few jobs running:** the provider itself. GitHub-hosted runners can take minutes to start at busy times even with few jobs running; this is what moved us to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Price a provider move as the plan's runner recommendation (see section 7 for the measured comparison) and propose it.
   - **Waits grow with the number of concurrent jobs:** either your account's concurrency cap (larger and macOS runners have separate, lower caps—check your plan's current limits) or fan-out, where every push spawns many jobs and each new push spawns them all over again.
   - **Waits occur only on specific labels:** an undersized self-hosted pool, or a label no idle runner carries.
 - **Apply the matching fix:**
@@ -78,7 +78,7 @@ From [docs/pages/16-standing-automations.md](../../../../docs/pages/16-standing-
 
 **Applies when:** A recurring read-only or deterministic follow-up would otherwise be run by hand, and the user approves its schedule. **Skip when:** The user hasn't approved a schedule—a manual, read-only follow-up is the default.
 
-Each row below labels how it runs, because the four mechanisms have very different costs and trust boundaries:
+Each row below labels how it runs, because these are distinct mechanisms:
 - **CI:** a script-only GitHub Actions cron or dispatch (no model usage);
 - **agent:** a scheduled agent task in a harness, cloud job, or session loop (spends model usage plus any runner minutes);
 - **machine:** a timer or service running on a host.
@@ -88,15 +88,15 @@ Prefer a plain script for anything deterministic. Every schedule is opt-in and r
 | Cadence | Job | What it does |
 |---|---|---|
 | Daily (CI) | Health report | Budgets, shard balance, slow files, retries, and spend projection, updated in a single issue |
-| Daily or weekly (agent) | **Runner review** | Compares each job's CPU and memory since the last review against its runner size. Proposes downsizing underutilized runners, upsizing jobs near memory limits or CPU-bound on the critical path, and adjusting shard counts when runner sizes change. Run daily when PR volume yields a fair sample each day; weekly otherwise. Proposes only—every resize needs user approval ([`ci-runners` sizing](../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule)). |
-| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for missed or late cron runs. |
+| Daily or weekly (agent) | **Runner review** | Compares each job's CPU and memory since the last review against its runner size. Proposes downsizing jobs that stay well under their CPU, upsizing jobs near memory limits or CPU-bound on the critical path, and adjusting shard counts when runner sizes change. Run daily when PR volume yields a fair sample each day; weekly otherwise. Proposes only—every resize needs user approval ([`ci-runners` sizing](../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule)). |
+| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for late cron runs. |
 | Daily (CI) | Latest external tools | Tests the newest versions of integrated external tools against our latest release without packing a snapshot, tracked in one compatibility issue |
-| Daily (CI) | Infra drift | Read-only diff of production resources against applied state; one issue per stage, closed only when fully in sync |
+| Daily (CI) | Infra drift | Read-only diff of production resources against applied state; one issue per stage, closed only when all are in sync |
 | Every 2 h (CI) | Startup watch | Reads Worker startup time from build logs and warns well before the platform's hard limit |
 | Weekly (CI) | Load baseline | Runs only when the deployed server changed since the last passing baseline |
 | Three times a week (agent) | **Slow tests and flakes** | Runs the end-to-end campaign from section 15, within the guardrails below |
 | Every 2 weeks (agent) | **Docs drift sweep** | Section 17 |
-| Weekly (agent) | PR-time re-measure | Tracks where engineers' PR time actually goes using Phase 2's delivery-interval fields. Because CI waits were a small share of PR-hours compared to questions and approvals, this keeps us optimizing the real bottleneck. |
+| Weekly (agent) | PR-time re-measure | Tracks where engineers' PR time actually goes using Phase 2's delivery-interval fields. CI waits were a small share of PR-hours—questions and approvals were far larger—so this keeps us optimizing the real bottleneck. |
 | Weekly (agent) | Review-value check-in | Audits review escapes ("Caused by #n" PRs) to verify the streamlined review still catches enough |
 | Weekly (agent) | Skills/memories review | Folds useful agent memories into skills and deletes stale ones |
 | Nightly (machine timer) | CI-records collector | Section 13 |
@@ -174,7 +174,7 @@ People often ask two things: *"Does all of this go into `AGENTS.md`?"* and *"How
 - **Tag every lesson with its date and PR** so an agent can verify whether the referenced code still exists.
 - **Code wins.** Enforced in `AGENTS.md`: agents read live values from code and config, never from prose.
 - **Put mechanics in tested scripts.** Collecting, ranking, grouping, budgets, and flake filing are code with tests, leaving docs to capture judgement rather than fragile step-by-step instructions.
-- **Maintain a "What was tried" register.** One register lists every measured-and-dropped idea with when it was tried, the numbers observed, the evidence (PR/run, or why none exists), and what would have to change to revisit it. Ours is section 18; place yours in `.agents/repo/ci.md`'s *Tried and dropped* section so [`ci-read-what-was-tried`](../checks/ci-read-what-was-tried.md) can read it. Dropped ideas only return with new numbers—and some *did* return once conditions changed, which is why the "retry when" column matters.
+- **Maintain a "What was tried" register.** One register lists every measured-and-dropped idea with when it was tried, the numbers observed, the evidence (PR/run, or why none exists), and what would have to change to revisit it. Ours is section 18; place yours in `.agents/repo/ci.md`'s *Tried and dropped* section so [`ci-read-what-was-tried`](../checks/ci-read-what-was-tried.md) can read it. A later run may propose a dropped idea again only with new numbers—and some *did* return once conditions changed, which is why each row records when to retry.
 - **Run a docs drift sweep every 2 weeks.** Three read-only reviewer agents each audit a slice—top-level docs, process skills, and code skills—flagging duplicated rules phrased differently, claims that no longer match code, and conflicting skills. Each finding uses the format `path:line | dup/conflict/stale | evidence | change`. A human reviews findings before edits land; duplicates keep a single owner while the other copy becomes a link.
 - **Enforce a size budget in CI:** skill descriptions ≤ 320 characters; for owned instruction files, `SKILL.md` ≤ 10 KB and root `AGENTS.md` ≤ 12 KB, rejecting dated changelog lines (`Changed on…`) since history belongs in git. Recognized vendored skill bodies are exempt from body-size and history checks, though every description—upstream copies included—stays within 320 characters. Other agent/rules files and the glossary have limits defined in [`scripts/docs/`](../../../../scripts/docs/)'s checker. A hard budget forces *cutting* bloat instead of merely *moving* it.
 - **Generalize—don't append.** The standing campaign's final step asks every engineer for lessons:
@@ -184,4 +184,4 @@ People often ask two things: *"Does all of this go into `AGENTS.md`?"* and *"How
   - any rule now enforced by a lint, check, or script is **removed** from prose;
   - a run that uncovered nothing general makes no doc changes.
 - **Memories graduate or expire.** In the weekly review, agent memories now captured in a skill are deleted.
-- **Pin upstream skills.** Third-party skills use a lockfile. A weekly job updates them in a throwaway checkout, reapplies documented local edits, diffs only locked folders and the lockfile, and opens or updates one issue—never saving updates or auto-merging. Locally edited skills diff against their recorded upstream baseline rather than being overwritten. [`tools/upstream-sync/`](../../../../tools/upstream-sync/README.md) provides the opt-in workflow and reapply helper.
+- **Pin upstream skills.** Third-party skills use a lockfile. A weekly job updates them in a throwaway checkout, reapplies documented local edits, diffs only locked folders and the lockfile, and opens or comments on one issue—never saving updates or auto-merging. Locally edited skills diff against their recorded upstream baseline rather than being overwritten. [`tools/upstream-sync/`](../../../../tools/upstream-sync/README.md) provides the opt-in workflow and reapply helper.
