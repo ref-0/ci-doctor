@@ -19,6 +19,11 @@
 #
 # With one daily suite and no server slots: delete the second cron, SERVER_AT and the `server` job.
 #
+# The sweep is also the full refresh of the shard times, the one run that times every file. Its
+# cadence is still yours to pick on cost and risk alone: between sweeps, ci.yml's `report` folds new
+# files' times on main, so shards stay even at a weekly sweep too (the ci-runners skill's shards,
+# "Keeping the times current").
+#
 # The daily sweep is the release's check: release publishes only what a passing sweep checked.
 # Pick its slot from your merge timing, the quietest few hours before your release, so the day's
 # run is done before the day's release.
