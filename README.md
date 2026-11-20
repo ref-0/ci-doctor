@@ -11,7 +11,7 @@ It's what we learned in a 1.5M-line TypeScript and Rust monorepo where AI agents
 
 ## AI Quickstart
 
-Copy this into your coding agent, from your repo's root. It installs the skills, by [whichever method](#installing) your agent supports, then starts the plan:
+Copy this into your coding agent, from your repo's root. It installs the skills, by [whichever method](#installation) your agent supports, then starts the plan:
 
 ```text
 Install the ci-doctor skills using one method. In Claude Code, run `claude plugin marketplace add ref-0/ci-doctor`, then `claude plugin install ci-doctor@ref0`, and start a new session or run `/reload-plugins`. In Codex, run `codex plugin marketplace add ref-0/ci-doctor`, then `codex plugin add ci-doctor@ref0`, and start a new session. In VS Code or Cursor, install `https://github.com/ref-0/ci-doctor` as a plugin from source. For another agent, run `npx skills add https://github.com/ref-0/ci-doctor` and select the agent. Then use the ci-doctor skill to start its plan for this repo.
@@ -27,9 +27,26 @@ If you scored your repo with `npx @ref0/ci-doctor` or on ci-doctor.ref0.dev, add
 
 Your agent maps your stack, measures your CI's median and p90, and writes a plan for you to review. Until you approve it, it only reads: no installs, test runs, CI runs, account setup or schedules.
 
-## Installing
+## Skills
 
-The plugin holds fourteen skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and triages a failed check, `ci-workflows`, for editing a workflow without making CI slower or costlier, `cache-ci`, for setup that takes too long and caches that don't hit, `ci-runners`, for runner size, jobs that wait for a runner and the bill, `blacksmith`, for CI that runs on Blacksmith or is moving there, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, and which checks it selects, `speed-up-tests`, for a slow test in CI or locally, `fix-flaky-test`, for a test that fails sometimes, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, `agent-knowledge`, for where agents' instructions and a repo's facts live and how they stay true, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
+| Skill | For |
+|---|---|
+| [`ci-doctor`](skills/ci-doctor/SKILL.md) | The whole plan: measure CI, write a plan you review, work through it |
+| [`ci-runners`](skills/ci-runners/SKILL.md) | A high bill or jobs waiting to start: runner size, spend caps, providers |
+| [`blacksmith`](skills/blacksmith/SKILL.md) | Running on Blacksmith, or moving there |
+| [`speed-up-tests`](skills/speed-up-tests/SKILL.md) | Slow tests: find what they wait on, without proving less |
+| [`cache-ci`](skills/cache-ci/SKILL.md) | Slow installs and caches that never hit |
+| [`optimize-graphs`](skills/optimize-graphs/SKILL.md) | An edit that reruns most of the workspace |
+| [`fix-flaky-test`](skills/fix-flaky-test/SKILL.md) | Tests that pass only on a retry |
+| [`ci-workflows`](skills/ci-workflows/SKILL.md) | Editing workflows without making CI slower or cost more |
+| [`test-audit`](skills/test-audit/SKILL.md) | Tests that prove little, and duplicate coverage |
+| [`proof-tiers`](skills/proof-tiers/SKILL.md) | Model checks and property tests that stay honest |
+| [`prove-it`](skills/prove-it/SKILL.md) | Checking a claim that something got faster, costs less or is fixed |
+| [`review-gate`](skills/review-gate/SKILL.md) | Reviewing a PR while it’s a draft |
+| [`ci-merge-workflow`](skills/ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run |
+| [`agent-knowledge`](skills/agent-knowledge/SKILL.md) | Keeping AGENTS.md, CLAUDE.md and skills current |
+
+## Installation
 
 ### Claude Code
 
@@ -92,7 +109,7 @@ Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method fo
 | [`PROMPT.md`](PROMPT.md) | Points your agent at the `ci-doctor` skill |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release, and what to do about it |
 | [`docs/`](docs/) | The guide and harness notes |
-| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics and the one-rule checks, and the skills for workflows, caches, a workspace's graphs, slow and flaky tests, evidence, agents' knowledge and its templates, review, merging, test value and proof tiers |
+| [`skills/`](skills/README.md) | The plugin’s skills, as [Skills](#skills) lists |
 | [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
 | [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
@@ -107,29 +124,17 @@ The measurements behind the score live in [ci-doctor-db](https://github.com/ref-
 
 Releases are tags, and `main` is always the newest release, which is what each harness's plugin install reads. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
 
-**From 0.1.0:** 0.2.0 has nine new skills and moves most of the hub's topics into them. Update the plugin as your harness's section above says, and it brings all fourteen skills. With `npx skills`, run `npx skills add https://github.com/ref-0/ci-doctor` again and select every skill, since an update only refreshes the ones you have. For a copy by hand, copy every folder in `skills/` again and delete the hub's old `references/` topics. Then do the short list at the top of [0.2.0 in the CHANGELOG](CHANGELOG.md#v020), and a session mid-plan rereads the phase it's on.
-
 ## Contributing
 
-Work lands on the `next` branch: branch from it and open pull requests against it. A release merges `next` into `main`, bumps `version` in `plugin.json`, the other manifests, each skill's `SKILL.md` and `scorer/package.json`, points the skills' links to GitHub at the new tag, and pushes the tag, which publishes the scorer to npm (`.github/workflows/release.yml`).
-
-Before pushing, run the build checks from the repo's root:
+Branch from `next` and open pull requests against it. Before pushing, run the checks (Node 24, `git` and `jq`):
 
 ```sh
 node scripts/check.ts
 ```
 
-They check that the plugin's manifests agree and each skill loads as one skill, that the hub's phase excerpts match their sources, every link in the repo, in a copy of `skills/` alone and in a copy of each skill's folder alone, the guide's site and its `llms.txt`, that nothing names what a release replaced, the docs budget, and every skill script's tests, where a skipped test fails. They need Node 24, `git` and `jq`. After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first.
+After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first. `node scripts/site/build.ts` builds the guide site into `dist/site/`; `scripts/site/README.md` says how it's deployed.
 
-The guide for ci-doctor.ref0.dev builds with one command, into `dist/site/`, which Git ignores:
-
-```sh
-node scripts/site/build.ts
-```
-
-The build checks build it too, and fail on a link that leaves what it serves or a page `llms.txt` misses. `scripts/site/README.md` says what it serves and how to deploy it.
-
-A release bumps `version` in `plugin.json`, which the build checks keep the same in every manifest. Claude Code updates an installed plugin only when that version changes.
+A release merges `next` into `main`, bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag, and pushes the tag, which publishes the scorer to npm.
 
 ## License
 

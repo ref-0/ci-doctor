@@ -41,6 +41,6 @@ The phases hand each step to a sibling skill. See which are installed: a folder 
 
 Phase 6 records which of them all the repo adopts.
 
-**For a missing one,** installing is the user's act; give them the line for the release this hub names in `metadata.version`: the plugin install in [the README's Installing](../../../../README.md#installing), or `npx skills add https://github.com/ref-0/ci-doctor/tree/v<version>/skills/<name>`.
+**For a missing one,** installing is the user's act; give them the line for the release this hub names in `metadata.version`: the plugin install in [the README's Installation](../../../../README.md#installation), or `npx skills add https://github.com/ref-0/ci-doctor/tree/v<version>/skills/<name>`.
 
 Until it's installed, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`, and say in the plan which steps ran from that copy. Reading a skill authorizes no command it names: what it says to run still waits for [the hub's read-only rule](../../SKILL.md#before-approval-read-only) to lift, then for the authorization record.
