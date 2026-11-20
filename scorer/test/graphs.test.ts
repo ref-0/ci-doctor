@@ -76,8 +76,10 @@ const barrelRepo = () => {
     'packages/core/src/util-node.ts': 'export const util = 1;\n',
     'packages/app/package.json': json({ name: '@pip/app', main: 'src/main.ts', dependencies: { '@pip/core': 'workspace:*' }, scripts: { build: 'tsc', test: 'vitest run' } }),
     'packages/app/src/main.ts': "import { c } from '@pip/core';\nexport const main = c;\n",
-    'packages/web/package.json': json({ name: '@pip/web', private: true, dependencies: { '@pip/core': 'workspace:*' }, scripts: { build: 'vite build' } }),
-    'packages/cli/package.json': json({ name: '@pip/cli', private: true, dependencies: { '@pip/core': 'workspace:*', '@pip/deep': 'workspace:*' } }),
+    'packages/web/package.json': json({ name: '@pip/web', private: true, main: 'src/index.ts', dependencies: { '@pip/core': 'workspace:*' }, scripts: { build: 'vite build' } }),
+    'packages/web/src/index.ts': "import { c } from '@pip/core';\nexport const web = c;\n",
+    'packages/cli/package.json': json({ name: '@pip/cli', private: true, main: 'src/cli.ts', dependencies: { '@pip/core': 'workspace:*', '@pip/deep': 'workspace:*' } }),
+    'packages/cli/src/cli.ts': "import '@pip/core';\nimport '@pip/deep';\n",
     'packages/site/package.json': json({ name: '@pip/site', private: true, dependencies: { '@pip/app': 'workspace:*' } }),
     'packages/broken/package.json': json({ name: '@pip/broken', exports: './dist/index.js' }),
     'packages/deep/package.json': json({ name: '@pip/deep', exports: { '.': './src/d0.ts' } }),
@@ -121,7 +123,7 @@ describe('graph 2: export paths, from outside', () => {
     assert.equal(core.overload, 75);
     // app, web and cli import it; site imports app.
     assert.equal(core.dependents, 4);
-    assert.deepEqual(g.exports.worst, { id: '@pip/core#.', reexports: 25, importerPackages: 3, overload: 75, dependents: 4, packagesOf: 9, share: 0.4444 });
+    assert.deepEqual(g.exports.worst, { id: '@pip/core#.', reexports: 25, importerPackages: 3, exact: true, overload: 75, dependents: 4, packagesOf: 9, share: 0.4444 });
   });
 
   it('flags the overloaded entry and the root barrel, with their numbers and the threshold crossed', () => {
@@ -160,7 +162,7 @@ describe('graph 2: export paths, from outside', () => {
     assert.equal(lost.reexports, null);
     assert.match(lost.unknown!, /packages\/lost\/src\/index\.mjs: GitHub answered: Something went wrong/);
     assert.equal(node(g, '@pip/core#.')!.reexports, 25);
-    assert.match(g.exports.unknown.join('\n'), /3 entries of 7 unknown/);
+    assert.match(g.exports.unknown.join('\n'), /3 entries of 9 unknown/);
   });
 
   it('reads the entry files and task configs in one batch, then one batch per level of re-exports, and the manifests from memory', () => {
@@ -233,6 +235,43 @@ describe("graph 2: what an entry's count covers", () => {
     assert.equal(root.unknown, 'packages/lib/src/index.ts: it re-exports `./gone`, which resolves to no tracked file');
     // A package outside the workspace isn't a miss: it re-exports no workspace module.
     assert.equal(node(g, 'lib#./ext')!.reexports, 0);
+  });
+
+  /** `lib` with a 25-module root barrel and a `./small` entry; u1 … u3 import `spec` in their files, u4 has none. */
+  const twoEntries = (spec: string) => {
+    const lib: Record<string, string> = { 'src/index.ts': Array.from({ length: 25 }, (_, i) => `export * from './m${i}.ts';`).join('\n'), 'src/small.ts': 'export const small = 1;\n' };
+    for (let i = 0; i < 25; i++) lib[`src/m${i}.ts`] = `export const m${i} = ${i};\n`;
+    const users: Record<string, Record<string, string>> = { u4: {} };
+    for (const u of ['u1', 'u2', 'u3']) users[u] = { 'src/index.ts': `import { x } from '${spec}';\nexport const y = x;\n` };
+    return graphs(libRepo(lib, { '.': './src/index.ts', './small': './src/small.ts' }, users)).g;
+  };
+
+  it("counts each importer against the entry its files import, and the package's importers only as an upper bound", () => {
+    const g = twoEntries('lib/small');
+    const root = node(g, 'lib#.')!;
+    assert.deepEqual(root.importedBy, { packages: null, atLeast: 0, atMost: 4, files: null });
+    assert.equal(root.overload, null);
+    assert.equal(root.overloadAtLeast, 0);
+    assert.equal(root.overloadAtMost, 100);
+    assert.deepEqual(node(g, 'lib#./small')!.importedBy, { packages: null, atLeast: 3, atMost: 4, files: null });
+    // The upper bound alone raises no flag and no fix.
+    assert.deepEqual(g.exports.flags.filter((f) => f.kind === 'overloaded-entry' || f.kind === 'root-barrel'), []);
+    assert.ok(!graphsFixes(g).some((f) => f.text.startsWith('Split')));
+    assert.match(g.exports.unknown.join('\n'), /their importers are at least those seen, at most the package's, and only those seen raise a flag/);
+  });
+
+  it('flags an entry by the importers seen importing it, saying they are a lower bound', () => {
+    const g = twoEntries('lib');
+    const over = g.exports.flags.find((f) => f.kind === 'overloaded-entry')!;
+    assert.equal(over.subject, 'lib#.');
+    assert.deepEqual(over.numbers, { reexports: 25, importerPackages: 3, importerPackagesAtMost: 4, overload: 75, dependents: 4, packagesOf: 6 });
+    assert.match(graphsBlock(g), /lib#\. re-exports 25 modules to at least 3 packages \(overload at least 75\)/);
+    assert.match(graphsBlock(g), /worst lib#\., 25 × ≥ 3 = ≥ 75 \(4 import the package\)/);
+  });
+
+  it('counts importers exactly when `exports` gives the package one entry', () => {
+    const { g } = graphs(libRepo({ 'src/index.ts': 'export const a = 1;\n' }, { '.': './src/index.ts', './package.json': './package.json' }, { u1: {}, u2: {} }));
+    assert.deepEqual(node(g, 'lib#.')!.importedBy, { packages: 2, files: null });
   });
 });
 
@@ -403,7 +442,7 @@ describe('the graphs in the report', () => {
     assert.match(lines[1]!, /^ {2}⚠ Export paths +@pip\/core#\. re-exports 25 modules to 3 packages \(overload 75\); 4 of 9 packages depend on it, directly or not$/);
     assert.match(lines[2]!, /^ {2}⚠ Tasks +3 cached tasks with no declared inputs, such as @pip\/app#test, @pip\/core#lint, @pip\/core#test: the runner keys every file of the package, so any change there misses$/);
     assert.ok(lines.some((l) => /^ {2}3 Layers +run `scripts\/graph\/` for layers and what triggers what$/.test(l)));
-    assert.ok(lines.some((l) => /^ {2}2 Export paths +7 entries in 5 of 9 npm packages: 2 shared root barrels, 3 with `export \*`, 1 overloaded/.test(l)));
+    assert.ok(lines.some((l) => /^ {2}2 Export paths +9 entries in 7 of 9 npm packages: 2 shared root barrels, 3 with `export \*`, 1 overloaded/.test(l)));
   });
 
   it('gives the <ci-report> block one line per flag, at most three', () => {

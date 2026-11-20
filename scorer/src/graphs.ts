@@ -120,8 +120,13 @@ export interface EntryNode {
   subpaths?: number;
   file: string | null;
   root: boolean;
-  /** Other packages that import this package, by their manifests; `files` needs the import graph. */
-  importedBy: { packages: number | null; files: null };
+  /**
+   * Other packages that import this entry. `packages` is exact when `exports` gives the package this one entry, so
+   * each importer of the package imports it, or when each was seen importing it. Otherwise it's null: `atLeast` counts the packages seen importing this
+   * entry in the files read, and `atMost` every package that imports the package, by manifests, an upper bound.
+   * `files` needs the import graph.
+   */
+  importedBy: { packages: number | null; atLeast?: number; atMost?: number; files: null };
   /** Packages that depend on this one, directly or not: how far an edit behind this entry can reach. */
   dependents: number | null;
   /** Workspace modules it re-exports, directly or through `export *` and `export { } from` chains; null when unknown. */
@@ -132,8 +137,11 @@ export interface EntryNode {
   barrel: boolean | null;
   /** Workspace files loading it loads: needs the import graph, so `scripts/graph/` has it. */
   loads: null;
-  /** `reexports` × `importedBy.packages`. */
+  /** `reexports` × `importedBy.packages`, when both are exact. */
   overload: number | null;
+  /** `reexports` × `importedBy.atLeast` and × `importedBy.atMost`, when the importers aren't exact. */
+  overloadAtLeast?: number;
+  overloadAtMost?: number;
   /** The file came by the `dist` → `src` convention. */
   guessed?: boolean;
   unknown?: string;
@@ -302,6 +310,40 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
     frontier = [...found].filter((f) => !parsed.has(f));
   }
 
+  // Which entry each import in the files read names, so an entry's importers count by what they import.
+  const seenBy = new Map<string, Set<string>>();
+  for (const [f, mod] of parsed) {
+    const from = labelOfDir.get(owner(f).dir);
+    if (from === undefined) continue;
+    for (const { spec, kind } of mod.specs) {
+      if (kind === 'url' || kind === 'glob' || /^[.#/]/.test(spec)) continue;
+      const { name, sub } = splitName(spec);
+      const pkg = byName.get(name);
+      const label = pkg === undefined ? undefined : labelOfDir.get(pkg.dir);
+      if (pkg === undefined || label === undefined || label === from) continue;
+      const key = exportKeys(pkg.manifest).size === 0 ? (sub === '' ? '.' : undefined) : matchKey(mapOf(pkg), sub === '' ? '.' : `./${sub}`)?.key;
+      if (key === undefined) continue;
+      const id = `${label}#${key}`;
+      (seenBy.get(id) ?? seenBy.set(id, new Set()).get(id)!).add(from);
+    }
+  }
+  // A package whose `exports` gives one entry: each of its importers imports that one.
+  const entryCount = new Map<Package, number>();
+  for (const e of entries) if (e.key !== './package.json') entryCount.set(e.pkg, (entryCount.get(e.pkg) ?? 0) + 1);
+  const importersOf = (e: Entry, id: string): EntryNode['importedBy'] => {
+    const seen = seenBy.get(id) ?? new Set<string>();
+    const all = graphKnown ? new Set([...(directOf.get(e.label) ?? []), ...seen]).size : undefined;
+    // Exact, too, when every importer of the package was seen importing this entry.
+    if (all !== undefined && (all === seen.size || (exportKeys(e.pkg.manifest).size > 0 && entryCount.get(e.pkg) === 1))) return { packages: all, files: null };
+    return { packages: null, atLeast: seen.size, ...(all !== undefined ? { atMost: all } : {}), files: null };
+  };
+  const overloads = (reexports: number | null, by: EntryNode['importedBy']) =>
+    reexports === null
+      ? { overload: null }
+      : by.packages !== null
+        ? { overload: reexports * by.packages }
+        : { overload: null, overloadAtLeast: reexports * (by.atLeast ?? 0), ...(by.atMost !== undefined ? { overloadAtMost: reexports * by.atMost } : {}) };
+
   // Each entry's re-exported modules, from what was read: unknown when the walk reaches a file it couldn't read.
   // An entry with `import` and `require` targets in different files re-exports the union of both.
   // Breadth first, by this entry's own depth: a module the shared walk reached early, from another entry, still
@@ -336,9 +378,9 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
 
   const entryNodes: EntryNode[] = entries.map((e) => {
     const id = `${e.label}#${e.key}`;
-    const importers = graphKnown ? (directOf.get(e.label)?.size ?? 0) : null;
+    const importedBy = importersOf(e, id);
     const dependents = graphKnown ? allOf(e.label) : null;
-    const base = { id, pkg: e.label, key: e.key, root: e.key === '.', importedBy: { packages: importers, files: null }, dependents, loads: null } as const;
+    const base = { id, pkg: e.label, key: e.key, root: e.key === '.', importedBy, dependents, loads: null } as const;
     if (e.pattern !== undefined) return { ...base, pattern: e.pattern, subpaths: e.subpaths ?? 0, file: null, reexports: null, stars: null, barrel: null, overload: null };
     if (e.file === undefined) return { ...base, file: null, reexports: null, stars: null, barrel: null, overload: null, unknown: e.miss! };
     const mod = parsed.get(e.file);
@@ -352,32 +394,42 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
       ...(w.why !== undefined ? { reexportsAtLeast: w.reexports, unknown: w.why } : {}),
       stars: mod ? mod.specs.filter((s) => s.kind === 'star').length : MODULE.test(e.file) ? null : 0,
       barrel: mod ? mod.barrel : MODULE.test(e.file) ? null : false,
-      overload: reexports !== null && importers !== null ? reexports * importers : null,
+      ...overloads(reexports, importedBy),
     };
   });
-  entryNodes.sort((a, b) => (b.overload ?? -1) - (a.overload ?? -1) || (b.reexports ?? -1) - (a.reexports ?? -1) || a.id.localeCompare(b.id));
+  // Ranked and flagged by what's shown: exact importers, or those seen; the manifests' upper bound alone flags nothing.
+  const importers = (n: EntryNode) => n.importedBy.packages ?? n.importedBy.atLeast ?? 0;
+  const known = (n: EntryNode) => n.overload ?? n.overloadAtLeast ?? null;
+  entryNodes.sort((a, b) => (known(b) ?? -1) - (known(a) ?? -1) || (b.overloadAtMost ?? -1) - (a.overloadAtMost ?? -1) || (b.reexports ?? -1) - (a.reexports ?? -1) || a.id.localeCompare(b.id));
+  const bounds = (n: EntryNode): Record<string, number> => (n.importedBy.packages === null && n.importedBy.atMost !== undefined ? { importerPackagesAtMost: n.importedBy.atMost } : {});
+  const atLeast = 'importers seen in the files read, so at least that many; more may import it in files not read';
 
-  const overloaded = entryNodes.filter((n) => n.reexports !== null && n.importedBy.packages !== null && n.reexports >= THRESHOLDS.overloadModules && n.importedBy.packages >= THRESHOLDS.overloadPackages);
-  const rootBarrels = entryNodes.filter((n) => n.root && n.barrel === true && (n.stars ?? 0) > 0 && (n.importedBy.packages ?? 0) > 0);
+  const overloaded = entryNodes.filter((n) => n.reexports !== null && n.reexports >= THRESHOLDS.overloadModules && importers(n) >= THRESHOLDS.overloadPackages);
+  const rootBarrels = entryNodes.filter((n) => n.root && n.barrel === true && (n.stars ?? 0) > 0 && importers(n) > 0);
   const exportFlags: Flag[] = [
     ...overloaded.map((n) => ({
       kind: 'overloaded-entry',
       subject: n.id,
-      numbers: { reexports: n.reexports!, importerPackages: n.importedBy.packages!, overload: n.overload!, dependents: n.dependents!, packagesOf: npmCount },
+      numbers: { reexports: n.reexports!, importerPackages: importers(n), ...bounds(n), overload: known(n)!, ...(n.dependents !== null ? { dependents: n.dependents } : {}), packagesOf: npmCount } as Record<string, number>,
       threshold: { reexports: THRESHOLDS.overloadModules, importerPackages: THRESHOLDS.overloadPackages },
+      ...(n.importedBy.packages === null ? { detail: atLeast } : {}),
     })),
     ...rootBarrels.map((n) => ({
       kind: 'root-barrel',
       subject: n.id,
-      numbers: { stars: n.stars!, ...(n.reexports !== null ? { reexports: n.reexports } : {}), importerPackages: n.importedBy.packages!, packagesOf: npmCount },
+      numbers: { stars: n.stars!, ...(n.reexports !== null ? { reexports: n.reexports } : {}), importerPackages: importers(n), ...bounds(n), packagesOf: npmCount },
       threshold: null,
       detail: "a shared package's root re-exports with `export *`, so each importer reaches every module behind it",
     })),
   ];
-  const worst = entryNodes.find((n) => n.overload !== null && n.overload > 0);
+  const worst = entryNodes.find((n) => (known(n) ?? 0) > 0);
+  const bounded = entryNodes.filter((n) => n.importedBy.packages === null && n.importedBy.atMost !== undefined && n.reexports !== null);
   const unknownEntries = entryNodes.filter((n) => n.unknown !== undefined);
   const exportsUnknown = [
-    ...(graphKnown ? [] : ["The package graph is unknown, so each entry's importers and overload are too"]),
+    ...(graphKnown ? [] : ["The package graph is unknown, so each entry's importers and overload count only what the files read show"]),
+    ...(bounded.length
+      ? [`${plural(bounded.length, 'entry', 'entries')} of ${entryNodes.length} belong to packages with more than one entry, so which entry each importer imports shows only in the files read: their importers are at least those seen, at most the package's, and only those seen raise a flag`]
+      : []),
     ...(unknownEntries.length ? [`${plural(unknownEntries.length, 'entry', 'entries')} of ${entryNodes.length} unknown, such as ${unknownEntries[0]!.id}: ${unknownEntries[0]!.unknown}`] : []),
   ];
   const exportsGraph = {
@@ -389,7 +441,17 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
     rootBarrels: rootBarrels.length,
     withStars: entryNodes.filter((n) => (n.stars ?? 0) > 0).length,
     worst: worst
-      ? { id: worst.id, reexports: worst.reexports!, importerPackages: worst.importedBy.packages!, overload: worst.overload!, dependents: worst.dependents!, packagesOf: npmCount, share: share(worst.dependents!, npmCount) }
+      ? {
+          id: worst.id,
+          reexports: worst.reexports!,
+          importerPackages: importers(worst),
+          ...(worst.importedBy.packages === null && worst.importedBy.atMost !== undefined ? { importerPackagesAtMost: worst.importedBy.atMost } : {}),
+          exact: worst.importedBy.packages !== null,
+          overload: known(worst)!,
+          dependents: worst.dependents,
+          packagesOf: npmCount,
+          share: worst.dependents === null ? null : share(worst.dependents, npmCount),
+        }
       : null,
     unknown: exportsUnknown,
   };
@@ -470,8 +532,10 @@ const kindLine = (kind: string, fs: Flag[], total: number): string => {
   const more = total > 1 ? `, and ${total - 1} more` : '';
   const such = (k: number) => fs.slice(0, k).map((x) => x.subject).join(', ');
   switch (kind) {
-    case 'overloaded-entry':
-      return `${f.subject} re-exports ${n.reexports} modules to ${n.importerPackages} packages (overload ${n.overload}); ${n.dependents} of ${n.packagesOf} packages depend on it, directly or not${total > 1 ? `; ${plural(total - 1, 'more entry', 'more entries')} over the threshold` : ''}`;
+    case 'overloaded-entry': {
+      const least = n.importerPackagesAtMost !== undefined || f.detail !== undefined ? 'at least ' : '';
+      return `${f.subject} re-exports ${n.reexports} modules to ${least}${n.importerPackages} packages (overload ${least}${n.overload})${n.dependents !== undefined ? `; ${n.dependents} of ${n.packagesOf} packages depend on it, directly or not` : ''}${total > 1 ? `; ${plural(total - 1, 'more entry', 'more entries')} over the threshold` : ''}`;
+    }
     case 'root-barrel':
       return `${plural(total, 'root barrel')} with \`export *\` that other packages import: ${such(3)}${total > 3 ? ', …' : ''}`;
     case 'package-cycle':
@@ -542,7 +606,11 @@ export const graphsBlock = (g: Graphs) => {
     : e.count.nodes === 0
       ? `none of the ${plural(e.count.packages, 'npm package')} declares \`exports\`, \`main\` or \`module\``
       : `${plural(e.count.nodes, 'entry', 'entries')} in ${e.count.packagesWithEntries} of ${plural(e.count.packages, 'npm package')}: ${plural(e.rootBarrels, 'shared root barrel')}, ${e.withStars} with \`export *\`, ${e.flagCounts['overloaded-entry'] ?? 0} overloaded (≥ ${THRESHOLDS.overloadModules} modules × ≥ ${THRESHOLDS.overloadPackages} packages)${
-          e.worst ? `; worst ${e.worst.id}, ${e.worst.reexports} × ${e.worst.importerPackages} = ${e.worst.overload}, with ${e.worst.dependents} of ${e.worst.packagesOf} packages (${pc(e.worst.share)}) behind it` : ''
+          e.worst
+            ? `; worst ${e.worst.id}, ${e.worst.reexports} × ${e.worst.exact ? '' : '≥ '}${e.worst.importerPackages} = ${e.worst.exact ? '' : '≥ '}${e.worst.overload}${
+                e.worst.importerPackagesAtMost !== undefined ? ` (${e.worst.importerPackagesAtMost} import the package)` : ''
+              }${e.worst.dependents !== null && e.worst.share !== null ? `, with ${e.worst.dependents} of ${e.worst.packagesOf} packages (${pc(e.worst.share)}) behind it` : ''}`
+            : ''
         }`;
   const cachedNoInputs = t.flagCounts['no-inputs'] ?? 0;
   const tasksText = t.count.nodes === 0
@@ -573,7 +641,7 @@ export const graphsFixes = (g: Graphs | undefined) => {
   const over = g.exports.flags.find((f) => f.kind === 'overloaded-entry');
   if (over)
     fixes.push({
-      text: `Split ${over.subject}: it re-exports ${over.numbers.reexports} modules to ${over.numbers.importerPackages} packages, so an edit to any of them reaches all of those packages' checks; give each area its own entry, listed by name, not \`export *\``,
+      text: `Split ${over.subject}: it re-exports ${over.numbers.reexports} modules to ${over.detail ? 'at least ' : ''}${over.numbers.importerPackages} packages, so an edit to any of them reaches all of those packages' checks; give each area its own entry, listed by name, not \`export *\``,
       page: page('export-paths-what-an-edit-triggers'),
       weight: 5,
     });
