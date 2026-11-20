@@ -23,18 +23,9 @@ From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../..
 
 **Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time is a large share of the PR wait. **Skip when:** Queue time is seconds, as on most repos.
 
-A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds. When the slowest tenth of jobs wait minutes, people wait on capacity, not on tests, and faster tests won't help.
+A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds: in 219 public repos scored in November 2026, the median repo's p90 was 4 seconds, and one repo in ten waited 596 seconds or more at p90 ([ci-doctor-db's findings](https://github.com/ref-0/ci-doctor-db/blob/main/FINDINGS.md)). Ours was the runners' own start-up: GitHub-hosted runners took minutes to start at busy times, even with few jobs running, and that's what moved us to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). A queue can also be a plan's concurrency cap, fan-out, a label no runner carries or a pool scaled to zero, and each has its own fix.
 
-- **Measure it first,** at p50 and p90, by runner label, over a normal week. Compare it with the PR wait: a queue that's a large share of the wait is the first thing to fix.
-- **The usual cause is the runners themselves.** GitHub-hosted runners can take minutes to start at busy times, even with few jobs running. That's what moved us off them to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Tell it from the other causes by when it happens:
-  - **Long even when few jobs run:** the provider. Price a move as the plan's runner recommendation (section 7 for the measured comparison), and propose it.
-  - **Grows with the number of jobs running at once:** the account's concurrency cap (larger and macOS runners have their own, lower caps; check the plan's current limits), or fan-out, where each push starts many jobs and every push starts them again.
-  - **Only on some labels:** a self-hosted pool that's too small, or a label no idle runner carries.
-- **Fixes:**
-  - **For the provider:** move to one that starts jobs in seconds; we recommend Blacksmith. Measure queue time on both before deciding, as with any runner change.
-  - **For the cap or fan-out:** cancel superseded runs and skip drafts (section 4), start fewer jobs per push (merge tiny jobs, size shards from measured time, section 7, and move broad checks to a sweep, section 5), then raise the cap if it's still the limit.
-  - **For self-hosted:** add or autoscale runners, and check the labels match.
-- **Check it moved:** queue time at p90 again, over the same kind of week.
+The [`ci-runners`](../../../ci-runners/SKILL.md) skill's [queues page](../../../ci-runners/references/queues.md) has the procedure: measuring the queue apart from the jobs, telling the causes apart by when they happen, the fixes for each, and checking that it moved.
 
 ## Shards: splitting tests by measured time
 
