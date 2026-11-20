@@ -13,7 +13,7 @@ Under 1.0, a minor release carries what would be a major one.
 ### Templates
 
 - **The dependencies action commits main's disk after the install copy ran, not `on-change`.** `on-change` skips a change under 4 KB, which a new install can be, and then the disk stays a lockfile behind and every job installs again. The copy step now detaches a disk that already holds this install, as the warm path does. **Action:** if you copied `templates/github/actions/dependencies/action.yml`, take its `commit:` line and the copy step's detach.
-- **`affected-checks.ts` lists each tree once and reads each commit's files in one batch,** memoised by object ID. Its output doesn't change; across its tests a run starts 6.1 Git processes, from 12.6. **Action:** if you copied the planner, take the Git section and its callers, or copy it again and refill the config block.
+- **`affected-checks.ts` lists each tree once and reads each commit's files in one batch,** memoised by object ID. It reads only the files a change needs, as before, streaming `cat-file`'s output through a file rather than a buffer, so no repo or file size reaches a buffer's limit. Its output doesn't change; across its tests a run starts 8.4 Git processes, from 12.6. **Action:** if you copied the planner, take the Git section and its callers, or copy it again and refill the config block.
 
 ### Skills
 
