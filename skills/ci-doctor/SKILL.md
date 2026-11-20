@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "CI speed, cost and flakes on any provider: why a PR's check failed, slow CI runs or queues, changing workflows and jobs, runners and the bill, slow or flaky tests (local too), and starting or continuing the ci-doctor plan."
+description: "CI speed and cost on any provider: reading why a PR's check failed and triaging it (the PR, a flake or the runner), slow CI runs or queues, workflows and jobs, runners and the bill, and the ci-doctor plan. Fixing a flaky test: fix-flaky-test; a slow one: speed-up-tests; a before/after claim: prove-it."
 metadata:
   version: "0.1.0"
 ---
@@ -68,7 +68,8 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | Change or debug a workflow: the job graph, setup, selection, tiers, caches, the checks for a CI change, a slow run's job order or setup | [ci-workflows](references/ci-workflows/TOPIC.md) |
 | The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, queues, changing provider | [ci-runners](references/ci-runners/TOPIC.md) |
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
-| Slow or flaky tests, in CI or locally: finding them from CI's records, fixing the wait, fakes, flakes | [speed-up-tests](references/speed-up-tests/TOPIC.md) |
+| A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
+| A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
 | A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
 | How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
 | Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
@@ -81,6 +82,7 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
+- A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
 - Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
 - Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
 

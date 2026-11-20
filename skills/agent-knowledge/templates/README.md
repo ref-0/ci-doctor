@@ -12,9 +12,9 @@ Part of the [`agent-knowledge`](../SKILL.md) skill, which says where each file's
 | Template | Copy to | Read by |
 | --- | --- | --- |
 | [`AGENTS-snippet.md`](AGENTS-snippet.md) | The instruction file your harness loads at the start, such as `AGENTS.md` for Codex or `CLAUDE.md` for Claude Code; [harnesses](https://github.com/ref-0/ci-doctor/blob/next/docs/harnesses.md) covers each | Every agent the harness starts |
-| [`repo-facts/ci.md`](repo-facts/ci.md) | `.agents/repo/ci.md` | The `ci-doctor` hub's topics, and `ci-merge-workflow` |
+| [`repo-facts/ci.md`](repo-facts/ci.md) | `.agents/repo/ci.md` | The `ci-doctor` hub's topics, `ci-merge-workflow` and `fix-flaky-test` |
 | [`repo-facts/ci-time.json`](repo-facts/ci-time.json) | `.agents/repo/ci-time.json`: the workflow, shard prefixes, gate job, runner labels' vCPUs and prices. A key you leave out keeps the script's default | `ci-time.ts`, in the hub's `ci-workflows` topic |
-| [`repo-facts/speed-up-tests.md`](repo-facts/speed-up-tests.md) | `.agents/repo/speed-up-tests.md` | The hub's `speed-up-tests` topic |
+| [`repo-facts/speed-up-tests.md`](repo-facts/speed-up-tests.md) | `.agents/repo/speed-up-tests.md` | The `speed-up-tests` skill |
 | [`repo-facts/review.md`](repo-facts/review.md) | `.agents/repo/review.md`, where the repo adopts `review-gate`; its list goes in `.agents/repo/review-paths.txt`, as below | `review-gate` |
 | [`repo-facts/review-record.json`](repo-facts/review-record.json) | `.agents/repo/review-record.json`, with `review-gate`: the review types, test code, thresholds, effort and the list's path. A key you leave out keeps the script's default | `review-record.ts`, locally and in CI's gate, from the base branch |
 | [`repo-facts/proof-tiers.md`](repo-facts/proof-tiers.md) | `.agents/repo/proof-tiers.md`, where the repo has models or property tests | `proof-tiers` |

@@ -17,7 +17,7 @@ Part of the [`ci-runners`](../TOPIC.md) topic. Read when costing a run or a chan
 - **Each job pays for its setup.** A warm install skips most of it ([caches](../../ci-workflows/references/caches.md)); otherwise the job installs. Measure both paths in your CI. One test file per job wastes most of a runner.
 - **Measure queue and startup time.** When runners start together without queueing, the longest job sets wall time.
 - **Verify any free allowance before budgeting.** Larger runners often use it faster. Budget at list price rather than relying on free minutes.
-- **Three numbers, kept apart:** test-seconds, wall time and billed minutes, as [measuring](../../speed-up-tests/references/measuring.md#comparing-before-and-after) says. A change can move one and not the others.
+- **Three numbers, kept apart:** test-seconds, wall time and billed minutes, as [measuring](../../../../speed-up-tests/references/measuring.md#comparing-before-and-after) says. A change can move one and not the others.
 - **Keep spend's three figures apart too:** raw runner minutes by label; their list-price projection, priced per label, rounded as the provider rounds, over every attempt; and actual billed usage and allowance, from the provider's billing report where you're allowed to read it. GitHub's billing usage is a separate source from Actions' job timings. Count cache storage and other approved costs on their own lines, and say which jobs' categories were measured.
 
 ## The spend cap
@@ -37,7 +37,7 @@ Making a slow CI fast costs money and weeks before it pays off: broad runs while
 - **For each category,** report its job and run counts, its runner label, its average rounded duration and that label's price per minute. Keep raw minutes apart from price-normalized units: a macOS minute costs several Linux ones.
 - **Keep two populations:** first-attempt runs for latency, all attempts for spend.
 - **Read the authorized cap** from the watcher's config or the approved change that set it, and fix any doc that says otherwise. An audit never authorizes raising it.
-- Collect history as [CI history data](../../speed-up-tests/references/ci-history-data.md) says: every page, every attempt, and what you couldn't read.
+- Collect history as [CI history data](../../../../speed-up-tests/references/ci-history-data.md) says: every page, every attempt, and what you couldn't read.
 
 ## Budget runs that CI dispatches
 

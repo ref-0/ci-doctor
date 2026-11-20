@@ -21,7 +21,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 ## How
 
 - Read what the real creation path writes before seeding rows. Make typed IDs with the repo's own ID factories, as speed-up-tests.md names them. After tightening a row decoder, search every test folder for `INSERT INTO <table>`.
-- When the test proves scheduling, waking or ordering, run the job through the scheduler production uses, with the harness's own control for running due jobs now. When it proves what one job decides, drive that job through an existing harness trigger, as [the fixes](../speed-up-tests/references/fixes.md#a-production-period-or-retry-the-test-inherits) say. After a restart, wait for the woken process's own run.
+- When the test proves scheduling, waking or ordering, run the job through the scheduler production uses, with the harness's own control for running due jobs now. When it proves what one job decides, drive that job through an existing harness trigger, as [the fixes](../../../speed-up-tests/references/fixes.md#a-production-period-or-retry-the-test-inherits) say. After a restart, wait for the woken process's own run.
 - Shorten a production period only through a setting production has its own reason to configure; a control only tests need lives in the test harness.
 - Wait for the storage key to disappear, the outbox delivery to arrive or the job to finish: await its signal where the code gives one, or poll with a bound. For a job queue, check both running rows and pending rows that are due now. A harness reload can leave a job leased for its full lease, as speed-up-tests.md's lease and timer sources say (60 s in the source repo).
 - Follow [test-audit](../../../test-audit/SKILL.md)'s rule against fixtures that supply the ordering or receipts the code must produce. Run each touched test file whole before review.
@@ -39,4 +39,4 @@ In the source repo:
 
 - [`test-audit`](../../../test-audit/SKILL.md), on fixtures that supply the expected ordering.
 - [The tests reviewer](../../../review-gate/references/tests-reviewer.md), on waits.
-- [`speed-up-tests`](../speed-up-tests/TOPIC.md).
+- [`speed-up-tests`](../../../speed-up-tests/SKILL.md).
