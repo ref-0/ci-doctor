@@ -173,6 +173,18 @@ describe('too little history', () => {
     assert.equal(json(r.stdout).unscored, '20 of 20 PR pushes in the window came from bots (syncbot[bot]), and only pushes people make are timed; 5 are needed.');
   });
 
+  it('blames bots from four pushes in five, and not below', async () => {
+    const share = async (people: RegExp) => {
+      const routes = fakeRepo({ repo: PUBLIC });
+      const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { head_sha: string; actor: { login: string } }[] };
+      for (const run of prRuns.workflow_runs) run.actor = { login: people.test(run.head_sha) ? 'pip' : run.head_sha.endsWith('0') ? 'mirror[bot]' : 'syncbot[bot]' };
+      return json((await runCli(['--repo', PUBLIC, '--json'], { routes })).stdout).unscored;
+    };
+
+    assert.equal(await share(/-sha-1[6-9]$/), '16 of 20 PR pushes in the window came from bots (syncbot[bot], mirror[bot]), and only pushes people make are timed; 5 are needed.');
+    assert.equal(await share(/-sha-1[5-9]$/), undefined);
+  });
+
   it('counts a bot\'s push whose runs were all skipped among the bots\' pushes', async () => {
     const routes = fakeRepo({ repo: PUBLIC });
     const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { head_sha: string; conclusion: string; actor: { login: string } }[] };
