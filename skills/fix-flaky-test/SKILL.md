@@ -15,11 +15,11 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # fix-flaky-test
 
-A flake is a wrong answer, not a slow one: a test that fails sometimes, or passes only on a retry. It has a cause, usually an order of events the test doesn't control, and the cause is proved only by forcing that order on purpose. This skill tells a flake from the failures that look like one, finds the cause, fixes it where it lives, proves the fix with retries off, and files what it can't fix yet. A property test's seeds and replay are [`proof-tiers`' properties](../proof-tiers/references/properties.md#findings-and-replay).
+A flake is a wrong answer, not a slow one: a test that fails sometimes, or passes only on a retry. It has a cause, usually an order of events the test doesn't control, and the cause is proved only by forcing that order on purpose. This skill tells a flake from the failures that look like one, finds the cause, fixes it where it lives, proves the fix with retries off, and files what it can't fix yet. A property test's seeds and replay are [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/references/properties.md#findings-and-replay).
 
-The repo's policy is in its `.agents/repo/ci.md`'s Flaky tests and Verifying a flake's fix (template: [`repo-facts/ci.md`](../ci-doctor/references/agent-knowledge/repo-facts/ci.md)): whether CI retries, whether it files flakes itself, and how a fix is verified. Read it first. [Guide section 11](../../docs/pages/11-flakes.md) has the automation that files and closes flake issues, and each case below with what its forced runs showed.
+The repo's flake policy decides what the gate does with a flake: whether CI retries, whether a rerun is allowed, whether CI files flakes itself, and how a fix is verified. Where the repo has one, it's in `.agents/repo/ci.md`; read it first. [The policy](references/policy.md) says what it holds, and what to do when the repo has none: ask once, then work to its strictest reading, with no retry, no rerun and every proof local. [Guide section 11](https://ci-doctor.ref0.dev/guide/docs/pages/11-flakes.md) has the automation that files and closes flake issues, and each case below with what its forced runs showed.
 
-**Checks:** [make the test fail first](../ci-doctor/references/checks/make-the-test-fail-first.md) and [wait for the effect itself](../ci-doctor/references/checks/wait-for-the-effect.md).
+[The checks](references/checks.md) this skill follows are here in short: read them before you write a fix and its proof.
 
 ## Rules
 
@@ -33,7 +33,7 @@ The repo's policy is in its `.agents/repo/ci.md`'s Flaky tests and Verifying a f
 Three different events, each reported apart. Keep the repo's current gate behaviour until the user approves a change.
 
 - **An in-job test retry:** the test runner reruns a failed test inside the job, where the repo turns that on. A pass on the retry is recorded as a flake and doesn't turn the job red, so turning retries on changes what the gate accepts.
-- **One diagnostic job rerun:** a failed job rerun once with `--failed`, on the same revision and configuration. A test that failed and then passed that way is a confirmed flake.
+- **One diagnostic job rerun,** where the repo's policy allows one: a failed job rerun once with `--failed`, on the same revision and configuration. A test that failed and then passed that way is a confirmed flake. Where the policy allows none, or there's no policy, don't rerun: report the failure and prove the cause locally.
 - **A second failure:** the rerun failed too. It isn't a flake until shown otherwise: stop and report it to whoever briefed you, with both runs.
 
 A runner or infrastructure failure, such as a lost runner, a full disk, a quota or a network error before any test ran, is none of these: it isn't a flake, and goes to whoever owns the runners.
@@ -61,8 +61,8 @@ Take the fix that removes the order the test can't control: a lock every start t
 
 Prove the cause locally: the whole file repeated with no retries, noting how many passed in a row and the load average, and a mutation that reopens the race and fails the test. Then:
 
-- **The PR's own ready run is the CI evidence.** It runs once. A flaky failure in it gets one diagnostic rerun; a second failure is reported, as [above](#retries-reruns-and-infrastructure) says.
-- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](../ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
+- **The PR's own ready run is the CI evidence.** It runs once. Where the repo's policy allows a rerun, a flaky failure in it gets one diagnostic rerun, and a second failure is reported, as [above](#retries-reruns-and-infrastructure) says. Otherwise a failure in it is reported with the run's link, and the proof stays local: the forced interleaving again, then the whole file repeated with retries off.
+- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
 - **The PR body** gives the local count and load, the mutation, and `Closes #<n>`.
 
 A pull request that closes the issue by hand still has to hold: the next occurrence reopens it.
@@ -73,18 +73,18 @@ A pull request that closes the issue by hand still has to hold: the next occurre
 
 ## The tools
 
-[`scripts/flakes/`](../../scripts/flakes/README.md) in the ci-doctor repo files one issue per flaky test from CI and closes it after clean runs, for a repo with an approved retry policy and none of its own. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`:
+[`scripts/flakes/`](https://github.com/ref-0/ci-doctor/blob/next/scripts/flakes/README.md) in the ci-doctor repo files one issue per flaky test from CI and closes it after clean runs, for a repo with an approved retry policy and none of its own. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`:
 
 ```sh
-git clone --depth 1 --branch v<version> https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
 ```
 
 ## Not here
 
 - A test that's slow, not wrong: `speed-up-tests`.
-- Reading a PR's CI result, and whether the run counts: the `ci-doctor` hub's [triage](../ci-doctor/references/triage/TOPIC.md).
+- Reading a PR's CI result, and whether the run counts: the `ci-doctor` hub's [triage](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/triage/TOPIC.md).
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
 
 ## Outside this skill
 
-Links that leave this folder lead to the rest of the ci-doctor repo: the guide in `docs/`, the hub and the other skills, and the tools in `scripts/`. After `npx skills add` or a copy of this folder alone, read each at `https://ci-doctor.ref0.dev/guide/<path>`, at the path it has in the repo: `docs/pages/11-flakes.md` is [ci-doctor.ref0.dev/guide/docs/pages/11-flakes.md](https://ci-doctor.ref0.dev/guide/docs/pages/11-flakes.md). Or read [the repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`.
+Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) on `next`, the branch the skills track. To read them at a release instead, open the repo at the tag `v<version>`.

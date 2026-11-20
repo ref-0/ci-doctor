@@ -5,27 +5,23 @@ metadata:
   version: "0.1.0"
 ---
 
-<!--
-What: the method for finding slow tests from CI's records and making them faster without weakening them.
-Where: read by a coding agent, locally, before it touches a slow test.
-Configure: write your repo's facts file, `.agents/repo/speed-up-tests.md`, from
-the ci-doctor hub's references/agent-knowledge/repo-facts/speed-up-tests.md.
-Reference implementation from a production monorepo; adapt to your repo.
--->
-
 # speed-up-tests
 
 A slow test is usually a test that waits: on a production period it inherits, a retry's backoff, a poll, a sleep that arranges a race, or a wall-clock window. A test that does real work at the size it proves is usually fine as it is. The job is to tell the two apart from CI's own records, take the wait out while every assertion still holds, and show it in CI. The waits worth most are shared: one in a helper, a fake or a production constant reaches dozens of files.
 
-The repo's records, scripts, settings, holds, fakes and past campaigns are in its `.agents/repo/speed-up-tests.md` (template: [`repo-facts/speed-up-tests.md`](../ci-doctor/references/agent-knowledge/repo-facts/speed-up-tests.md)). Read it first. The method behind this skill is [guide section 10](../../docs/pages/10-slow-tests-the-method.md), and the harness around the tests [section 8](../../docs/pages/08-a-cheaper-test-harness.md).
+The method behind this skill is [guide section 10](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md), and the harness around the tests [section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-cheaper-test-harness.md). [The checks](references/checks.md) it follows are here in short: read them before you change a test or quote a number.
 
-**Checks:** [wait for the effect itself](../ci-doctor/references/checks/wait-for-the-effect.md), [keep slow test files out of the shards](../ci-doctor/references/checks/ci-keep-slow-files-out-of-the-shards.md), [measure CI before changing it](../ci-doctor/references/checks/ci-measure-before-changing-it.md), [read what was tried](../ci-doctor/references/checks/ci-read-what-was-tried.md) and [check what CI actually ran](../ci-doctor/references/checks/check-what-ci-ran.md). Before quoting any number, the hub's [`verify-evidence`](../ci-doctor/references/verify-evidence/TOPIC.md).
+## Start here
+
+- **The repo has `.agents/repo/speed-up-tests.md` and CI keeps per-file times:** read the facts file, then start at step 1. [Start here](references/setup.md#with-the-repos-facts-file) says what it holds.
+- **No facts file:** ask once whether the repo keeps these facts elsewhere, and otherwise work from what you find and offer to write it at the end, as [start here](references/setup.md#with-no-facts-file) says.
+- **A test that's slow locally, or no CI records:** take an uncached local baseline of exactly the named test or suite, five runs with retries off, and split its time, as [a local baseline](references/setup.md#a-test-thats-slow-locally-or-no-ci-records) says. Then start at step 2.
 
 ## 1. Find them from CI's records
 
 Collect CI's records of each test file's time, then rank them, with the commands in the repo's `speed-up-tests.md`. A file is slow past the triage cutoff its Thresholds name (10 s in CI in the source repo). Many files just past it can hold more test time than the few far past it, so review every file past it, not the top of the list.
 
-Rank by the median of each file's newest passing runs, over the window its Thresholds name (the newest five in the source repo), the widest spreads, each test that failed or passed only on a retry, and total test-seconds, as [measuring](references/measuring.md#reading-cis-records) says: count only what ran, say what the sample is, and split a failure by commit before calling it a flake. The hub's `ci-time.ts` ([`ci-workflows`](../ci-doctor/references/ci-workflows/TOPIC.md#measuring-a-run)) prints where a run's time went by job and shard. For API history, read [CI history data](references/ci-history-data.md).
+Rank by the median of each file's newest passing runs, over the window its Thresholds name (the newest five in the source repo), the widest spreads, each test that failed or passed only on a retry, and total test-seconds, as [measuring](references/measuring.md#reading-cis-records) says: count only what ran, say what the sample is, and split a failure by commit before calling it a flake. The hub's `ci-time.ts` ([`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/TOPIC.md#measuring-a-run)) prints where a run's time went by job and shard. For API history, read [CI history data](references/ci-history-data.md).
 
 Start from the issues CI files for flakes and failures on `main`, and what other threads already own: `gh pr list --search "<file name>"`.
 
@@ -47,7 +43,7 @@ Give each file a verdict: slow for a wrong reason (which), real work, or unknown
 - **Repeat the whole file locally with no retry,** several times in a row, since a fix in one test can break its neighbours.
 - **Make the assertion stronger if you can.** Waiting for the event itself often proves an order the old sleep only hoped for.
 - **A retry starts from fresh state:** names, holds and records the first attempt left.
-- **Moving a proof to a slower tier must keep it honest:** its breaks still run, as [`proof-tiers`](../proof-tiers/SKILL.md) says for models and property tests.
+- **Moving a proof to a slower tier must keep it honest:** its breaks still run, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/SKILL.md) says for models and property tests.
 
 ## 4. Measure before and after, the same way
 
@@ -76,20 +72,20 @@ The method holds on any stack. Where your stack matches, these say what was spec
 
 ## The tools
 
-The records collector is [`scripts/records/`](../../scripts/records/README.md) in the ci-doctor repo, and `ci-time.ts` is in the hub, at `<skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts` in a plugin install. Both run on Node 24 with nothing installed. A skills-only install of this folder carries neither: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run them from there:
+The records collector is [`scripts/records/`](https://github.com/ref-0/ci-doctor/blob/next/scripts/records/README.md) in the ci-doctor repo, and `ci-time.ts` is in the hub, at `<skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts` in a plugin install. Both run on Node 24 with nothing installed. A skills-only install of this folder carries neither: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`, and run them from there:
 
 ```sh
-git clone --depth 1 --branch v<version> https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
 node <ci-doctor>/skills/ci-doctor/references/ci-workflows/scripts/ci-time.ts --help
 ```
 
 ## Not here
 
-- A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](../fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
-- Shards, selection, tiers and caches: the hub's [`ci-workflows`](../ci-doctor/references/ci-workflows/TOPIC.md); runner size and cost, its [`ci-runners`](../ci-doctor/references/ci-runners/TOPIC.md). How far an edit reaches through the workspace: `optimize-graphs`.
-- Whether a test is worth keeping at all: [`test-audit`](../test-audit/SKILL.md); its authoring gate applies to any test you add.
-- Taking a PR through CI: [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md); [`review-gate`](../review-gate/SKILL.md) for its tests reviewer.
+- A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
+- Shards, selection, tiers and caches: the hub's [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/TOPIC.md); runner size and cost, its [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md). How far an edit reaches through the workspace: `optimize-graphs`.
+- Whether a test is worth keeping at all: [`test-audit`](https://github.com/ref-0/ci-doctor/blob/next/skills/test-audit/SKILL.md); its authoring gate applies to any test you add.
+- Taking a PR through CI: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/SKILL.md); [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md) for its tests reviewer.
 
 ## Outside this skill
 
-Links that leave this folder lead to the rest of the ci-doctor repo: the guide in `docs/`, the hub and the other skills, and the tools in `scripts/`. After `npx skills add` or a copy of this folder alone, read each at `https://ci-doctor.ref0.dev/guide/<path>`, at the path it has in the repo: `docs/pages/10-slow-tests-the-method.md` is [ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md). Or read [the repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`.
+Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) on `next`, the branch the skills track. To read them at a release instead, open the repo at the tag `v<version>`.

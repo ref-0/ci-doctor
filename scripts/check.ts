@@ -14,8 +14,10 @@
  *    the hub must name each.
  * 5. **Links, each skill alone:** each skill's folder copied alone, as `npx skills add` with one skill
  *    chosen, or a copy of that folder, installs it. A link that stays in the folder must resolve in the
- *    copy. A link that leaves it must land on a file the guide site serves (`served` in
- *    `scripts/site/build.ts`), so it resolves at ci-doctor.ref0.dev/guide/<path>, with its anchor.
+ *    copy. A skill leaves its folder only by a full link, to ci-doctor.ref0.dev/guide/<path> or to
+ *    GitHub at `next`, naming a file in the repo, with its anchor: a relative link out of the folder
+ *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
+ *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` and
  *    `speed-up-tests` topics, its `flakes.md`,
@@ -131,11 +133,42 @@ export const skillsOnly = (root: string): string[] => {
   return problems;
 };
 
-/** One skill's folder copied alone: its links that don't resolve in the copy, or leave it for a path the site doesn't serve. */
+/** The skill that installs with the rest of the repo beside it: its links out are held by the skills-only check, against FALLBACK. */
+export const HUB = 'ci-doctor';
+
+/** Where a skill's full links to the rest of ci-doctor point: the guide site, and the repo on GitHub at the branch the skills track. */
+export const GUIDE_URL = `${ORIGIN}/${BASE}/`;
+export const GITHUB_URL = 'https://github.com/ref-0/ci-doctor/';
+export const GITHUB_REF = 'next';
+
+/**
+ * Paths another open change adds, so a full link to one may not resolve yet. Remove each entry once its path exists.
+ * The agent-knowledge skill holds the templates the other skills link to.
+ */
+export const PENDING = ['skills/agent-knowledge/'];
+
+/** The repo path a full link to the guide site or to GitHub at GITHUB_REF names, or undefined for any other URL. */
+export const ownPath = (url: string): string | undefined => {
+  const [base = ''] = url.split('#');
+  if (base.startsWith(GUIDE_URL)) return decodeURIComponent(base.slice(GUIDE_URL.length));
+  const github = new RegExp(`^${GITHUB_URL.replace(/[.\/]/g, '\\$&')}(?:blob|tree)/${GITHUB_REF}/(.*)$`).exec(base);
+  return github ? decodeURIComponent(github[1] ?? '') : undefined;
+};
+
+/**
+ * One skill's folder copied alone. A link that stays in the folder must resolve in the copy. Any other skill may
+ * leave its folder only by a full link, to the guide site or to GitHub at GITHUB_REF, which must name a file or
+ * folder in the repo, with its anchor; the guide site's must be served. The hub may also leave it by a relative
+ * link to a file the site serves.
+ */
 export const standaloneSkill = (root: string, name: string, site: ReadonlySet<string> = new Set(served(root))): string[] => {
   const problems: string[] = [];
   const folders = new Set([...site].flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
   const top = mkdtempSync(join(tmpdir(), `ci-doctor-skill-${name}-`));
+  const anchorIn = (inRepo: string, anchor: string, at: string) => {
+    const there = join(root, inRepo);
+    if (anchor && there.endsWith('.md') && existsSync(there) && statSync(there).isFile() && !anchorsOf(there).has(anchor.toLowerCase())) problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
+  };
   try {
     const copy = join(top, name);
     cpSync(join(root, 'skills', name), copy, { recursive: true, dereference: true });
@@ -145,18 +178,31 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
       problems.push(...checkFile(file).filter((p) => inside(p.target)).map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, with ${name} installed alone`));
       proseLines(readFileSync(file, 'utf8')).forEach((line, index) => {
         for (const target of linkTargets(line)) {
-          if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#|<)/i.test(target)) continue;
+          const at = `${shown}:${index + 1}: ${target}`;
           const [path = '', anchor = ''] = target.split('#');
+          const own = ownPath(target);
+          if (own !== undefined) {
+            if (PENDING.some((p) => own.startsWith(p))) continue;
+            if (own === '' && target.startsWith(GUIDE_URL)) continue;
+            const exists = existsSync(join(root, own.replace(/\/$/, '')));
+            if (!exists) problems.push(`${at}: no ${own} in the repo`);
+            else if (target.startsWith(GUIDE_URL) && !site.has(own) && !folders.has(own.replace(/\/$/, ''))) problems.push(`${at}: ${GUIDE_URL} doesn't serve ${own}`);
+            else anchorIn(own, anchor, at);
+            continue;
+          }
+          if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#|<)/i.test(target)) continue;
           const resolved = resolve(dirname(file), decodeURIComponent(path));
           if (resolved === copy || resolved.startsWith(copy + sep)) continue;
           const inRepo = repoPath(relative(top, resolved));
-          const at = `${shown}:${index + 1}: ${target}`;
-          if (inRepo === undefined || (!site.has(inRepo) && !folders.has(inRepo.replace(/\/$/, '')))) {
-            problems.push(`${at}: leaves ${name}/ for ${inRepo ?? 'outside the repo'}, which ${ORIGIN}/${BASE}/ doesn't serve`);
+          if (name !== HUB) {
+            problems.push(`${at}: leaves ${name}/ by a relative path, which dangles with ${name} installed alone: copy what the skill needs into it, or link ${GUIDE_URL}<path> or ${GITHUB_URL}blob/${GITHUB_REF}/<path>`);
             continue;
           }
-          const there = join(root, inRepo);
-          if (anchor && there.endsWith('.md') && statSync(there).isFile() && !anchorsOf(there).has(anchor.toLowerCase())) problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
+          if (inRepo === undefined || (!site.has(inRepo) && !folders.has(inRepo.replace(/\/$/, '')))) {
+            problems.push(`${at}: leaves ${name}/ for ${inRepo ?? 'outside the repo'}, which ${GUIDE_URL} doesn't serve`);
+            continue;
+          }
+          anchorIn(inRepo, anchor, at);
         }
       });
     }

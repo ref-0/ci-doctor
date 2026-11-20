@@ -15,17 +15,19 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 `SKILL.md` keeps openclaw's value bar and retention bar word for word, and its authoring gate and junk patterns with these local additions:
 
-- **Authoring gate:** three paragraphs, the `undefined` check, the conditional pointer to property tests in [`proof-tiers`](../proof-tiers/SKILL.md), and the producer-faithful fixture rule with its [reference](references/fixtures.md).
+- **Authoring gate:** three paragraphs, the `undefined` check, the conditional pointer to property tests in [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/SKILL.md), and the producer-faithful fixture rule with its [reference](references/fixtures.md).
 - **Junk patterns:** two entries, constant pins and mock-only assertions.
 - **Description:** rewritten to route between this skill, `speed-up-tests`, `proof-tiers` and `review-gate`.
+
+Every link to the rest of ci-doctor is a full link to its repo on `next` or to its guide site, so the skill reads the same installed alone.
 
 Three sections point at openclaw's own tooling, so they are rewritten for any repo:
 
 - **Discovery:** the lanes are the kinds of code the repo's `AGENTS.md` map names, instead of openclaw's `src/` and `extensions/`.
 - **Validation:** named test files, the repo's checks from its `AGENTS.md` commands block and the PR's CI run, instead of openclaw's test runner scripts and its own skills.
-- **Landing and continuation:** the repo's PR template and [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), instead of openclaw's `scripts/pr` flow.
+- **Landing and continuation:** the repo's PR template and [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/SKILL.md), instead of openclaw's `scripts/pr` flow.
 
-The tests-reviewer pointers go to [`review-gate`](../review-gate/SKILL.md), and Validation points at [`verify-evidence`](../ci-doctor/references/verify-evidence/TOPIC.md) for evidence quality. `CAMPAIGN.md` keeps examples from openclaw's Telegram plugin campaign, marked as upstream history, and adds a baseline fallback and a single-agent route. `references/audit-workflow.md` holds openclaw's Discovery, Candidate evidence, Edit shape, Landing and Handoff, moved out of `SKILL.md`. `references/fixtures.md` is not from openclaw: its example comes from the production monorepo this kit was ported from.
+The tests-reviewer pointers go to [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md), and Validation points at [`verify-evidence`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/verify-evidence/TOPIC.md) for evidence quality. `CAMPAIGN.md` keeps examples from openclaw's Telegram plugin campaign, marked as upstream history, and adds a baseline fallback and a single-agent route. `references/audit-workflow.md` holds openclaw's Discovery, Candidate evidence, Edit shape, Landing and Handoff, moved out of `SKILL.md`. `references/fixtures.md` is not from openclaw: its example comes from the production monorepo this kit was ported from.
 
 ## Updating
 
