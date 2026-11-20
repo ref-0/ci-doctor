@@ -34,6 +34,10 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 4. **Test the capture workflow** with a scripted model, so recording again doesn't wait on paid calls.
 5. **Keep a live compatibility proof** against the real tool on a slower tier, and record again when the tool changes.
 
+## Sweep cadence and shard times are separate decisions
+
+How often the sweep runs decides how soon a break that PR selection skipped shows up, and what a release waits for where the sweep gates it. That's the user's cost and risk choice: daily, every few hours or weekly. It doesn't decide how even the shards are: every run already balances from the stored file times, and only their age is in question. The sweep is the one run that times every file, so it's the natural full refresh of those times, but no longer the only one: between sweeps, a fold on the default branch times the new files pull requests' runs measured. Choose the cadence without counting shard times in; [`ci-runners`' shards](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/shards.md#5-keeping-the-times-current) say how fresh they stay, even at a weekly sweep.
+
 ## Adding a scheduled run
 
 - **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/references/billing.md) says.

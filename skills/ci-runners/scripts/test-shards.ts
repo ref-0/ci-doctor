@@ -4,10 +4,12 @@
  * long each file took on the default branch, so the shards end together.
  *
  *     node scripts/shards/test-shards.ts <most> <files> [--keep <file>]... [<results.json>...]
- *     node scripts/shards/test-shards.ts --merge [<results.json>...]
+ *     node scripts/shards/test-shards.ts --merge [--through <sha>] [<results.json>...]
+ *     node scripts/shards/test-shards.ts --merge --fold <stored.json> [--through <sha>] [<results.json>...]
  *
  * Where it runs: CI's plan job, once, so every shard gets its files from the same split. `--merge`
- * runs in a job after the shards on the default branch, to keep each file's newest time.
+ * runs after a sweep's shards on the default branch, a full refresh, and `--merge --fold` in the
+ * default branch's fold of pull requests' times between sweeps.
  *
  * Inputs and output:
  *   - `<files>` lists the run's test files, one per line, as the plan picked them.
@@ -15,14 +17,21 @@
  *     splits whole groups, formed from every test file in the checkout (`git ls-files`).
  *   - Each `<results.json>` is Vitest's own results shape (`.vitest-results` or the cache's
  *     `results.json`: `{ version, projects: { <name>: { files: { <path>: { duration, lastRun } } } } }`),
- *     or a merge of them. A file in several counts its newest time.
+ *     or a merge of them, whose `duration` is each file's planned time. A file in several counts its
+ *     newest.
  *   - It prints `{ shards, queue }`: `shards` maps each shard's number to its own files, slowest group
  *     first; `queue` is a list of batches the shards claim once their own files are done
  *     (`test-claims.ts`), as `planOf` says.
  *   - `--keep <file>` keeps that file's group out of the queue, for a file that needs what only its
  *     own shard's job sets up.
- *   - `--merge` prints one record of each file's newest time, so a run that times only some files
- *     keeps the others' times.
+ *   - `--merge` prints the times the plan reads: for each file its newest `keptSamples` measured
+ *     times, and its planned time, their median, so one slow runner doesn't move the split. A run
+ *     that times only some files keeps the others' times. It's a sweep's full refresh.
+ *   - `--merge --fold <stored.json>` is the fold between sweeps, of the times pull requests' runs
+ *     measured: it adds the files `<stored.json>` doesn't hold, which would otherwise run on a
+ *     guess, and leaves every stored file as it is, for the next sweep to refresh.
+ *   - `--through <sha>` records the newest merge whose times the output holds; without it, the
+ *     stored times' own `through` carries over.
  *
  * Why not Vitest's `--shard`: it cuts a list sorted by each path's hash into equal counts. One day
  * that left one shard with about a quarter more seconds of tests than another.
@@ -96,6 +105,14 @@ const serverFallback = 17_000;
 /** The guess for an untimed other file when no other file is timed. */
 const otherFallback = 1_000;
 
+/**
+ * How many of a file's newest measured times the stored times keep; the plan reads their median, so
+ * one run on a slow machine doesn't move a file. An example value: in the source repo a shard's
+ * machine ran its files up to 2.2 times their median, and more samples than three lagged the files
+ * that were getting faster. A replayed file has no new time, so these are runs that ran it.
+ */
+export const keptSamples = 3;
+
 // -------------------------------------------------------------------------------------------------
 
 /** A file's time in ms, and when it ran, in ms since the epoch. */
@@ -142,12 +159,127 @@ export const newestIn = (results: ReadonlyArray<string>) => {
 export const timesIn = (results: ReadonlyArray<string>) =>
   new Map([...newestIn(results)].map(([path, { duration }]) => [path, duration]));
 
-/** One record of each file's newest time, in Vitest's results' shape, which `newestIn` reads back. */
-export const merged = (results: ReadonlyArray<string>) =>
-  JSON.stringify({
-    version: 1,
-    projects: { workspace: { files: Object.fromEntries(newestIn(results)) } },
-  });
+/** A measured time: when it ran, in ms since the epoch, and its ms. */
+type Sample = readonly [lastRun: number, duration: number];
+
+/** A stored file: the time the plan reads, and the samples it came from, oldest first. */
+interface Kept {
+  readonly duration: number;
+  readonly lastRun: number;
+  readonly samples: ReadonlyArray<Sample>;
+}
+
+/** The median of some numbers; of an even count, the lower middle, as the planner rounds down. */
+const median = (values: ReadonlyArray<number>) => {
+  const sorted = values.toSorted((one, other) => one - other);
+
+  return sorted[Math.floor((sorted.length - 1) / 2)] ?? 0;
+};
+
+/** What a merge did, for the job's log. */
+export interface Merge {
+  readonly text: string;
+  /** Files the stored times didn't hold. */
+  readonly added: number;
+  /** Stored files whose planned time changed. */
+  readonly moved: number;
+}
+
+type Entry = {
+  readonly duration?: number;
+  readonly lastRun?: number;
+  readonly samples?: ReadonlyArray<ReadonlyArray<number>>;
+};
+
+/**
+ * The times the plan reads, in Vitest's results' shape with each file's `samples` beside it, which
+ * `newestIn` reads back. Each input is Vitest's results, each file one sample, or a merge of them,
+ * whose `samples` carry over. A sample already kept, as when the same results come twice, counts
+ * once.
+ *
+ * - Each file keeps its newest `keptSamples` samples, and its planned time is their median.
+ * - With `fold`, the stored times, only files they don't hold take the inputs' samples; every
+ *   stored file stays as stored.
+ * - `through` names the newest merge the times hold; without it, the stored times' carries over.
+ */
+export const merged = (
+  results: ReadonlyArray<string>,
+  { fold, through }: { readonly fold?: string; readonly through?: string } = {},
+): Merge => {
+  const stored = new Map<string, { samples: Array<Sample>; duration: number }>();
+  const measured = new Map<string, Array<Sample>>();
+  let kept: string | undefined;
+
+  const valid = (pairs: ReadonlyArray<ReadonlyArray<number>>) =>
+    pairs.flatMap(([at = 0, ms = 0]) => (Number.isFinite(ms) && ms > 0 && Number.isFinite(at) ? [[at, ms] as const] : []));
+  const add = (list: Array<Sample>, more: ReadonlyArray<Sample>) => {
+    for (const sample of more) if (!list.some(([at, ms]) => at === sample[0] && ms === sample[1])) list.push(sample);
+  };
+
+  const inputs = fold === undefined ? results.map((text) => ({ text, base: true })) : [{ text: fold, base: true }, ...results.map((text) => ({ text, base: false }))];
+
+  for (const { text, base } of inputs) {
+    const parsed = JSON.parse(text) as {
+      readonly through?: unknown;
+      readonly projects?: Record<string, { readonly files?: Record<string, Entry> }>;
+    };
+    if (base && kept === undefined && typeof parsed.through === 'string') kept = parsed.through;
+
+    for (const { files = {} } of Object.values(parsed.projects ?? {})) {
+      for (const [path, { duration = 0, lastRun = 0, samples }] of Object.entries(files)) {
+        const pairs = valid(samples ?? [[lastRun, duration]]);
+        if (base && samples !== undefined) {
+          const entry = stored.get(path) ?? { samples: [], duration };
+          add(entry.samples, pairs);
+          stored.set(path, entry);
+        } else {
+          const list = measured.get(path) ?? [];
+          add(list, pairs);
+          measured.set(path, list);
+        }
+      }
+    }
+  }
+
+  let added = 0;
+  let moved = 0;
+  const files = new Map<string, Kept>();
+  const keep = (path: string, list: ReadonlyArray<Sample>) => {
+    const newest = list.toSorted((one, other) => one[0] - other[0]).slice(-keptSamples);
+    if (newest.length === 0) return undefined;
+
+    const entry = { duration: median(newest.map(([, ms]) => ms)), lastRun: newest.at(-1)?.[0] ?? 0, samples: newest };
+    files.set(path, entry);
+    return entry;
+  };
+
+  for (const [path, entry] of stored) {
+    if (fold !== undefined) {
+      files.set(path, { duration: entry.duration, lastRun: entry.samples.at(-1)?.[0] ?? 0, samples: entry.samples });
+      continue;
+    }
+    const all = [...entry.samples];
+    add(all, measured.get(path) ?? []);
+    const now = keep(path, all);
+    if (now !== undefined && now.duration !== entry.duration) moved += 1;
+  }
+  for (const [path, list] of measured) {
+    if (stored.has(path)) continue;
+    if (keep(path, list) !== undefined) added += 1;
+  }
+
+  const record = through ?? kept;
+
+  return {
+    text: JSON.stringify({
+      version: 1,
+      ...(record === undefined ? {} : { through: record }),
+      projects: { workspace: { files: Object.fromEntries(files) } },
+    }),
+    added,
+    moved,
+  };
+};
 
 /** The value `share` of the way up `values`, sorted: 0.5 is the median. */
 const percentile = (values: ReadonlyArray<number>, share: number) => {
@@ -290,7 +422,24 @@ const readAll = (paths: ReadonlyArray<string>) =>
 const isMain = argv[1] === fileURLToPath(import.meta.url);
 
 if (isMain && argv[2] === '--merge') {
-  console.log(merged(readAll(argv.slice(3))));
+  const { values, positionals } = parseArgs({
+    args: argv.slice(3),
+    options: { fold: { type: 'string' }, through: { type: 'string' } },
+    allowPositionals: true,
+  });
+  const [stored] = values.fold === undefined ? [] : readAll([values.fold]);
+  if (values.fold !== undefined && stored === undefined) {
+    console.error(`--fold ${values.fold}: no such file`);
+    exit(2);
+  }
+  const { text, added, moved } = merged(readAll(positionals), { fold: stored, through: values.through });
+
+  console.log(text);
+  console.error(
+    values.fold !== undefined
+      ? `${added} new files timed; stored files left for the next sweep`
+      : `${added} new files timed, ${moved} files' planned time moved to the median of their newest ${keptSamples}`,
+  );
 } else if (isMain) {
   const { values, positionals } = parseArgs({
     args: argv.slice(2),
@@ -301,7 +450,7 @@ if (isMain && argv[2] === '--merge') {
 
   if (most === undefined || list === undefined || !/^[1-9][0-9]*$/.test(most)) {
     console.error(
-      'Usage: node test-shards.ts <most> <files> [--keep <file>]... [<results.json>...] | --merge [<results.json>...]',
+      'Usage: node test-shards.ts <most> <files> [--keep <file>]... [<results.json>...] | --merge [--fold <stored.json>] [--through <sha>] [<results.json>...]',
     );
     exit(2);
   }

@@ -10,7 +10,7 @@ Split tests into shards by measured time, size runners from the work and the bil
 
 Start simple. A fixed assignment per suite, from the files' recorded times, run as an exact list through the installed test runner, and checked against the collected inventory, gets most of the balance ([`ci-runners`' shards](../../skills/ci-runners/references/shards.md#start-simple-a-fixed-split), whose `scripts/` hold the code). Keep test families that share fixture state together, cap the matrix by your organization's concurrency limits, and split a file that dominates before tuning the layout. Work stealing and lanes, below, are later optimizations to measure on their own.
 
-Vitest's built-in split balances file *counts*; two shards once differed by about a quarter in test-seconds. The plan computes one split from **each file's newest timing on main** and hands it to every shard:
+Vitest's built-in split balances file *counts*; two shards once differed by about a quarter in test-seconds. The plan computes one split from **each file's recent timings on main** and hands it to every shard:
 
 ```text
 shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per_worker)), 1, max_shards)
@@ -18,6 +18,7 @@ shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per
 ```
 
 - **Model the overheads.** Add a per-file process overhead and a per-task-group startup cost, and **measure both in your current CI**: ours changed as the harness and the task cache changed, and the group startup came out about twice our early estimate. Ignoring them once packed 200+ tiny files into one batch that ran about three times its planned length.
+- **Plan from robust times, and refresh them apart from the sweep's cadence.** Each file keeps its newest three times and the plan reads their median, so one slow machine (a shard's files once ran at up to 2.2 times their medians) doesn't move it. A sweep, at whatever cadence, refreshes every file; between sweeps, a fold on main times only the new files pull requests' runs measured. Modelled from a week of drift and new files, times a week old split about as evenly as fresh ones: 1.4% over the best split at the median, against 14.6% for an equal count of files ([`ci-runners`' shards, "Keeping the times current"](../../skills/ci-runners/references/shards.md#5-keeping-the-times-current)).
 - **New and split files get pessimistic estimates.** New server files take the p90 of server durations; others take their kind's median. Three new files once guessed at about a tenth of their real time landed together and made their shard the slowest by far.
 - **Mind the billing cliff.** On a provider that rounds each job up to whole minutes, aim for **two minutes elapsed or less per shard, including setup**. An invented example: 14 shards that each end just under 2 minutes bill 28 shard-minutes, while 9 shards that each spill just past 2 minutes bill 27, so the faster layout costs about the same. We warn when shard p95 passes 110 s, because one extra minute across 14 eight-vCPU shards is 112 vCPU-minutes.
 
