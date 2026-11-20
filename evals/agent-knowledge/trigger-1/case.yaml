@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: agent-knowledge-trigger-1
+description: Should load agent-knowledge.
+tags: [agent-knowledge, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Our AGENTS.md is 900 lines and agents ignore half of it. Help me cut it down."
+graders:
+  - name: loaded-agent-knowledge
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?agent-knowledge"'

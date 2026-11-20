@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: prove-it-trigger-2
+description: Should load prove-it.
+tags: [prove-it, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Before I write 'cuts CI cost in half' in the PR description, check that my numbers support it."
+graders:
+  - name: loaded-prove-it
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?prove-it"'

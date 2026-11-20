@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: blacksmith-trigger-2
+description: Should load blacksmith.
+tags: [blacksmith, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Which Blacksmith runner label should Pip use for the build job, and should it use a sticky disk?"
+graders:
+  - name: loaded-blacksmith
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?blacksmith"'

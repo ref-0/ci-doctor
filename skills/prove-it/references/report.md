@@ -10,7 +10,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 Part of the [`prove-it`](../SKILL.md) skill. Fill one per claim. Leave a field empty only with the reason.
 
 ```markdown
-**Claim:** <what got faster, cheaper, smaller or fixed, in one sentence>
+**Claim:** <what got faster, smaller, cost less or was fixed, in one sentence>
 **Kind:** <retrospective baseline | causal experiment>; <provisional | final>
 **Decision, written first:** <the result that would change what we do>; threshold <value>
 **Field:** <wall time, CPU time, p50, p90, bytes, billed units…>, from <where, collected when, by what>

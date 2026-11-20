@@ -35,7 +35,7 @@
     ],
     "websiteURL": "https://ci-doctor.ref0.dev",
     "defaultPrompt": [
-      "Make this repo's CI faster and cheaper: start the ci-doctor plan.",
+      "Make this repo's CI faster and cost less: start the ci-doctor plan.",
       "Why did this PR's CI check fail?",
       "Our Actions bill doubled last month. Find out why."
     ],

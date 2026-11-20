@@ -1,6 +1,6 @@
 ---
 name: optimize-graphs
-description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrels, layers, task inputs, the CI job graph and which checks run. Use when one edit reruns most tests or builds, an unrelated edit misses a task cache, or CI runs everything. Not for setup caches (cache-ci); a slow job (ci-workflows)."
+description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrel files, layers, task inputs and the CI job graph. Use when one edit reruns most tests or builds, an unrelated edit misses a task cache, or CI runs everything. Not for setup caches (cache-ci); a slow job (ci-workflows)."
 metadata:
   version: "0.1.0"
 ---

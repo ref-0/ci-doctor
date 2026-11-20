@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: cache-ci-trigger-1
+description: Should load cache-ci.
+tags: [cache-ci, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Our CI spends ages installing dependencies on every run. Add caching."
+graders:
+  - name: loaded-cache-ci
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?cache-ci"'
