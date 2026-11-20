@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ci-workflows-not-optimize-graphs
+description: Belongs to optimize-graphs, so should not load ci-workflows.
+tags: [ci-workflows, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Touching one file in the shared package makes CI run every test in the monorepo. Why?"
+graders:
+  - name: did-not-load-ci-workflows
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-workflows"'
+    min: 0
+    max: 0
+    arm: both

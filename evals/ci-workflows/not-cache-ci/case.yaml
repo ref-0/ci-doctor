@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ci-workflows-not-cache-ci
+description: Belongs to cache-ci, so should not load ci-workflows.
+tags: [ci-workflows, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "pnpm install takes four minutes on every CI run. Can we cache it properly?"
+graders:
+  - name: did-not-load-ci-workflows
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-workflows"'
+    min: 0
+    max: 0
+    arm: both

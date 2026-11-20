@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: cache-ci-trigger-3
+description: Should load cache-ci.
+tags: [cache-ci, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Cache the Rust toolchain and the cargo build output between CI runs."
+graders:
+  - name: loaded-cache-ci
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?cache-ci"'
