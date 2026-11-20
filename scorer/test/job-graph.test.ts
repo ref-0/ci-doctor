@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { type ApiJob, graphBlock, graphFixes, jobGraphOf, parseYaml, promptLines, runGraph, workflowGraph } from '../src/job-graph.ts';
+import { type ApiJob, graphBlock, graphFixes, jobGraphOf, matrixValues, parseYaml, promptLines, runGraph, workflowGraph } from '../src/job-graph.ts';
 
 const T0 = Date.parse('2026-11-19T10:00:00Z');
 const at = (min: number) => new Date(T0 + min * 60e3).toISOString();
@@ -137,6 +137,43 @@ describe('a matrix', () => {
   });
 
   it('names a matrix blocker by its job', () => assert.equal(run.topBlocker!.name, 'test'));
+});
+
+describe('two jobs with one name template', () => {
+  const yaml = (other: string) => `jobs:
+  unit:
+    name: Test \${{ matrix.os }}
+    strategy: { matrix: { os: [ubuntu-latest, windows-latest] } }
+  integration:
+    name: Test \${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [${other}]
+        include:
+          - os: macos-15
+  report: { needs: [unit, integration] }
+`;
+
+  it('matches each by its matrix values', () => {
+    const run = runGraph(graphOf(yaml('macos-14')), [job('Test ubuntu-latest', 0, 0, 2), job('Test macos-14', 0, 0, 3), job('Test macos-15', 0, 0, 4), job('report', 4, 4, 5)])!;
+    assert.deepEqual(run.jobs.map((j) => j.key), ['unit', 'integration', 'integration', 'report']);
+    assert.deepEqual(run.ambiguous, []);
+  });
+
+  it('leaves a name both could take unmatched, rather than guessing', () => {
+    const run = runGraph(graphOf(yaml('ubuntu-latest')), [job('Test ubuntu-latest', 0, 0, 2), job('Test windows-latest', 0, 0, 2), job('report', 2, 2, 3)])!;
+    assert.deepEqual(run.jobs.map((j) => j.key), [undefined, 'unit', 'report']);
+    assert.deepEqual(run.ambiguous, ['Test ubuntu-latest']);
+    assert.deepEqual(run.unmatched, ['Test ubuntu-latest']);
+  });
+
+  it('reads values from lists, objects and include, and not from an expression', () => {
+    const { values } = matrixValues(parseYaml('config: [{ os: linux, arch: x64 }, { os: mac, arch: arm64 }]\nnode: ${{ fromJSON(x) }}\ninclude: [{ extra: "yes" }]\n'));
+    assert.deepEqual([...values.get('config.os')!], ['linux', 'mac']);
+    assert.deepEqual([...values.get('extra')!], ['yes']);
+    assert.equal(values.get('node'), undefined);
+    assert.ok(values.has('node'));
+  });
 });
 
 describe('a reusable workflow', () => {
