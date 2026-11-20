@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Properties
 
-Part of the [`proof-tiers`](../SKILL.md) skill. A property checks a rule against generated inputs, then shrinks the first that breaks it. Give one to code that reads bytes or text from outside, code that writes what another part reads back, code that must agree with another implementation, and code that reads in chunks. Any library works: fast-check, Hypothesis, proptest, QuickCheck; if your stack uses Effect, see [Effect](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/references/effect.md#property-tests). The repo's `.agents/repo/proof-tiers.md` names its library, setup file, seed, count and size variables and its property files. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) places them in the tiers.
+Part of the [`proof-tiers`](../SKILL.md) skill. A property checks a rule against generated inputs, then shrinks the first that breaks it. Give one to code that reads bytes or text from outside, code that writes what another part reads back, code that must agree with another implementation, and code that reads in chunks. Any library works: fast-check, Hypothesis, proptest, QuickCheck; if your stack uses Effect, see [Effect](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/references/effect.md#property-tests). The repo's `.agents/repo/proof-tiers.md` names its library, setup file, seed, count and size variables and its property files. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) places them in the tiers.
 
 ## Write one
 
@@ -38,7 +38,7 @@ Random values rarely land where code goes wrong, so generate them there.
 
 - **Findings stay findings.** When a property fails on the code as it is, shrink it, replay the shrunk input against the code and report it in the code's words. Narrow a generator only for an input no caller can send, and say which caller and why.
 - **A bug a property found** stays as a fixed case in the module's own test file.
-- **This page owns seeds and replay;** [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md) owns intermittent failures. A fixed seed replays the same inputs, but scheduling, a changing oracle or a timeout can still fail them only sometimes. Replay the exact inputs and environment, seed, count, size and versions, to tell a counterexample in the code from a nondeterministic harness.
+- **This page owns seeds and replay;** [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/fix-flaky-test/SKILL.md) owns intermittent failures. A fixed seed replays the same inputs, but scheduling, a changing oracle or a timeout can still fail them only sometimes. Replay the exact inputs and environment, seed, count, size and versions, to tell a counterexample in the code from a nondeterministic harness.
 - **Replay tokens are transient.** Use a library's replay token or a pinned seed only while you work, never in a commit: the seeded settings replay a CI failure.
 - **Write no regression file** such as `proptest-regressions`: the seed replays it.
 

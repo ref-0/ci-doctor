@@ -21,7 +21,7 @@ Read the values from there, never from a copy, then work from the skill's "What 
 
 ## With no facts file
 
-Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, read them yourself, and at the end offer to write those sections from [the template](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/repo-facts/ci.md#runners-budgets-and-records):
+Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, read them yourself, and at the end offer to write those sections from [the template](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/agent-knowledge/templates/repo-facts/ci.md#runners-budgets-and-records):
 
 1. **Labels:** each job's `runs-on` in the workflow files. A `blacksmith-<n>vcpu-…` label is Blacksmith's; anything else runs elsewhere.
 2. **Disks and caches:** the steps that mount a sticky disk (`useblacksmith/stickydisk` or a shared action wrapping it), their keys, and which events may commit them.
