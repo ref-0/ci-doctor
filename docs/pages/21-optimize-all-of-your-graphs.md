@@ -16,7 +16,7 @@ How far a change reaches, and how long CI waits for it, are set by five graphs. 
 
 The first three are one graph seen at three sizes, packages, entry points and folders, and the fourth and fifth are built on them. An edge that's wider than the code needs costs on every run, and nothing flags it, so each graph below has a check that fails on a new edge and a measurement that shows the width of the old ones.
 
-[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand. The [`optimize-graphs`](../../skills/optimize-graphs/SKILL.md) skill carries this section for a coding agent: what to measure, what to propose and in what order, and how to verify it.
+[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records. The scorer reads graphs 1, 2, 4 and 5 from outside, with no checkout: the manifests, each package's entry files and what they re-export, the task configs, and a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool, the scorer or by hand. The [`optimize-graphs`](../../skills/optimize-graphs/SKILL.md) skill carries this section for a coding agent: what to measure, what to propose and in what order, and how to verify it.
 
 ## Package dependencies, declared and checked
 
@@ -142,13 +142,15 @@ Count before you move code. Our selector's tests do this against the workspace's
 
 [`scripts/graph/`](../../scripts/graph/README.md#measure-the-graphs) counts graphs 1–4 and replays recent merges through them. It measures and `package-graph` enforces. Without it, measure by hand:
 
-| Graph | Count | From |
-|---|---|---|
-| Package dependencies | Edges; imports no edge allows; edges no import uses | `package-graph` and `package-graph --unused` ([`tools/workspace/`](../../tools/workspace/README.md#the-package-graph)) |
-| Export paths | Test files one edit selects, by package edges, by entries and by the import graph, for a few modules per shared package; names each entry exports that nothing imports | The selector's output, and `vp test list --filesOnly --changed` (or `vitest list --changed`) with one line added to the module |
-| Layers | Imports against the layers, and folder cycles, largest first | `package-graph` with `layers` set, or the order search in [Adopt them](#adopt-them-in-a-repo-that-has-none) |
-| Workspace tasks | Keys one edit moves | The runner's dry run |
-| CI jobs | Blocked and queued time, and the critical path | The jobs API, or the scorer's "Job graph" block |
+| Graph | Count | From | The scorer reports, from outside |
+|---|---|---|---|
+| Package dependencies | Edges; imports no edge allows; edges no import uses | `package-graph` and `package-graph --unused` ([`tools/workspace/`](../../tools/workspace/README.md#the-package-graph)) | Packages and edges by manifest, depth, cycles, the most depended on |
+| Export paths | Test files one edit selects, by package edges, by entries and by the import graph, for a few modules per shared package; names each entry exports that nothing imports | The selector's output, and `vp test list --filesOnly --changed` (or `vitest list --changed`) with one line added to the module | Each entry's re-exported modules, `export *` count and importing packages by manifest; overload, root barrels, and the share of packages behind the worst entry |
+| Layers | Imports against the layers, and folder cycles, largest first | `package-graph` with `layers` set, or the order search in [Adopt them](#adopt-them-in-a-repo-that-has-none) | Nothing: it needs every file, so run `scripts/graph/` |
+| Workspace tasks | Keys one edit moves | The runner's dry run | Tasks, `dependsOn` edges and the longest chain; cached tasks with no declared inputs, and with inputs over half the repo |
+| CI jobs | Blocked and queued time, and the critical path | The jobs API, or the scorer's "Job graph" block | The chain that sets the wait, the top blocker, setup in the path |
+
+The scorer's "Graphs" block puts each graph's flags first, and `graphs` in its `--json` holds each graph's `nodes`, `edges` and `flags` in `scripts/graph/`'s shape. Both read `exports` and task configs through the same code. The scorer doesn't read every file, so it counts an entry's importers from the imports in the files it does read. For a package with one entry, or whose importers it all saw, the count is exact. Otherwise it's at least those seen and at most every package that depends on the package by manifest, and only those seen raise a flag. It also caps how far it follows re-exports (8 levels from each entry, 1,000 files), and marks an entry past that unknown.
 
 Replay a change to any graph over recent merges before you call it a saving, as [section 4](04-run-only-what-a-change-can-reach.md#verify-the-selector-like-production-code) does for the selector.
 
