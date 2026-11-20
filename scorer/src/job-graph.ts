@@ -132,7 +132,9 @@ const balanced = (s: string) => {
 
 /** Reads the YAML a workflow file holds: block and flow collections, quoted, plain and block scalars, anchors. */
 export const parseYaml = (text: string): Yaml => {
+  // A byte-order mark isn't indentation: left in, it would put the first key a column past the rest.
   const lines: Line[] = text
+    .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((raw) => {
