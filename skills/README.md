@@ -1,5 +1,5 @@
 <!--
-What: the plugin's seven agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for a workspace's graphs, slow tests, review, merging, test value and proof tiers, and how to keep them fresh.
+What: the plugin's eight agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for a workspace's graphs, slow and flaky tests, review, merging, test value and proof tiers, and how to keep them fresh.
 Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
 Configure: write your repo's facts files from the hub's references/agent-knowledge/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -22,12 +22,13 @@ Each topic has one home; the others link to it.
 | [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). | Any repo with them |
 | [`optimize-graphs`](optimize-graphs/SKILL.md) | The five graphs that set how far an edit reaches and how long CI waits: package dependencies, export paths, layers inside packages, workspace tasks and CI jobs. How to measure them, what to propose and in what order, and how to adopt the checks. The hub's Phase 1 maps them with it. | Any repo with several packages or jobs |
 | [`speed-up-tests`](speed-up-tests/SKILL.md) | Slow tests, in CI or locally: CI's records and how to read them (`measuring`, `ci-history-data`), naming the wait, fixes, fakes, campaigns over many files, and stack pages for [Cloudflare Workers](speed-up-tests/references/workers.md) and [Effect](speed-up-tests/references/effect.md). | Any repo with tests |
+| [`fix-flaky-test`](fix-flaky-test/SKILL.md) | A test that fails sometimes or passes only on a retry: telling it from a real or infrastructure failure, matching the symptom, forcing the interleaving, the fix, proving it with retries off, and filing what's left. | Any repo with tests; the repo's flake policy from `.agents/repo/ci.md` |
 
 The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL.md`, since Codex registers a `SKILL.md` at any depth as a skill of its own:
 
 | Topic | Owns | Not here: see |
 | --- | --- | --- |
-| [`triage`](ci-doctor/references/triage/TOPIC.md) | A PR's CI result: which job failed and why, whether the run counts, and the exceptions; and [flakes](ci-doctor/references/triage/flakes.md): a test that fails sometimes, its cause, fix and proof. | Readying and merging: `ci-merge-workflow`. A slow test: `speed-up-tests`. |
+| [`triage`](ci-doctor/references/triage/TOPIC.md) | A PR's CI result: which job failed and why, whether the run counts, and the exceptions. | Readying and merging: `ci-merge-workflow`. A flake's cause and fix: `fix-flaky-test`. |
 | [`ci-workflows`](ci-doctor/references/ci-workflows/TOPIC.md) | Changing or debugging workflows: the checks for a CI change, selection, tiers, caches, slow runs, Rust in CI, and `scripts/ci-time.ts`, which prints where a run's time and minutes went. | Runner size and cost: `ci-runners`. Blacksmith: `blacksmith`. |
 | [`ci-runners`](ci-doctor/references/ci-runners/TOPIC.md) | Runner size and architecture, packing against minute rounding, the spend cap, the cost of getting fast, and choosing a provider. | Workflows: `ci-workflows`. One provider's specifics: `blacksmith`. |
 | [`blacksmith`](ci-doctor/references/blacksmith/TOPIC.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |

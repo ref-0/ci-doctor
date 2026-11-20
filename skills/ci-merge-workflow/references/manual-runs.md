@@ -17,7 +17,7 @@ A run by hand checks a pushed branch or commit with `main`'s workflow, unless yo
 - **Run the narrowest one.** Name the paths or the one file, with the inputs ci.md says the workflow declares (in the source repo: `test_paths`, at most 4 at a time, or `sandbox_file`). A run by hand of everything costs more than a ready PR's own run, which checks only what the diff reaches.
 - **Fix before you run again.** Don't start a run on code you know fails, or a second run on a commit while one is still going.
 - **A run the same as one still going may cancel it,** where runs by hand share a concurrency group keyed by their inputs.
-- **Keep repetitions at 3 or under,** unless you're measuring a flake's rate with a yes, as [flakes](../../ci-doctor/references/triage/flakes.md#prove-the-fix) says (for example 50 repeats for an ordinary file, 20 for a container file). Other people use these runners too.
+- **Keep repetitions at 3 or under,** unless you're measuring a flake's rate with a yes, as [`fix-flaky-test`](../../fix-flaky-test/SKILL.md#prove-the-fix) says (for example 50 repeats for an ordinary file, 20 for a container file). Other people use these runners too.
 - **Never run a macOS job without a person's yes.** A Mac minute costs several Linux ones on every provider we know (check current pricing).
 
 Take the dispatch command whole from ci.md: `--ref` always, and only `-f` inputs the workflow declares. GitHub rejects an undeclared input. In the source repo it was:

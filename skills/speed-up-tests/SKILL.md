@@ -1,6 +1,6 @@
 ---
 name: speed-up-tests
-description: "A test, a test file or a suite is slow, in CI or locally: find the slow files from CI's records, name what each waits on (a sleep, poll, retry, timer, fake or setup), take the wait out without losing what the test proves, and measure before and after. A flaky test: `ci-doctor`. A test's value: `test-audit`."
+description: "A test, a test file or a suite is slow, in CI or locally: find the slow files from CI's records, name what each waits on (a sleep, poll, retry, timer, fake or setup), take the wait out without losing what the test proves, and measure before and after. A flaky test: `fix-flaky-test`. A test's value: `test-audit`."
 metadata:
   version: "0.1.0"
 ---
@@ -85,7 +85,7 @@ node <ci-doctor>/skills/ci-doctor/references/ci-workflows/scripts/ci-time.ts --h
 
 ## Not here
 
-- A test that fails sometimes, or passes only on a retry: the `ci-doctor` hub's [flakes](../ci-doctor/references/triage/flakes.md). A flake is a wrong answer, not a slow one.
+- A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](../fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
 - Shards, selection, tiers and caches: the hub's [`ci-workflows`](../ci-doctor/references/ci-workflows/TOPIC.md); runner size and cost, its [`ci-runners`](../ci-doctor/references/ci-runners/TOPIC.md). How far an edit reaches through the workspace: `optimize-graphs`.
 - Whether a test is worth keeping at all: [`test-audit`](../test-audit/SKILL.md); its authoring gate applies to any test you add.
 - Taking a PR through CI: [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md); [`review-gate`](../review-gate/SKILL.md) for its tests reviewer.

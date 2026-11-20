@@ -38,7 +38,7 @@ Random values rarely land where code goes wrong, so generate them there.
 
 - **Findings stay findings.** When a property fails on the code as it is, shrink it, replay the shrunk input against the code and report it in the code's words. Narrow a generator only for an input no caller can send, and say which caller and why.
 - **A bug a property found** stays as a fixed case in the module's own test file.
-- **This page owns seeds and replay;** [flakes](../../ci-doctor/references/triage/flakes.md) owns intermittent failures. A fixed seed replays the same inputs, but scheduling, a changing oracle or a timeout can still fail them only sometimes. Replay the exact inputs and environment, seed, count, size and versions, to tell a counterexample in the code from a nondeterministic harness.
+- **This page owns seeds and replay;** [`fix-flaky-test`](../../fix-flaky-test/SKILL.md) owns intermittent failures. A fixed seed replays the same inputs, but scheduling, a changing oracle or a timeout can still fail them only sometimes. Replay the exact inputs and environment, seed, count, size and versions, to tell a counterexample in the code from a nondeterministic harness.
 - **Replay tokens are transient.** Use a library's replay token or a pinned seed only while you work, never in a commit: the seeded settings replay a CI failure.
 - **Write no regression file** such as `proptest-regressions`: the seed replays it.
 
