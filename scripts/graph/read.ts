@@ -166,18 +166,36 @@ export interface Package {
 
 export type WorkspaceKind = 'pnpm' | 'npm' | 'yarn' | 'bun' | 'single';
 
-/** The package globs of `pnpm-workspace.yaml`'s `packages:` list, block or flow style. */
-const pnpmGlobs = (text: string) => {
-  const flow = /^packages:\s*\[([^\]]*)\]/m.exec(text);
-  if (flow) return flow[1]!.split(',').map((g) => g.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
-  const lines = text.split('\n');
-  const start = lines.findIndex((l) => /^packages:\s*$/.test(l));
+/** A YAML line without its comment: from a `#` outside quotes that starts the line or follows a space. */
+const uncommented = (line: string) => {
+  let quote = '';
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]!;
+    if (quote) { if (c === quote) quote = ''; continue; }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === '#' && (i === 0 || /\s/.test(line[i - 1]!))) return line.slice(0, i).trimEnd();
+  }
+  return line.trimEnd();
+};
+
+/**
+ * The package globs of `pnpm-workspace.yaml`'s `packages:` list: flow style, or a block list whose
+ * items are indented or not, with comments anywhere.
+ */
+export const pnpmGlobs = (text: string) => {
+  const lines = text.split('\n').map(uncommented);
+  const start = lines.findIndex((l) => /^packages:/.test(l));
   if (start === -1) return [];
+  const unquote = (g: string) => g.trim().replace(/^['"]|['"]$/g, '');
+  const inline = lines[start]!.slice('packages:'.length).trim();
+  if (inline.startsWith('[')) return inline.slice(1, inline.lastIndexOf(']')).split(',').map(unquote).filter(Boolean);
+
   const found: string[] = [];
   for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    const item = /^\s*-\s+(.+)$/.exec(line)?.[1];
+    if (item !== undefined) { found.push(unquote(item)); continue; }
     if (/^\S/.test(line)) break;
-    const item = /^\s*-\s*(.+?)\s*(?:#.*)?$/.exec(line)?.[1];
-    if (item) found.push(item.replace(/^['"]|['"]$/g, ''));
   }
   return found;
 };

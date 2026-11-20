@@ -12,7 +12,7 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { headline, readable, report } from '../graph.ts';
-import { DEFAULT_TESTS, globList, parseModule } from '../read.ts';
+import { DEFAULT_TESTS, globList, parseModule, pnpmGlobs } from '../read.ts';
 import { scriptCalls } from '../tasks.ts';
 
 const fixtures = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -84,6 +84,12 @@ describe('imports', () => {
     ].join('\n'));
     deepStrictEqual(parsed.specs.map((s) => `${s.kind} ${s.spec}`), ['static ./x.js', 'static ./runner.js', 'static ./named-type.ts', 'reexport ./y.ts', 'require ./eq.cjs']);
     deepStrictEqual(parsed.unparsed, ['import { broken']);
+  });
+
+  it('reads pnpm-workspace.yaml\'s packages with comments, either indentation, or flow style', () => {
+    deepStrictEqual(pnpmGlobs('packages: # members\n  - packages/*\n  # not this\n  - "apps/*" # apps\ncatalog:\n  - nope\n'), ['packages/*', 'apps/*']);
+    deepStrictEqual(pnpmGlobs('packages:\n- packages/*\n- \'!**/test/**\'\nonlyBuiltDependencies:\n- esbuild\n'), ['packages/*', '!**/test/**']);
+    deepStrictEqual(pnpmGlobs("packages: ['packages/*', 'tools/#x'] # flow\n"), ['packages/*', 'tools/#x']);
   });
 
   it('matches globs with exclusions in order', () => {
