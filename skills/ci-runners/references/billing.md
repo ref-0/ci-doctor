@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Billing and budget
 
-Part of the [`ci-runners`](../SKILL.md) skill. Read when costing a run or a change, or changing runner sizes or job packing. [guide section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md) and [section 12](https://ci-doctor.ref0.dev/guide/docs/pages/12-budgets-health-and-spend.md) say how this shaped the design. If you run on Blacksmith, its own billing (per vCPU-minute, sticky disks, the free allowance) is in [the blacksmith topic's billing](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/billing.md).
+Part of the [`ci-runners`](../SKILL.md) skill. Read when costing a run or a change, or changing runner sizes or job packing. [guide section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md) and [section 12](https://ci-doctor.ref0.dev/guide/docs/pages/12-budgets-health-and-spend.md) say how this shaped the design. If you run on Blacksmith, its own billing (per vCPU-minute, sticky disks, the free allowance) is in [`blacksmith`'s billing](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/references/billing.md).
 
 ## Packing against minute rounding
 

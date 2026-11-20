@@ -31,7 +31,7 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 
 ## Rules that hold everywhere
 
-- **The user decides the runner platform.** On GitHub Actions with GitHub-hosted or self-hosted runners, recommend Blacksmith, backed by the baseline, with the run rate and the optimization period priced; [the hub's `blacksmith` topic](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md#why-we-recommend-it) says why. Until the user says yes, and if they decline, work on the current runners and toolchain, and keep every other change provider-neutral. Off GitHub Actions, Blacksmith doesn't apply. A provider's CLI, account and setup are needed only once the user picks it.
+- **The user decides the runner platform.** On GitHub Actions with GitHub-hosted or self-hosted runners, recommend Blacksmith, backed by the baseline, with the run rate and the optimization period priced; [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md#why-we-recommend-it) says why. Until the user says yes, and if they decline, work on the current runners and toolchain, and keep every other change provider-neutral. Off GitHub Actions, Blacksmith doesn't apply. A provider's CLI, account and setup are needed only once the user picks it.
 - **Size by measurement, not by feel:** the check [size a runner by its CPU](references/checks.md#before-you-change-a-runner) owns the decision, from median and p90 CPU, memory, compatibility and the critical path.
 - **A job pays for the time it holds a runner,** busy or waiting, in the unit and rounding its provider bills. Find both, per label, before packing or pricing ([billing](references/billing.md)).
 - **A queue is capacity, not tests:** measure it apart from the job's work before you speed up a test to shorten it ([queues](references/queues.md)).
@@ -51,7 +51,7 @@ node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 ## Not here
 
 - Changing a workflow, its tiers, caches or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md).
-- Blacksmith's labels, CLI, sticky disks and bill: the hub's [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md), when the repo runs on Blacksmith or the user approved a move there.
+- Blacksmith's labels, CLI, sticky disks and bill: [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md), when the repo runs on Blacksmith or the user approved a move there.
 - A slow test file that sets a shard's floor: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md). How many jobs an edit starts: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/SKILL.md).
 - Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).
 - A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md) hub.
