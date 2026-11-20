@@ -70,7 +70,7 @@ const LIBRARIES_SHOWN = 8;
 const graphText = (g: Stack['graph']) =>
   g.count === null
     ? 'unknown'
-    : `${g.count} package${g.count === 1 ? '' : 's'}, ${g.edges} internal edge${g.edges === 1 ? '' : 's'}, depth ${g.maxDepth}, ${g.cycles.length} cycle${g.cycles.length === 1 ? '' : 's'}${g.topFanIn.length ? `; most depended on: ${g.topFanIn.map(([n, k]) => `${n} (${k})`).join(', ')}` : ''}`;
+    : `${g.count} package${g.count === 1 ? '' : 's'}, ${g.edges} internal edge${g.edges === 1 ? '' : 's'}, depth ${g.maxDepth}, ${g.cycles.length} cycle${g.cycles.length === 1 ? '' : 's'}${g.topFanIn.length ? `; most depended on: ${g.topFanIn.map((p) => `${p.name} (${p.dependents})`).join(', ')}` : ''}`;
 
 /** What the repo is built with, each line "unknown" where its inputs couldn't be read. */
 export const stackBlock = (st: Stack) => {
