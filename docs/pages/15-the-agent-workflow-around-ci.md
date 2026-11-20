@@ -52,7 +52,7 @@ A finding reopens only with evidence its dismissal was wrong or its fix failed. 
 **Applies when:** The slow-file inventory is long enough to split among agents, and the harness runs them in parallel, each in its own worktree. **Skip when:** The harness can't run parallel agents, or one agent can work the inventory.
 
 1. **Collect records** since the last run, rank every file past 10 s, every file that ends a shard, every wide spread and every flake. That's the item list, plus open items from the ledger.
-2. **Review every item, slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.
+2. **Review every item, slowest first.** A second model that costs less reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.
 3. **Merge findings by shared cause** into briefs. Each brief is a file with one finish line, CI's before-times, the proof to keep, the local command and the review requirement. Shared rules live in one README every brief links to.
 4. **One engineer per brief,** each in its own worktree. Cap concurrency per account and by machine load: on one day load climbed well past the core count and no more were started. Check for overlapping PRs (`gh pr list --search <file>`) before starting.
 5. **The manager marks ready and merges** on green, with resolved review and logs showing the files ran. A flaky failure reruns once; a second failure becomes an issue.

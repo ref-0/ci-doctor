@@ -41,6 +41,6 @@ Unless measurement says otherwise:
 - a fake made slow to mimic a real rate limit;
 - a production API widened to remove a test's wait;
 - more workers per machine to save on runners;
-- cheaper-per-minute runners without measuring the same tests on them.
+- runners with a lower minute price, without measuring the same tests on them.
 
 Guide section 18 lists ideas we measured and dropped, plus a few we rejected on principle. Don't repeat them without a reason this repo is different.

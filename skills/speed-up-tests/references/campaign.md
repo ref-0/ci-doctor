@@ -24,7 +24,7 @@ Templates: [ledger](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-kn
 ## Running the fixes
 
 - **One list, one brief each.** Keep the ranked list and its evidence in one file. Give each engineer a brief with one finish line: the files, CI's times for them, the proof to keep and the shared rules. Say that proofs and timings run locally, that the PR's ready run is the CI evidence, with the repo's flake policy from `.agents/repo/ci.md`, and that any other run by hand needs your yes. What they find outside it goes to a new issue, not their pull request.
-- **Split the work by kind.** Reading code to estimate waits and sweeping logs go to a cheaper reading model. Engineers measure and build. A review checks code a change reaches in production.
+- **Split the work by kind.** Reading code to estimate waits and sweeping logs go to a reading model that costs less. Engineers measure and build. A review checks code a change reaches in production.
 - **The parent marks ready and merges.** An engineer opens a draft and reports its head. A brief that asks otherwise is a mistake to fix.
 - **Check for overlap before starting and before pushing:** `gh pr list --search "<file>"`. Two PRs that touch one file in different places merge cleanly; read the hunks before you stop one.
 - **Parallel PRs interact past their text.** A rebase onto another's change reruns its selector tests, and one PR's new rule may need the other's code path, as covered-only paths did in local selection.
