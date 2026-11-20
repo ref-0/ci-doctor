@@ -1,0 +1,13 @@
+{
+  "name": "mo",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "prebuild": "node gen.js",
+    "build": "vp build",
+    "postbuild": "node gen.js --after",
+    "all": "pnpm run \"/^(build|test)$/\"",
+    "check": "pnpm run build && npm run test",
+    "test": "vitest run"
+  }
+}

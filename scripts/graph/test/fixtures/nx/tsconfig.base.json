@@ -1,0 +1,1 @@
+{ "compilerOptions": { "paths": { "@mo/core": ["libs/core/src/index.ts"] } } }

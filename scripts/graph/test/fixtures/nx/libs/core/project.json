@@ -1,0 +1,1 @@
+{ "name": "core", "targets": { "build": { "executor": "@nx/js:tsc" }, "test": {}, "lint": {} } }

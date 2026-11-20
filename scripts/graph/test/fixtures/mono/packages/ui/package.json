@@ -1,0 +1,7 @@
+{
+  "name": "@pip/ui",
+  "private": true,
+  "main": "src/button.ts",
+  "dependencies": { "@pip/core": "workspace:*", "@pip/app": "workspace:*" },
+  "scripts": { "build": "tsc", "test": "vitest run" }
+}
