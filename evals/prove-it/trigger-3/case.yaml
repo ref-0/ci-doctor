@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: prove-it-trigger-3
+description: Should load prove-it.
+tags: [prove-it, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Mo says the bug is fixed because it worked once locally. Is that enough?"
+graders:
+  - name: loaded-prove-it
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?prove-it"'

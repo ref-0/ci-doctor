@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: speed-up-tests-not-fix-flaky-test
+description: Belongs to fix-flaky-test, so should not load speed-up-tests.
+tags: [speed-up-tests, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "A test in Pip's PR fails only sometimes under load. Find the race."
+graders:
+  - name: did-not-load-speed-up-tests
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?speed-up-tests"'
+    min: 0
+    max: 0
+    arm: both

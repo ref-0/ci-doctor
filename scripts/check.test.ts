@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { FALLBACK, GITHUB_REF, GITHUB_URL, GUIDE_URL, HUB, OLD_NAMES, site, skillsOnly, standalone, tests } from './check.ts';
+import { descriptionProblems, descriptions, FALLBACK, GITHUB_REF, GITHUB_URL, GUIDE_URL, HUB, OLD_NAMES, site, skillsOnly, standalone, tests } from './check.ts';
 import { build } from './site/build.ts';
 
 const flagged = (line: string) => OLD_NAMES.some(([pattern]) => pattern.test(line));
@@ -193,5 +193,48 @@ describe('the site check', () => {
   it("fails a guide page that docs/README.md's contents don't list, so llms.txt leaves it out", () => {
     const found = problems({ 'docs/pages/03-c.md': '# 3. C\n\nNew.\n', 'docs/pages/02-b.md': '# 2. B\n\nNext: [C](03-c.md).\n' });
     deepStrictEqual(found, ["llms.txt: doesn't name docs/pages/03-c.md"]);
+  });
+});
+
+describe('the description lint', () => {
+  const skills = new Set(['speed-up-tests', 'fix-flaky-test']);
+  const good = 'Makes slow tests faster. Use when a test is slow. Not for a flaky test (fix-flaky-test).';
+  const one = (description: string) => descriptionProblems(description, skills);
+
+  it('passes a description in the shape', () => {
+    deepStrictEqual(one(good), []);
+  });
+
+  it('fails each rule, saying why it exists', () => {
+    match(one(`${good} ${'x'.repeat(320)}`).join('\n'), /over 320: .*shorten or drop/);
+    match(one('Makes slow tests faster.').join('\n'), /no "Use when"/);
+    match(one(`${good} See \`x\`.`).join('\n'), /backtick or angle bracket/);
+    match(one(`${good} Reads <file>.`).join('\n'), /backtick or angle bracket/);
+    match(one('Is it slow? Use when a test is slow.').join('\n'), /a question/);
+  });
+
+  it('bans cheap and cheaper', () => {
+    match(one('Makes CI cheaper. Use when slow.').join('\n'), /"cheaper": .*costs less/);
+    match(one('Keeps runs cheap. Use when slow.').join('\n'), /"cheap": /);
+  });
+
+  it('finds first and second person as words only', () => {
+    match(one('Fixes our tests. Use when slow.').join('\n'), /"our": .*third person/);
+    match(one('Use when you see it.').join('\n'), /"you"/);
+    match(one('Use when I see it.').join('\n'), /"I"/);
+    deepStrictEqual(one('Fixes CI in Iowa. Use when outward or yourself-named tests run.'), []);
+  });
+
+  it('fails a "Not for" sibling that is not a skill folder, and leaves brackets before it alone', () => {
+    match(one('Use when slow. Not for a flake (ci-doctor).').join('\n'), /names \(ci-doctor\), which isn't a skill folder/);
+    deepStrictEqual(one('Reads files (any kind). Use when slow. Not for a flake (fix-flaky-test); a slow one (speed-up-tests).'), []);
+  });
+
+  it('reads every skill folder in a repo', () => {
+    const root = mkdtempSync(join(tmpdir(), 'check-descriptions-'));
+    after(() => rmSync(root, { recursive: true, force: true }));
+    write(root, 'skills/a/SKILL.md', '---\nname: a\ndescription: "Does a. Use when a. Not for b (b)."\n---\n');
+    write(root, 'skills/b/SKILL.md', '---\nname: b\ndescription: "Does b. Not for c (c)."\n---\n');
+    deepStrictEqual(descriptions(root), ['skills/b/SKILL.md: description: no "Use when": a harness picks a skill by when to use it, in the words people ask with', "skills/b/SKILL.md: description: \"Not for\" names (c), which isn't a skill folder: a sibling named there must exist, or the request goes nowhere"]);
   });
 });

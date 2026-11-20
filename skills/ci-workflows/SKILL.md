@@ -1,6 +1,6 @@
 ---
 name: ci-workflows
-description: "Changes CI workflows without making them slower, costlier or less reliable. Use when asked to edit a workflow, add or change a job, split CI into tiers, add a scheduled run, or make a slow job faster. Not for caching (cache-ci); which checks a change runs (optimize-graphs); runners and the bill (ci-doctor)."
+description: "Edits CI workflows, such as GitHub Actions YAML, without making them slower, costlier or less reliable. Use when asked to add or change a job, split CI into tiers, add a scheduled run, or make a slow job faster. Not for caching (cache-ci); which checks a change runs (optimize-graphs); runners and the bill (ci-runners)."
 metadata:
   version: "0.1.0"
 ---

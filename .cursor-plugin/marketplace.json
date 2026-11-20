@@ -4,7 +4,7 @@
     "name": "ref0"
   },
   "metadata": {
-    "description": "ref0's agent plugins for fast, cheap and trustworthy CI."
+    "description": "ref0's agent plugins for fast, trustworthy CI that costs less."
   },
   "plugins": [
     {

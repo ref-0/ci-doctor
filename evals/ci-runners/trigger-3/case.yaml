@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: ci-runners-trigger-3
+description: Should load ci-runners.
+tags: [ci-runners, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Should the test job use a 4-core or a 16-core runner, and how many shards?"
+graders:
+  - name: loaded-ci-runners
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-runners"'

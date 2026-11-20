@@ -1,6 +1,6 @@
 ---
 name: proof-tiers
-description: "Keep a bounded model check or a property test honest: writing one, keeping it true when covered code changes or its check fails, and moving it to a slower tier. Use for state machines, retries, queues, leases, parsers or wire formats; optional for stacks without them. CI's tiers: ci-doctor; test value: test-audit."
+description: "Writes and maintains bounded model checks and property tests, and which CI tier runs them. Use when testing state machines, retries, queues, leases, parsers or wire formats, fuzzing, or when a model check or property test fails. Not for a test's value (test-audit); CI tiers (ci-workflows)."
 ---
 
 <!--

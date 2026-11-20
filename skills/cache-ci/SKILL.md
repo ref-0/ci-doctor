@@ -1,6 +1,6 @@
 ---
 name: cache-ci
-description: "Speeds up CI setup with dependency, build and toolchain caches keyed by every input that can change the output. Use when CI spends ages installing, when asked to add caching, or when a cache never hits or its keys look wrong. Not for task inputs an edit moves (optimize-graphs); other workflow edits (ci-workflows)."
+description: "Adds and fixes CI caches for dependencies, builds and toolchains, so setup stops reinstalling everything. Use when CI spends ages installing, when asked to add caching, or when a cache never hits or its cache key looks wrong. Not for task caches an edit misses (optimize-graphs); other workflow edits (ci-workflows)."
 metadata:
   version: "0.1.0"
 ---

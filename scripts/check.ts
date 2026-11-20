@@ -28,7 +28,10 @@
  * 8. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
  *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
  *    name every guide page, skill and reference README, and only what's served.
- * 9. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
+ * 9. **Descriptions:** each skill's description, which a harness picks the skill by, follows `skills/README.md`'s
+ *    "Writing a description": at most 320 characters, a "Use when", no backticks or angle brackets, no first or
+ *    second person, no "cheap" and no question, and every skill its "Not for" part names in brackets exists.
+ * 10. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
  *    checks use, each from its own folder. A skipped test fails: each needs its fixtures.
  *
  * Runs: from the repo's root, before pushing. Node 24, `git` and `jq` only. Temporary folders go in
@@ -43,7 +46,7 @@ import { fileURLToPath } from 'node:url';
 
 import { anchorsOf, checkFile, filesUnder, linkTargets, proseLines } from './docs/check-links.ts';
 import { docsBudget, layout } from './docs/docs-budget.ts';
-import { validate } from './plugin/validate.ts';
+import { frontmatter, validate } from './plugin/validate.ts';
 import { BASE, build, ORIGIN, served, siteProblems } from './site/build.ts';
 import { stale } from './skills/excerpts.ts';
 
@@ -252,6 +255,38 @@ export const oldNames = (root: string, files = tracked(root)): string[] => {
   return problems;
 };
 
+/** The longest description: under every harness's cap, and short enough to survive a listing that shortens it. */
+export const DESCRIPTION_MAX = 320;
+
+/** One description's breaks of `skills/README.md`'s "Writing a description", each with why the rule exists. */
+export const descriptionProblems = (description: string, skills: ReadonlySet<string>): string[] => {
+  const problems: string[] = [];
+  if (description.length > DESCRIPTION_MAX) problems.push(`${description.length} characters, over ${DESCRIPTION_MAX}: Codex and Claude Code shorten or drop long descriptions when many skills are installed`);
+  if (!description.includes('Use when')) problems.push('no "Use when": a harness picks a skill by when to use it, in the words people ask with');
+  if (/[`<>]/.test(description)) problems.push('a backtick or angle bracket: listings show descriptions as plain text, and Claude Code escapes angle brackets');
+  const person = /\b(?:our|ours|your|yours|you|we)\b/i.exec(description)?.[0] ?? /\bI\b/.exec(description)?.[0];
+  if (person !== undefined) problems.push(`"${person}": the hosts ask for the third person, since a description is injected into the agent's own prompt`);
+  const cheap = /\bcheap(?:er|est|ly)?\b/i.exec(description)?.[0];
+  if (cheap !== undefined) problems.push(`"${cheap}": calling CI or a change cheap devalues what it buys; say it costs less`);
+  if (description.includes('?')) problems.push('a question: say what the skill does and when, not what the user might ask');
+  const notFor = /Not for (.*)$/s.exec(description)?.[1] ?? '';
+  for (const [, named = ''] of notFor.matchAll(/\(([^)]*)\)/g)) {
+    if (!skills.has(named)) problems.push(`"Not for" names (${named}), which isn't a skill folder: a sibling named there must exist, or the request goes nowhere`);
+  }
+  return problems;
+};
+
+/** Every skill's description, against the rules. */
+export const descriptions = (root: string): string[] => {
+  const names = readdirSync(join(root, 'skills'), { withFileTypes: true }).filter((e) => e.isDirectory() && existsSync(join(root, 'skills', e.name, 'SKILL.md'))).map((e) => e.name);
+  const skills = new Set(names);
+  return names.sort().flatMap((name) => {
+    const { description } = frontmatter(readFileSync(join(root, 'skills', name, 'SKILL.md'), 'utf8'));
+    if (description === undefined) return [`skills/${name}/SKILL.md: no description`];
+    return descriptionProblems(description, skills).map((p) => `skills/${name}/SKILL.md: description: ${p}`);
+  });
+};
+
 /** Run each test file from its folder; a failure or a skip is a problem. */
 export const tests = (root: string): { problems: string[]; ran: number; passed: number } => {
   const files = [...tracked(root).filter((f) => (f.startsWith('skills/') || f.startsWith('scorer/test/')) && f.endsWith('.test.ts')), ...REPO_TESTS];
@@ -291,6 +326,7 @@ export const checks = (root: string): Result[] => {
     { name: 'old names', problems: oldNames(root), summary: 'none' },
     { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget` },
     { name: 'site', problems: built.problems, summary: `${built.files} files; every link lands on one, and llms.txt names every page` },
+    { name: 'descriptions', problems: descriptions(root), summary: 'each in the shape skills/README.md gives' },
     { name: 'tests', problems: run.problems, summary: `${run.ran} files, ${run.passed} tests passed, none skipped` },
   ];
 };

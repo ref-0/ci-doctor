@@ -17,7 +17,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 - **Authoring gate:** three paragraphs, the `undefined` check, the conditional pointer to property tests in [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/SKILL.md), and the producer-faithful fixture rule with its [reference](references/fixtures.md).
 - **Junk patterns:** two entries, constant pins and mock-only assertions.
-- **Description:** rewritten to route between this skill, `speed-up-tests`, `proof-tiers` and `review-gate`.
+- **Description:** rewritten in the shape `skills/README.md` gives, routing slow, flaky and property tests to `speed-up-tests`, `fix-flaky-test` and `proof-tiers`.
 
 Every link to the rest of ci-doctor is a full link to its repo on `next` or to its guide site, so the skill reads the same installed alone.
 
