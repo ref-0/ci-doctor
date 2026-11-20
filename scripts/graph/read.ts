@@ -12,6 +12,15 @@ import { createHash } from 'node:crypto';
 import { builtinModules } from 'node:module';
 import { posix } from 'node:path';
 
+import { entryOf, excludes, exportKeys, fileFor, globList, globToRegExp, keyMap, matchKey, MODULE, modeOf, ownerOf, packagesOf, parseJsonc, parseModule, pickBoth, record, strings, targetsOf } from '../../scorer/src/graph-core.ts';
+import type { KeyMap, Kind, Mode, Package, PackageJson, Parsed } from '../../scorer/src/graph-core.ts';
+
+// Shared with the scorer, which reads the same `exports` and modules from GitHub: `scorer/src/graph-core.ts`.
+export { DEPENDENCY_KINDS, exportKeys, globList, globToRegExp, keyMap, matchKey, MODULE, modeOf, ownerOf, parseJsonc, parseModule, REEXPORTS, stripComments } from '../../scorer/src/graph-core.ts';
+export type { KeyMap, Kind, Mode, Package, Parsed, Target } from '../../scorer/src/graph-core.ts';
+/** A package.json's fields this reader uses. */
+export type Manifest = PackageJson;
+
 // ---- Git ----------------------------------------------------------------------------------------
 
 /** A repo on disk, read through `git`, with a cache of blobs by id. */
@@ -61,115 +70,7 @@ export const treeAt = (git: Git, rev: string) => {
   return files;
 };
 
-// ---- Lenient JSON -------------------------------------------------------------------------------
-
-/** JSON with comments and trailing commas, as tsconfig and turbo.json allow, or undefined. */
-export const parseJsonc = (text: string): unknown => {
-  let out = '';
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      const start = i;
-      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === '\\') i++;
-      out += text.slice(start, i + 1);
-    } else if (c === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\n') i++;
-      out += '\n';
-    } else if (c === '/' && text[i + 1] === '*') {
-      i = text.indexOf('*/', i + 2);
-      if (i === -1) break;
-      i++;
-    } else out += c;
-  }
-  try {
-    return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
-  } catch {
-    return undefined;
-  }
-};
-
-const record = (value: unknown): Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-
-const strings = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-
-// ---- Globs --------------------------------------------------------------------------------------
-
-/** A glob as a RegExp over `/`-separated paths: `**`, `*`, `?`, `{a,b}` and `[...]`, compiled once per glob. */
-export const globToRegExp = (glob: string): RegExp => {
-  const known = compiledGlobs.get(glob);
-  if (known) return known;
-
-  let source = '';
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i] ?? '';
-    if (c === '*' && glob[i + 1] === '*') {
-      const slash = glob[i + 2] === '/';
-      source += slash ? '(?:.*/)?' : '.*';
-      i += slash ? 2 : 1;
-    } else if (c === '*') source += '[^/]*';
-    else if (c === '?') source += '[^/]';
-    else if (c === '{') {
-      const end = glob.indexOf('}', i);
-      if (end === -1) { source += '\\{'; continue; }
-      source += `(?:${glob.slice(i + 1, end).split(',').map((part) => globToRegExp(part).source.slice(1, -1)).join('|')})`;
-      i = end;
-    } else if (c === '[') {
-      const end = glob.indexOf(']', i);
-      if (end === -1) { source += '\\['; continue; }
-      source += `[${glob.slice(i + 1, end).replace(/^!/, '^')}]`;
-      i = end;
-    } else source += c.replace(/[.+^${}()|\\]/g, '\\$&');
-  }
-  const re = new RegExp(`^${source}$`);
-  compiledGlobs.set(glob, re);
-  return re;
-};
-const compiledGlobs = new Map<string, RegExp>();
-
-/** A matcher for a list of globs, `!` ones taking paths back out, in order. */
-export const globList = (globs: ReadonlyArray<string>) => {
-  const compiled = globs.map((glob) => ({ out: glob.startsWith('!'), re: globToRegExp(glob.replace(/^!/, '').replace(/^\.\//, '')) }));
-  return (path: string) => {
-    let hit = false;
-    for (const { out, re } of compiled) if (out ? hit : !hit) if (re.test(path)) hit = !out;
-    return hit;
-  };
-};
-
 // ---- Workspace ----------------------------------------------------------------------------------
-
-/** What an `exports` or `imports` key names: a path, conditions that each name one, a list, or nothing. */
-export type Target = string | null | ReadonlyArray<Target> | { readonly [condition: string]: Target };
-
-export interface Manifest {
-  readonly name?: string;
-  readonly main?: string;
-  readonly module?: string;
-  readonly types?: string;
-  readonly source?: string;
-  readonly exports?: Target;
-  readonly imports?: { readonly [key: string]: Target };
-  readonly scripts?: Readonly<Record<string, string>>;
-  readonly workspaces?: unknown;
-  readonly nx?: unknown;
-  readonly dependencies?: Readonly<Record<string, string>>;
-  readonly devDependencies?: Readonly<Record<string, string>>;
-  readonly peerDependencies?: Readonly<Record<string, string>>;
-  readonly optionalDependencies?: Readonly<Record<string, string>>;
-}
-
-export const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
-
-/** A workspace package: its name, its directory (`''` for the root, else with a trailing `/`) and manifest. */
-export interface Package {
-  readonly name: string;
-  readonly dir: string;
-  readonly manifest: Manifest;
-  /** Workspace packages it names in its manifest, by kind. */
-  readonly deps: ReadonlyMap<string, ReadonlySet<string>>;
-}
 
 export type WorkspaceKind = 'pnpm' | 'npm' | 'yarn' | 'bun' | 'single';
 
@@ -230,219 +131,11 @@ export const readWorkspace = (files: ReadonlyMap<string, string>, git: Git) => {
   const blobs = git.blobs(dirs.map((dir) => files.get(`${dir}/package.json`) ?? ''));
   for (const dir of dirs) manifests.set(`${dir}/`, (parseJsonc(blobs.get(files.get(`${dir}/package.json`) ?? '') ?? '') ?? {}) as Manifest);
 
-  const names = new Map<string, string>();
-  for (const [dir, manifest] of manifests) {
-    const name = manifest.name ?? (dir === '' ? '(root)' : dir.slice(0, -1));
-    names.set(dir, names.has(name) || [...names.values()].includes(name) ? `${name} (${dir || 'root'})` : name);
-  }
-  const byName = new Set(names.values());
-  const packages: Package[] = [...manifests].map(([dir, manifest]) => ({
-    name: names.get(dir)!,
-    dir,
-    manifest,
-    deps: new Map(DEPENDENCY_KINDS.map((kind) => [kind, new Set(Object.keys(manifest[kind] ?? {}).filter((n) => byName.has(n) && n !== names.get(dir)))])),
-  }));
-  // Deepest directory first, so ownerOf finds a nested package before its parent.
-  packages.sort((a, b) => b.dir.length - a.dir.length || a.name.localeCompare(b.name));
+  const packages = packagesOf(manifests);
   return { kind, packages };
 };
 
-/** The package that holds a path: the deepest whose directory it's in, the root last. */
-export const ownerOf = (path: string, packages: ReadonlyArray<Package>) =>
-  packages.find((p) => path.startsWith(p.dir)) ?? packages[packages.length - 1]!;
-
 // ---- Imports ------------------------------------------------------------------------------------
-
-export const MODULE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/;
-const MAX_BYTES = 1024 * 1024;
-
-/**
- * How a file names another: a runtime import, a type-only one, a named re-export
- * (`export { a } from`), `export *`, a dynamic `import()`, `require`, `new URL(…, import.meta.url)`
- * or a glob.
- */
-export type Kind = 'static' | 'type' | 'reexport' | 'star' | 'dynamic' | 'require' | 'url' | 'glob';
-
-/** The kinds that re-export what they name, so an entry's re-exported modules follow them. */
-export const REEXPORTS: ReadonlySet<Kind> = new Set(['reexport', 'star']);
-
-export interface Parsed {
-  readonly specs: ReadonlyArray<{ readonly spec: string; readonly kind: Kind }>;
-  /** `import()` and `require()` of something that isn't a plain string. */
-  readonly computed: number;
-  /** `require.context` calls, which name folders by a pattern this reader doesn't follow. */
-  readonly contexts: number;
-  /** `import` or `export` statements the scanner couldn't read, each with its first line. */
-  readonly unparsed: ReadonlyArray<string>;
-  /** Whether every statement is an import or a re-export: a barrel. */
-  readonly barrel: boolean;
-  readonly tooLarge: boolean;
-}
-
-/**
- * The source with comments removed and multi-line template literals blanked, so an import in a
- * comment or in a code sample held in a string doesn't count. Strings and single-line templates stay.
- */
-export const stripComments = (text: string) => {
-  let out = '';
-  let last = '';
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
-    const next = text[i + 1];
-    if (c === '/' && next === '/') { while (i < text.length && text[i] !== '\n') i++; out += '\n'; continue; }
-    if (c === '/' && next === '*') {
-      const end = text.indexOf('*/', i + 2);
-      const body = text.slice(i, end === -1 ? text.length : end + 2);
-      out += body.replace(/[^\n]/g, ' ');
-      i = end === -1 ? text.length : end + 1;
-      continue;
-    }
-    if (c === "'" || c === '"' || c === '`') {
-      const start = i;
-      for (i++; i < text.length && text[i] !== c; i++) {
-        if (text[i] === '\\') i++;
-        else if (c !== '`' && text[i] === '\n') break;
-      }
-      const literal = text.slice(start, i + 1);
-      out += c === '`' && literal.includes('\n') ? '`' + literal.slice(1, -1).replace(/[^\n]/g, ' ') + '`' : literal;
-      last = c;
-      continue;
-    }
-    if (c === '/' && (last === '' || /[(,=:[!&|?{};]/.test(last))) {
-      // A regex literal: skip to its closing slash, outside a character class.
-      const start = i;
-      let inClass = false;
-      for (i++; i < text.length && text[i] !== '\n'; i++) {
-        if (text[i] === '\\') i++;
-        else if (text[i] === '[') inClass = true;
-        else if (text[i] === ']') inClass = false;
-        else if (text[i] === '/' && !inClass) break;
-      }
-      out += text.slice(start, i + 1);
-      last = '/';
-      continue;
-    }
-    out += c;
-    if (!/\s/.test(c)) last = c;
-  }
-  return out;
-};
-
-const DYNAMIC = /\bimport\(\s*(?:(['"])([^'"\n]+)\1|`([^`$\n]+)`)\s*[,)]/g;
-const COMPUTED = /\bimport\(\s*(?!(['"])[^'"\n]*\1\s*[,)]|`[^`$\n]*`\s*[,)])(?=[^)\s])|\brequire\(\s*(?!(['"])[^'"\n]*\2\s*\))(?=[^)\s])/g;
-const REQUIRE = /\brequire\(\s*(['"])([^'"\n]+)\1\s*\)/g;
-const URL_REF = /\bnew URL\(\s*(['"])([^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g;
-const GLOB = /\bimport\.meta\.glob(?:Eager)?\b[^(]*\(\s*(\[[^\]]*\]|'[^']*'|"[^"]*")/g;
-/** Where an identifier ends, from `at`. */
-const wordAt = (source: string, at: number) => /^[A-Za-z_$][\w$]*/.exec(source.slice(at, at + 200))?.[0];
-
-const skipSpace = (source: string, at: number) => { while (at < source.length && /\s/.test(source[at]!)) at++; return at; };
-
-/** A string literal's value and end, starting at a quote. */
-const stringAt = (source: string, at: number) => {
-  const quote = source[at];
-  if (quote !== "'" && quote !== '"') return undefined;
-  const end = source.indexOf(quote, at + 1);
-  return end === -1 || source.slice(at + 1, end).includes('\n') ? undefined : { value: source.slice(at + 1, end), end: end + 1 };
-};
-
-/**
- * Each `import` and `export` statement, read by a scanner rather than one pattern, so spacing
- * (`import{x}from"./x"`) and keywords used as names (`import { async as run }`) read as any other.
- * A statement it can't read is returned as `unparsed`, never dropped.
- */
-const scanStatements = (source: string) => {
-  const specs: Array<{ spec: string; kind: Kind }> = [];
-  const unparsed: string[] = [];
-  for (const m of source.matchAll(/\b(import|export)\b/g)) {
-    const word = m[1] as 'import' | 'export';
-    const at = m.index;
-    // A statement starts the text, a line, or follows `;`, `{` or `}`; never `.import` or `x.export`.
-    let back = at - 1;
-    while (back >= 0 && /[ \t]/.test(source[back]!)) back--;
-    if (back >= 0 && !/[\n;{}]/.test(source[back]!)) continue;
-    let i = skipSpace(source, at + word.length);
-    if (source[i] === '(' || source[i] === '.' || source[i] === '=' || source[i] === ':' || source[i] === ',') continue;
-    const fail = () => unparsed.push(source.slice(at, source.indexOf('\n', at) === -1 ? undefined : source.indexOf('\n', at)).trim().slice(0, 120));
-
-    let typeOnly = false;
-    const first = wordAt(source, i);
-    if (first === 'type') {
-      const after = skipSpace(source, i + 4);
-      const next = wordAt(source, after);
-      // `import type from './x'` imports a default named `type`.
-      if (!(next === 'from' && stringAt(source, skipSpace(source, after + 4)))) { typeOnly = true; i = after; }
-    }
-    // After `export` (or `export type`), only `{` or `*` starts a re-export: anything else declares.
-    if (word === 'export' && !/[{*]/.test(source[i] ?? '')) continue;
-
-    const side = stringAt(source, i);
-    if (side) {
-      if (word === 'import') specs.push({ spec: side.value, kind: typeOnly ? 'type' : 'static' });
-      else fail();
-      continue;
-    }
-
-    // The clause: names, `as`, `*`, commas and braced lists (names may be keywords or strings).
-    let star = false;
-    let read = false;
-    let found: string | undefined;
-    for (let guard = 0; guard < 400 && i < source.length; guard++) {
-      i = skipSpace(source, i);
-      const c = source[i]!;
-      if (c === '{') {
-        const end = source.indexOf('}', i);
-        // A braced list holds names, `as`, `type`, commas and quoted names: nothing else.
-        if (end === -1 || !/^[\s\w$,]*(?:(['"])[^'"\n]*\1[\s\w$,]*)*$/.test(source.slice(i + 1, end))) break;
-        i = end + 1; read = true; continue;
-      }
-      if (c === '*') { star = !read; i++; read = true; continue; }
-      if (c === ',') { i++; continue; }
-      const w = wordAt(source, i);
-      if (w === undefined) break;
-      if (w === 'from' && read) {
-        const str = stringAt(source, skipSpace(source, i + 4));
-        if (str) { found = str.value; break; }
-      }
-      if (word === 'import' && read && source[skipSpace(source, i + w.length)] === '=') break;
-      i += w.length; read = true;
-      // `import x = require('y')`: the require pattern reads it.
-      if (word === 'import' && source[skipSpace(source, i)] === '=') { found = ''; break; }
-    }
-    if (found === '') continue;
-    if (found === undefined) {
-      // `export { a, b }` exports local names; anything else is a statement it couldn't read.
-      if (word === 'export' && !star && /^\s*(?:type\s+)?\{[^}]*\}/.test(source.slice(skipSpace(source, at + 6)))) continue;
-      fail();
-      continue;
-    }
-    specs.push({ spec: found, kind: typeOnly ? 'type' : word === 'export' ? (star ? 'star' : 'reexport') : 'static' });
-  }
-  return { specs, unparsed };
-};
-
-const BARREL_STATEMENT = /^(?:import\b|export\s+(?:type\s+)?(?:\*|\{)[^]*?\bfrom\b|export\s+(?:type\s+)?\{[^}]*\}$|['"]use [a-z]+['"]$)/;
-
-/** What a module names, by kind. */
-export const parseModule = (text: string): Parsed => {
-  if (text.length > MAX_BYTES) return { specs: [], computed: 0, contexts: 0, unparsed: [], barrel: false, tooLarge: true };
-  const source = stripComments(text);
-  // Only `import type` and `export type` load nothing: `import { type X }` keeps its import under
-  // `verbatimModuleSyntax`, so it loads the module and counts as a value.
-  const { specs, unparsed } = scanStatements(source);
-  for (const m of source.matchAll(DYNAMIC)) specs.push({ spec: m[2] ?? m[3] ?? '', kind: 'dynamic' });
-  for (const m of source.matchAll(REQUIRE)) specs.push({ spec: m[2] ?? '', kind: 'require' });
-  for (const m of source.matchAll(URL_REF)) specs.push({ spec: m[2] ?? '', kind: 'url' });
-  // One glob call's patterns, in order, as one specifier: its `!` patterns take paths back out.
-  for (const m of source.matchAll(GLOB)) specs.push({ spec: [...(m[1] ?? '').matchAll(/'([^']*)'|"([^"]*)"/g)].map((g) => g[1] ?? g[2] ?? '').join('\n'), kind: 'glob' });
-
-  const computed = [...source.matchAll(COMPUTED)].length;
-  const contexts = [...source.matchAll(/\brequire\.context\(/g)].length;
-  const statements = source.split(/;|\n(?=\s*(?:import|export)\b)/).map((s) => s.trim()).filter(Boolean);
-  const barrel = specs.some((s) => REEXPORTS.has(s.kind)) && statements.every((s) => BARREL_STATEMENT.test(s));
-
-  return { specs, computed, contexts, unparsed, barrel, tooLarge: false };
-};
 
 // ---- tsconfig paths -----------------------------------------------------------------------------
 
@@ -517,72 +210,6 @@ export const UNRESOLVED_NOTES: Readonly<Record<Unresolved, string>> = {
   'too-large': 'files over 1 MiB, not parsed (bundles, generated code)',
 };
 
-const EXTENSIONS = ['.ts', '.tsx', '.d.ts', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.json', '.vue', '.svelte'];
-const JS_TO_TS: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>]> = [[/\.js$/, ['.ts', '.tsx', '.d.ts']], [/\.jsx$/, ['.tsx']], [/\.mjs$/, ['.mts', '.d.mts']], [/\.cjs$/, ['.cts', '.d.cts']]];
-
-/** The tracked file a path names as TypeScript and bundlers look it up: itself, with an extension, `.js` for `.ts`, or a folder's index. */
-const fileFor = (path: string, tracked: ReadonlySet<string>) => {
-  if (tracked.has(path)) return path;
-  for (const ext of EXTENSIONS) if (tracked.has(path + ext)) return path + ext;
-  for (const [re, exts] of JS_TO_TS) if (re.test(path)) for (const ext of exts) { const p = path.replace(re, ext); if (tracked.has(p)) return p; }
-  for (const ext of EXTENSIONS) if (tracked.has(`${path}/index${ext}`)) return `${path}/index${ext}`;
-  return undefined;
-};
-
-/** Build output whose source sits beside it by convention: `dist/x.js` for `src/x.ts`. */
-const sourceGuess = (path: string, tracked: ReadonlySet<string>) => {
-  const swapped = path.replace(/\/(dist|build|lib|out)\//, '/src/').replace(/\.d\.[cm]?ts$/, '.js');
-  return swapped === path ? undefined : fileFor(swapped, tracked);
-};
-
-/** Each condition path and target an `exports` value names, in document order. */
-const targetsOf = (target: Target, conditions: ReadonlyArray<string> = []): Array<{ conditions: ReadonlyArray<string>; path: string }> => {
-  if (typeof target === 'string') return [{ conditions, path: target }];
-  if (target === null) return [];
-  if (Array.isArray(target)) return target.flatMap((t) => targetsOf(t, conditions));
-  return Object.entries(target).flatMap(([c, t]) => targetsOf(t as Target, [...conditions, c]));
-};
-
-/** The `exports` map as keys, a bare-string or condition-only value as the `.` key. */
-export const exportKeys = (manifest: Manifest): ReadonlyMap<string, Target> => {
-  const exports = manifest.exports;
-  if (exports === undefined) return new Map();
-  if (typeof exports === 'string' || Array.isArray(exports) || exports === null) return new Map([['.', exports]]);
-  const keys = Object.keys(exports);
-  if (keys.length > 0 && keys.every((k) => !k.startsWith('.'))) return new Map([['.', exports]]);
-  return new Map(Object.entries(exports).filter(([k]) => k.startsWith('.')) as Array<[string, Target]>);
-};
-
-/** A map like `exports` or `imports`, built once: exact keys, and `*` patterns in the order Node tries them. */
-export interface KeyMap {
-  readonly exact: ReadonlyMap<string, Target>;
-  readonly patterns: ReadonlyArray<{ readonly key: string; readonly before: string; readonly after: string; readonly target: Target }>;
-}
-
-export const keyMap = (entries: Iterable<readonly [string, Target]>): KeyMap => {
-  const exact = new Map<string, Target>();
-  const patterns: Array<KeyMap['patterns'][number]> = [];
-  for (const [key, target] of entries) {
-    const at = key.indexOf('*');
-    if (at === -1) exact.set(key, target);
-    else patterns.push({ key, before: key.slice(0, at), after: key.slice(at + 1), target });
-  }
-  // Node's PATTERN_KEY_COMPARE: the longest prefix before `*` first, then the longest key.
-  patterns.sort((a, b) => b.before.length - a.before.length || b.key.length - a.key.length);
-  return { exact, patterns };
-};
-
-/** The key a subpath matches: exact first, then the first pattern in Node's order whose `*` stands for something. */
-export const matchKey = (map: KeyMap, subpath: string): { key: string; target: Target; star?: string } | undefined => {
-  if (map.exact.has(subpath)) return { key: subpath, target: map.exact.get(subpath)! };
-  for (const p of map.patterns) {
-    if (subpath.length > p.before.length + p.after.length && subpath.startsWith(p.before) && subpath.endsWith(p.after)) {
-      return { key: p.key, target: p.target, star: subpath.slice(p.before.length, subpath.length - p.after.length) };
-    }
-  }
-  return undefined;
-};
-
 export interface Resolution {
   readonly file?: string;
   /** Other runtime files the same entry names: its CommonJS target beside its ESM one, or the reverse. */
@@ -599,14 +226,6 @@ export interface Resolution {
   readonly via?: 'relative' | 'paths' | 'workspace' | 'imports' | 'baseUrl';
 }
 
-/** What an import loads: runtime code through `import` or `require`, or only types through `import type`. */
-export type Mode = 'esm' | 'cjs' | 'types';
-
-export const modeOf = (kind: Kind): Mode => (kind === 'type' ? 'types' : kind === 'require' ? 'cjs' : 'esm');
-
-const TYPES = ['types', 'typings'];
-const NOT_IN: Readonly<Record<Mode, ReadonlyArray<string>>> = { esm: ['require', ...TYPES], cjs: ['import', 'module', ...TYPES], types: [] };
-
 const BUILTINS = new Set(builtinModules);
 
 const splitName = (spec: string) => {
@@ -614,35 +233,6 @@ const splitName = (spec: string) => {
   const n = spec.startsWith('@') ? 2 : 1;
   return { name: parts.slice(0, n).join('/'), sub: parts.slice(n).join('/') };
 };
-
-/**
- * The tracked file a target names for `mode`. Targets go in document order (or `preferred`
- * conditions' order when given), each tried as itself and then by extension before the next.
- * A runtime import skips `types` and the other format's conditions, falling back to a `types`
- * target only when it names source, and only as a guess; `import type` tries `types` first.
- */
-const pickTarget = (pkgDir: string, target: Target, star: string | undefined, tracked: ReadonlySet<string>, preferred: ReadonlyArray<string>, mode: Mode) => {
-  const all = targetsOf(target).map((t) => ({ ...t, path: posix.normalize(posix.join(pkgDir, star === undefined ? t.path : t.path.replaceAll('*', star))) }));
-  const rank = (t: { conditions: ReadonlyArray<string> }) => {
-    if (mode === 'types' && t.conditions.some((c) => TYPES.includes(c))) return -1;
-    const i = preferred.findIndex((c) => t.conditions.includes(c));
-    return i === -1 ? preferred.length : i;
-  };
-  const ordered = [...all].sort((a, b) => rank(a) - rank(b));
-  const runtime = ordered.filter((t) => !t.conditions.some((c) => NOT_IN[mode].includes(c)));
-  const typesOnly = mode === 'types' ? [] : ordered.filter((t) => t.conditions.some((c) => TYPES.includes(c)) && !runtime.includes(t));
-
-  for (const t of runtime) { const f = fileFor(t.path, tracked); if (f) return { file: f }; }
-  for (const t of runtime) { const f = sourceGuess(t.path, tracked); if (f) return { file: f, guessed: true }; }
-  for (const t of typesOnly) {
-    const f = fileFor(t.path, tracked) ?? sourceGuess(t.path, tracked);
-    if (f && !/\.d\.[cm]?ts$/.test(f)) return { file: f, guessed: true };
-  }
-  return undefined;
-};
-
-/** Whether a target excludes the subpath: `null`, or conditions that are all `null`. */
-const excluded = (target: Target) => target === null || targetsOf(target).length === 0;
 
 export interface Resolver {
   readonly resolve: (from: string, spec: string, mode?: Mode) => Resolution;
@@ -671,45 +261,9 @@ export const makeResolver = (
   const exportsOf = (pkg: Package) => exportMaps.get(pkg.name) ?? exportMaps.set(pkg.name, keyMap(exportKeys(pkg.manifest))).get(pkg.name)!;
   const importsOf = (pkg: Package) => importMaps.get(pkg.name) ?? importMaps.set(pkg.name, keyMap(Object.entries(pkg.manifest.imports ?? {}))).get(pkg.name)!;
 
-  /** The pick for `mode`, plus the other runtime format's file when the entry names a different one. */
-  const pickBoth = (pkgDir: string, target: Target, star: string | undefined, mode: Mode) => {
-    const picked = pickTarget(pkgDir, target, star, tracked, conditions, mode);
-    if (!picked || mode === 'types') return picked;
-    const other = pickTarget(pkgDir, target, star, tracked, conditions, mode === 'esm' ? 'cjs' : 'esm');
-    return other && other.file !== picked.file && !other.guessed ? { ...picked, also: [other.file] } : picked;
-  };
-
-  const fromFields = (pkg: Package, mode: Mode) => {
-    const m = pkg.manifest;
-    const runtime = mode === 'cjs' ? [m.source, m.main, m.module] : [m.source, m.module, m.main];
-    const fields = mode === 'types' ? [m.types, ...runtime] : runtime;
-    for (const field of fields) if (typeof field === 'string') { const f = pickTarget(pkg.dir, field, undefined, tracked, [], mode); if (f) return f; }
-    if (mode !== 'types' && typeof m.types === 'string') {
-      const f = sourceGuess(posix.join(pkg.dir, m.types), tracked);
-      if (f) return { file: f, guessed: true };
-    }
-    const index = fileFor(posix.join(pkg.dir, 'src/index'), tracked) ?? fileFor(posix.join(pkg.dir, 'index'), tracked);
-    return index ? { file: index } : undefined;
-  };
-
   const uncachedEntry = (pkg: Package, sub: string, mode: Mode): Resolution => {
-    const map = exportsOf(pkg);
-    const subpath = sub === '' ? '.' : `./${sub}`;
-    const at = { pkg: pkg.name, entry: subpath, via: 'workspace' as const };
-    if (map.exact.size > 0 || map.patterns.length > 0) {
-      const match = matchKey(map, subpath);
-      if (!match || excluded(match.target)) return { ...at, unresolved: 'not-exported' };
-      const picked = pickBoth(pkg.dir, match.target, match.star, mode);
-      const pattern = match.star === undefined ? {} : { pattern: match.key };
-      return picked ? { ...picked, ...at, ...pattern } : { ...at, ...pattern, unresolved: 'built-only' };
-    }
-    if (sub !== '') {
-      const own = fileFor(posix.join(pkg.dir, sub), tracked);
-      const f = own ?? sourceGuess(posix.join(pkg.dir, sub), tracked);
-      return f ? { file: f, ...at, ...(own ? {} : { guessed: true }) } : { ...at, unresolved: 'missing' };
-    }
-    const picked = fromFields(pkg, mode);
-    return picked ? { ...picked, ...at } : { ...at, unresolved: 'built-only' };
+    const at = { pkg: pkg.name, entry: sub === '' ? '.' : `./${sub}`, via: 'workspace' as const };
+    return { ...entryOf(pkg, exportsOf(pkg), sub, mode, tracked, conditions), ...at };
   };
 
   const workspaceEntry = (pkg: Package, sub: string, mode: Mode) => {
@@ -730,10 +284,10 @@ export const makeResolver = (
       // A `#` specifier is the importing package's own: with no `imports` match it names nothing.
       const pkg = ownerOf(`${fromDir}/x`, packages);
       const match = matchKey(importsOf(pkg), spec);
-      if (!match || excluded(match.target)) return { unresolved: 'missing', via: 'imports' };
+      if (!match || excludes(match.target)) return { unresolved: 'missing', via: 'imports' };
       const local = targetsOf(match.target).some((t) => t.path.startsWith('.'));
       if (local) {
-        const picked = pickBoth(pkg.dir, match.target, match.star, mode);
+        const picked = pickBoth(pkg.dir, match.target, match.star, tracked, conditions, mode);
         return picked ? { ...picked, via: 'imports' } : { unresolved: 'missing', via: 'imports' };
       }
       const bare = targetsOf(match.target)[0]!.path;
