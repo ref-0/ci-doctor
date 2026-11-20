@@ -67,6 +67,25 @@ describe('imports', () => {
     strictEqual(parsed.barrel, false);
   });
 
+  it('reads statements whatever their spacing or names, and counts what it cannot read', () => {
+    const parsed = parseModule([
+      'import{x}from"./x.js";',
+      'import { async as run, default as d } from "./runner.js";',
+      'import type from "./named-type.ts";',
+      'export type Foo = { a: 1 };',
+      'export const a = 1;',
+      'export { a as b };',
+      'export {',
+      '  default as Y,',
+      '} from "./y.ts";',
+      'import x = require("./eq.cjs");',
+      'import { broken',
+      'const sample = "import z from \'./z.ts\'";',
+    ].join('\n'));
+    deepStrictEqual(parsed.specs.map((s) => `${s.kind} ${s.spec}`), ['static ./x.js', 'static ./runner.js', 'static ./named-type.ts', 'reexport ./y.ts', 'require ./eq.cjs']);
+    deepStrictEqual(parsed.unparsed, ['import { broken']);
+  });
+
   it('matches globs with exclusions in order', () => {
     const match = globList(['src/**', '!src/**/*.test.ts']);
     deepStrictEqual(['src/a.ts', 'src/x/a.test.ts', 'lib/a.ts'].map(match), [true, false, false]);
