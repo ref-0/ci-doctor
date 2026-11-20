@@ -59,6 +59,13 @@ jobs:
   });
 });
 
+describe('a workflow file that starts with a byte-order mark', () => {
+  it('keeps its jobs', () => {
+    const g = workflowGraph('.github/workflows/ci.yml', '\uFEFFname: CI\njobs:\n  a: {}\n  b: { needs: a }\n', () => undefined);
+    assert.deepEqual(g.jobs.map((j) => [j.key, j.needs]), [['a', []], ['b', ['a']]]);
+  });
+});
+
 describe('a diamond graph', () => {
   const graph = graphOf(`jobs:
   a: { runs-on: x }
