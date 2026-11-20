@@ -50,7 +50,7 @@ Read a value from its file; don't copy it here or into a plan. ci.md's Runners, 
 
 Each of these is a choice a change could undo. Keep it, or measure first.
 
-- A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/SKILL.md).
+- A slow run or a long test file: read [slow runs](references/performance.md). How many shards, how they split by measured time, and a runner's size: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/shards.md), which owns the shard scripts.
 - What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
 - Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/SKILL.md).
 - Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).

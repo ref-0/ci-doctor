@@ -35,7 +35,7 @@ shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per
 - **Workers per shard come from the runner's measured CPU,** and the target, where the provider rounds per job, from the billing cliff: a shard should end, setup included, just under a whole billed minute (two in the source repo). [Billing](billing.md#packing-against-minute-rounding) says why.
 - **Twice the shards with half the work each costs about the same compute,** plus each shard's setup again. More shards shorten wall time only until setup and the slowest file set the floor.
 - **Model the overheads,** per-file process start and per-group start, measured in your current CI, and give new or split files a pessimistic estimate.
-- **Keep one plan's assignment for every shard,** from a full run's times, so shards don't disagree about who runs what.
+- **Keep one plan's assignment for every shard,** from a full run's times, so shards don't disagree about who runs what. [Shards](shards.md) has the scripts that plan, run and time them.
 - **A shard can't end before its longest file;** split or shorten that file first, as [slow runs](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/references/performance.md) says.
 
 ## Reviewing sizes on a schedule
