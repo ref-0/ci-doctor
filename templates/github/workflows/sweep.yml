@@ -26,7 +26,7 @@
 # With one daily suite and no server slots: delete the second cron, SERVER_AT and the `server` job.
 #
 # The sweep is also the full refresh of the shard times, the one run that times every file. Its
-# cadence is still yours to pick on cost and risk alone: between sweeps, ci.yml's `report` folds new
+# cadence is still yours to pick on cost and risk alone: between sweeps, ci.yml's times-fold job folds new
 # files' times on main, so shards stay even at a weekly sweep too (the ci-runners skill's shards,
 # "Keeping the times current").
 #
