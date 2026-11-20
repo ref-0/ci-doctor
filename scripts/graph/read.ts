@@ -247,6 +247,8 @@ export interface Parsed {
   readonly computed: number;
   /** `require.context` calls, which name folders by a pattern this reader doesn't follow. */
   readonly contexts: number;
+  /** `import` or `export` statements the scanner couldn't read, each with its first line. */
+  readonly unparsed: ReadonlyArray<string>;
   /** Whether every statement is an import or a re-export: a barrel. */
   readonly barrel: boolean;
   readonly tooLarge: boolean;
@@ -301,39 +303,120 @@ export const stripComments = (text: string) => {
   return out;
 };
 
-// A clause between `import`/`export` and `from` holds no other statement's keyword.
-const STATIC = /(?:^|[;\n}])\s*(import|export)\s+(type\s+)?((?:(?!\b(?:import|export|const|let|var|function|class|enum|interface|async)\b)[^'";])*?\sfrom\s*)?['"]([^'"\n]+)['"]/g;
 const DYNAMIC = /\bimport\(\s*(?:(['"])([^'"\n]+)\1|`([^`$\n]+)`)\s*[,)]/g;
 const COMPUTED = /\bimport\(\s*(?!(['"])[^'"\n]*\1\s*[,)]|`[^`$\n]*`\s*[,)])(?=[^)\s])|\brequire\(\s*(?!(['"])[^'"\n]*\2\s*\))(?=[^)\s])/g;
 const REQUIRE = /\brequire\(\s*(['"])([^'"\n]+)\1\s*\)/g;
 const URL_REF = /\bnew URL\(\s*(['"])([^'"\n]+)\1\s*,\s*import\.meta\.url\s*\)/g;
 const GLOB = /\bimport\.meta\.glob(?:Eager)?\b[^(]*\(\s*(\[[^\]]*\]|'[^']*'|"[^"]*")/g;
+/** Where an identifier ends, from `at`. */
+const wordAt = (source: string, at: number) => /^[A-Za-z_$][\w$]*/.exec(source.slice(at, at + 200))?.[0];
+
+const skipSpace = (source: string, at: number) => { while (at < source.length && /\s/.test(source[at]!)) at++; return at; };
+
+/** A string literal's value and end, starting at a quote. */
+const stringAt = (source: string, at: number) => {
+  const quote = source[at];
+  if (quote !== "'" && quote !== '"') return undefined;
+  const end = source.indexOf(quote, at + 1);
+  return end === -1 || source.slice(at + 1, end).includes('\n') ? undefined : { value: source.slice(at + 1, end), end: end + 1 };
+};
+
+/**
+ * Each `import` and `export` statement, read by a scanner rather than one pattern, so spacing
+ * (`import{x}from"./x"`) and keywords used as names (`import { async as run }`) read as any other.
+ * A statement it can't read is returned as `unparsed`, never dropped.
+ */
+const scanStatements = (source: string) => {
+  const specs: Array<{ spec: string; kind: Kind }> = [];
+  const unparsed: string[] = [];
+  for (const m of source.matchAll(/\b(import|export)\b/g)) {
+    const word = m[1] as 'import' | 'export';
+    const at = m.index;
+    // A statement starts the text, a line, or follows `;`, `{` or `}`; never `.import` or `x.export`.
+    let back = at - 1;
+    while (back >= 0 && /[ \t]/.test(source[back]!)) back--;
+    if (back >= 0 && !/[\n;{}]/.test(source[back]!)) continue;
+    let i = skipSpace(source, at + word.length);
+    if (source[i] === '(' || source[i] === '.' || source[i] === '=' || source[i] === ':' || source[i] === ',') continue;
+    const fail = () => unparsed.push(source.slice(at, source.indexOf('\n', at) === -1 ? undefined : source.indexOf('\n', at)).trim().slice(0, 120));
+
+    let typeOnly = false;
+    const first = wordAt(source, i);
+    if (first === 'type') {
+      const after = skipSpace(source, i + 4);
+      const next = wordAt(source, after);
+      // `import type from './x'` imports a default named `type`.
+      if (!(next === 'from' && stringAt(source, skipSpace(source, after + 4)))) { typeOnly = true; i = after; }
+    }
+    // After `export` (or `export type`), only `{` or `*` starts a re-export: anything else declares.
+    if (word === 'export' && !/[{*]/.test(source[i] ?? '')) continue;
+
+    const side = stringAt(source, i);
+    if (side) {
+      if (word === 'import') specs.push({ spec: side.value, kind: typeOnly ? 'type' : 'static' });
+      else fail();
+      continue;
+    }
+
+    // The clause: names, `as`, `*`, commas and braced lists (names may be keywords or strings).
+    let star = false;
+    let read = false;
+    let found: string | undefined;
+    for (let guard = 0; guard < 400 && i < source.length; guard++) {
+      i = skipSpace(source, i);
+      const c = source[i]!;
+      if (c === '{') {
+        const end = source.indexOf('}', i);
+        // A braced list holds names, `as`, `type`, commas and quoted names: nothing else.
+        if (end === -1 || !/^[\s\w$,]*(?:(['"])[^'"\n]*\1[\s\w$,]*)*$/.test(source.slice(i + 1, end))) break;
+        i = end + 1; read = true; continue;
+      }
+      if (c === '*') { star = !read; i++; read = true; continue; }
+      if (c === ',') { i++; continue; }
+      const w = wordAt(source, i);
+      if (w === undefined) break;
+      if (w === 'from' && read) {
+        const str = stringAt(source, skipSpace(source, i + 4));
+        if (str) { found = str.value; break; }
+      }
+      if (word === 'import' && read && source[skipSpace(source, i + w.length)] === '=') break;
+      i += w.length; read = true;
+      // `import x = require('y')`: the require pattern reads it.
+      if (word === 'import' && source[skipSpace(source, i)] === '=') { found = ''; break; }
+    }
+    if (found === '') continue;
+    if (found === undefined) {
+      // `export { a, b }` exports local names; anything else is a statement it couldn't read.
+      if (word === 'export' && !star && /^\s*(?:type\s+)?\{[^}]*\}/.test(source.slice(skipSpace(source, at + 6)))) continue;
+      fail();
+      continue;
+    }
+    specs.push({ spec: found, kind: typeOnly ? 'type' : word === 'export' ? (star ? 'star' : 'reexport') : 'static' });
+  }
+  return { specs, unparsed };
+};
+
 const BARREL_STATEMENT = /^(?:import\b|export\s+(?:type\s+)?(?:\*|\{)[^]*?\bfrom\b|export\s+(?:type\s+)?\{[^}]*\}$|['"]use [a-z]+['"]$)/;
 
 /** What a module names, by kind. */
 export const parseModule = (text: string): Parsed => {
-  if (text.length > MAX_BYTES) return { specs: [], computed: 0, contexts: 0, barrel: false, tooLarge: true };
+  if (text.length > MAX_BYTES) return { specs: [], computed: 0, contexts: 0, unparsed: [], barrel: false, tooLarge: true };
   const source = stripComments(text);
-  const specs: Array<{ spec: string; kind: Kind }> = [];
-
-  for (const m of source.matchAll(STATIC)) {
-    const [, word, typeWord, clause = '', spec = ''] = m;
-    // Only `import type` and `export type` load nothing: `import { type X }` keeps its import under
-    // `verbatimModuleSyntax`, so it loads the module and counts as a value.
-    const kind: Kind = typeWord ? 'type' : word === 'export' ? (/^\s*\*/.test(clause) ? 'star' : 'reexport') : 'static';
-    specs.push({ spec, kind });
-  }
+  // Only `import type` and `export type` load nothing: `import { type X }` keeps its import under
+  // `verbatimModuleSyntax`, so it loads the module and counts as a value.
+  const { specs, unparsed } = scanStatements(source);
   for (const m of source.matchAll(DYNAMIC)) specs.push({ spec: m[2] ?? m[3] ?? '', kind: 'dynamic' });
   for (const m of source.matchAll(REQUIRE)) specs.push({ spec: m[2] ?? '', kind: 'require' });
   for (const m of source.matchAll(URL_REF)) specs.push({ spec: m[2] ?? '', kind: 'url' });
-  for (const m of source.matchAll(GLOB)) for (const g of (m[1] ?? '').matchAll(/'([^']*)'|"([^"]*)"/g)) specs.push({ spec: g[1] ?? g[2] ?? '', kind: 'glob' });
+  // One glob call's patterns, in order, as one specifier: its `!` patterns take paths back out.
+  for (const m of source.matchAll(GLOB)) specs.push({ spec: [...(m[1] ?? '').matchAll(/'([^']*)'|"([^"]*)"/g)].map((g) => g[1] ?? g[2] ?? '').join('\n'), kind: 'glob' });
 
   const computed = [...source.matchAll(COMPUTED)].length;
   const contexts = [...source.matchAll(/\brequire\.context\(/g)].length;
   const statements = source.split(/;|\n(?=\s*(?:import|export)\b)/).map((s) => s.trim()).filter(Boolean);
   const barrel = specs.some((s) => REEXPORTS.has(s.kind)) && statements.every((s) => BARREL_STATEMENT.test(s));
 
-  return { specs, computed, contexts, barrel, tooLarge: false };
+  return { specs, computed, contexts, unparsed, barrel, tooLarge: false };
 };
 
 // ---- tsconfig paths -----------------------------------------------------------------------------
@@ -395,9 +478,10 @@ const tsconfigs = (files: ReadonlyMap<string, string>, git: Git, packages: Reado
 // ---- Resolution ---------------------------------------------------------------------------------
 
 /** Why a specifier didn't land on a tracked file. */
-export type Unresolved = 'computed' | 'context' | 'glob-empty' | 'missing' | 'not-exported' | 'built-only' | 'too-large';
+export type Unresolved = 'unparsed' | 'computed' | 'context' | 'glob-empty' | 'missing' | 'not-exported' | 'built-only' | 'too-large';
 
 export const UNRESOLVED_NOTES: Readonly<Record<Unresolved, string>> = {
+  unparsed: '`import` or `export` statements the scanner couldn\'t read',
   computed: '`import()` or `require()` of a computed value',
   context: '`require.context` folder patterns',
   'glob-empty': 'globs that matched no tracked file',
@@ -669,7 +753,8 @@ export const readGraph = (
     if (mod.tooLarge) { miss('too-large', path); continue; }
     for (let i = 0; i < mod.computed; i++) miss('computed', path);
     for (let i = 0; i < mod.contexts; i++) miss('context', path);
-    specifiers.total += mod.computed + mod.contexts;
+    for (const line of mod.unparsed) miss('unparsed', `${path}: ${line}`);
+    specifiers.total += mod.computed + mod.contexts + mod.unparsed.length;
     const from = owner(path);
     for (const { spec, kind } of mod.specs) {
       specifiers.total++;
