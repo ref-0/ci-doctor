@@ -39,7 +39,7 @@ Before marking a PR ready:
 A release workflow often builds and checks the package in one job, then hands the tarball to a job that holds the registry token and runs none of the repo's code. That handoff is usually an artifact. When the account's artifact storage is full, every upload fails until the quota resets, and the release stops with it: in the source repo, on 17 November 2026, a package's release stopped at the upload this way. As an option, hand the tarball on through the Actions cache instead, keyed by its digest:
 
 - **The checked job** packs, checks the tarball, then prints its file name and SHA-256 as job outputs and saves it with `actions/cache/save` under a key holding the digest, such as `release-tarball-<sha256>`.
-- **The publish job** checks nothing out and runs nothing of the repo's. It restores that exact key with `fail-on-cache-miss: true`, no `restore-keys`, and checks the file's SHA-256 against the checked job's output before it publishes the tarball file.
+- **The publish job** checks nothing out and runs nothing of the repo's. It restores that key with `fail-on-cache-miss: true` and no `restore-keys`, fails unless the restore reports an exact hit, since a key can also match by prefix and the restore step doesn't fail on that, then checks the file's SHA-256 against the checked job's output before it publishes the tarball file.
 
 ```yaml
   pack:
@@ -53,11 +53,14 @@ A release workflow often builds and checks the package in one job, then hands th
   publish:
     needs: pack
     steps:
-      - uses: actions/cache/restore@v6
+      - id: tarball
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/pack/${{ needs.pack.outputs.tarball }}
           key: release-tarball-${{ needs.pack.outputs.sum }}
           fail-on-cache-miss: true
+      - if: steps.tarball.outputs.cache-hit != 'true'
+        run: echo "The cache holds no exact entry for this tarball's digest." && exit 1
       - run: echo "$SUM  $RUNNER_TEMP/pack/$TARBALL" | sha256sum --check
         env: { SUM: '${{ needs.pack.outputs.sum }}', TARBALL: '${{ needs.pack.outputs.tarball }}' }
       # ... setup the registry, then publish "$RUNNER_TEMP/pack/$TARBALL" ...
