@@ -16,7 +16,7 @@ How far a change reaches, and how long CI waits for it, are set by five graphs. 
 
 The first three are one graph seen at three sizes, packages, entry points and folders, and the fourth and fifth are built on them. An edge that's wider than the code needs costs on every run, and nothing flags it, so each graph below has a check that fails on a new edge and a measurement that shows the width of the old ones.
 
-[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer will read it too. [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand.
+[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand.
 
 ## Package dependencies, declared and checked
 
@@ -118,10 +118,21 @@ The job graph is `needs:`, waits on another job's step, and the queue each job w
 **Measure,** per job and per run, from the jobs API (section 13's [collection recipe](13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs)):
 
 - **Queued time:** from the job's creation to its start, a runner's wait. More runners or a smaller label fix it, not a new graph.
+- **Waits `needs:` doesn't show:** GitHub creates a job when its needs finish, so a job created well after its last `needs:` finished waited on something else, such as a concurrency group, an environment or another workflow. A polling step waits inside a job, and reads as its work.
 - **Blocked time:** from the run's start until its last `needs:` finished, which only a change to the graph shortens.
 - **The critical path:** the chain of jobs that ends last, and what ends it. It can be lint, packing or a queue, not a shard (section 1).
 
-The scorer's job graph, coming, will read these from a repo's recent runs.
+**The scorer** (`npx @ref0/ci-doctor`) reads the graph from the workflow files, `needs:`, matrices, reusable workflows and `if:`, and joins it with the jobs of its sampled PR runs, with no extra API calls unless a repo has more than 40 workflow files. Its report's "Job graph" block, and `jobGraph` in `--json`, give:
+
+- **the chain that sets the wait,** each job with its minutes and share, and how many sampled runs it set;
+- **blocked, queued and work time** on that chain, and each job's in every sampled run, to scale, for a replay;
+- **the top blocker:** the job that holds up the most downstream job-minutes, each dependent counted only for how long it waited on this job past its other needs;
+- **setup in the path:** setup minutes in path jobs that first waited on others, which overlapping with upstream work could hide;
+- **a wait on one step, as a guess:** a job that needs a whole job whose last step that makes something ended minutes before it did;
+- **waits the YAML can't show:** runs with a job created over 2 minutes after its known needs finished, and steps named for waiting or polling;
+- **runs left out:** the graph is the default branch's, so a run whose jobs don't fit it, such as a PR that changed a `needs:`, is counted and left out of the rest, rather than read wrong.
+
+Its fixes "Setup on the critical path" and "A blocker most jobs wait on" link here and to section 7. A job in another repo's reusable workflow is taken as one job, since reading it would cost calls, and one workflow's file can't show what another workflow or a `workflow_run` trigger holds up.
 
 ## Measure the graphs
 
@@ -137,7 +148,7 @@ Count before you move code. Our selector's tests do this against the workspace's
 | Export paths | Test files one edit selects, by package edges, by entries and by the import graph, for a few modules per shared package; names each entry exports that nothing imports | The selector's output, and `vp test list --filesOnly --changed` (or `vitest list --changed`) with one line added to the module |
 | Layers | Imports against the layers, and folder cycles, largest first | `package-graph` with `layers` set, or the order search in [Adopt them](#adopt-them-in-a-repo-that-has-none) |
 | Workspace tasks | Keys one edit moves | The runner's dry run |
-| CI jobs | Blocked and queued time, and the critical path | The jobs API |
+| CI jobs | Blocked and queued time, and the critical path | The jobs API, or the scorer's "Job graph" block |
 
 Replay a change to any graph over recent merges before you call it a saving, as [section 4](04-run-only-what-a-change-can-reach.md#verify-the-selector-like-production-code) does for the selector.
 
