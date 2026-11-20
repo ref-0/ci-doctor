@@ -338,7 +338,19 @@ describe('across the sample', () => {
 
   it('keeps each run to scale for a replay', () => {
     assert.equal(g.perRun.length, 3);
-    assert.deepEqual(g.perRun[0]!.jobs.find((j) => j.name === 'gate'), { name: 'gate', needs: ['test'], readyMin: 9.5, startMin: 9.7, endMin: 9.8, setupMin: 0 });
+    assert.deepEqual(g.perRun[0]!.jobs.find((j) => j.name === 'gate'), {
+      name: 'gate',
+      needs: ['test'],
+      readyMin: 9.5,
+      createdMin: 9.6,
+      startMin: 9.7,
+      endMin: 9.8,
+      blockedMin: 9.5,
+      hiddenMin: 0.1,
+      queueMin: 0.1,
+      workMin: 0.1,
+      setupMin: 0,
+    });
   });
 
   it('is undefined with no run that ran', () => assert.equal(jobGraphOf(() => yaml, []), undefined));
