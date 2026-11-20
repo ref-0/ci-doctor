@@ -38,6 +38,14 @@ export interface Config {
     /** The key of that file's default export that holds the build, or `.` for the export itself. */
     readonly packKey: string;
   };
+  readonly packageGraph: {
+    /** Folders that hold a `package.json`, as globs from the root. */
+    readonly packages: ReadonlyArray<string>;
+    /** The folders among them that are apps, which nothing imports. */
+    readonly apps: ReadonlyArray<string>;
+    /** The declared graph and layers, from the root. */
+    readonly file: string;
+  };
   /**
    * Only `check` reads it, and only when the file sets it: these defaults are Vite+'s tasks, as
    * config.lint-vite-plus.example.json shows. Set all four commands for your own linter.
@@ -66,6 +74,11 @@ export const defaults: Config = {
     condition: 'workspace-source',
     packConfig: 'vite.config.ts',
     packKey: 'pack',
+  },
+  packageGraph: {
+    packages: ['packages/*', 'apps/*'],
+    apps: ['apps/*'],
+    file: 'package-graph.json',
   },
   lint: {
     base: 'origin/main',
@@ -107,6 +120,7 @@ export const loadConfig = (root: string): Config => {
     types: section(file, 'types', defaults.types),
     symbols: section(file, 'symbols', defaults.symbols),
     packageExports: section(file, 'packageExports', defaults.packageExports),
+    packageGraph: section(file, 'packageGraph', defaults.packageGraph),
     lint: section(file, 'lint', defaults.lint),
   };
 };

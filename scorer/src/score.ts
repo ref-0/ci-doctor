@@ -5,6 +5,7 @@
 // read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
 import { CliError } from './errors.ts';
 import { ApiCache, Gh } from './gh.ts';
+import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts';
 import { githubSource, localSource, type Source, type Tree } from './source.ts';
 import { ecosystemOf, stackOf } from './stack.ts';
 
@@ -197,9 +198,6 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
 
 // ---------- jobs: queue, setup, rounding, the critical job, shards ----------
 
-const SETUP_STEP =
-  /^(set up job|complete job|post |checkout|run actions\/checkout)|checkout|setup|set up|install|cache|restore|download|toolchain|login|docker pull|pnpm i\b|npm ci|yarn( install)?$|bun install|uv sync|pip install/i;
-
 const provider = (labels: string[]) => {
   const l = labels.join(' ').toLowerCase();
   if (l.includes('blacksmith')) return 'Blacksmith';
@@ -228,15 +226,17 @@ interface Job {
   steps?: { name: string; started_at: string | null; completed_at: string | null; conclusion: string | null }[];
 }
 
-const readJobs = (gh: Gh, repo: string, runId: number): Job[] => {
+/** Every job of a run's first attempt, skipped ones too. */
+const readAllJobs = (gh: Gh, repo: string, runId: number): Job[] => {
   const jobs: Job[] = [];
   for (let page = 1; page <= 3; page++) {
     const res = gh.json(`repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100&page=${page}`);
     jobs.push(...res.jobs);
     if (res.jobs.length < 100) break;
   }
-  return jobs.filter((j) => j.conclusion !== 'skipped' && j.started_at && j.completed_at);
+  return jobs;
 };
+const readJobs = (gh: Gh, repo: string, runId: number) => readAllJobs(gh, repo, runId).filter((j) => j.conclusion !== 'skipped' && j.started_at && j.completed_at);
 
 const jobStats = (jobs: Job[]) => {
   const dur = (j: Job) => minutes(j.started_at!, j.completed_at!);
@@ -698,6 +698,7 @@ export const fixesOf = (o: any, pr: Practices) => {
   add(o.jobs?.subMinuteJobs / o.jobs?.jobs > 0.4 && o.jobs.billedMinutes > 1.5 * o.jobs.jobMinutes && o.jobs.providers[0]?.[0] !== 'GitHub-hosted', 3, () => `${o.jobs?.subMinuteJobs} of ${o.jobs?.jobs} jobs finish in under a minute but bill a whole one: merge them`, '07-shards-runners-and-billing.md');
   add(pr.cancelInProgress === false, 4, 'Cancel superseded PR runs: no concurrency with cancel-in-progress', '04-run-only-what-a-change-can-reach.md');
   add(slow && pr.scheduled === false, 3, 'Move broad checks to a scheduled sweep', '05-tiers-what-runs-where.md');
+  fixes.push(...graphFixes(o.jobGraph));
   add(pr.timeouts === false, 2, 'Set timeout-minutes on jobs', '03-workflow-anatomy.md');
   add(slow && pr.eslint === true && pr.fastLint === false, 2, 'Lint with Oxlint or Biome', '09-workspace-tooling.md');
   add(slow && pr.testRunner === 'jest', 2, 'Jest: consider Vitest', '09-workspace-tooling.md');
@@ -817,6 +818,8 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     packages: profile.packages,
     runners: jobs?.providers,
   });
+  // The sampled runs' jobs and the workflow files are remembered from the reads above: no new calls.
+  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })));
   const mergedInWindow = (profile.prsMergedPerWeek * Math.max(covered, 0.5)) / 7;
   const efficiency = {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
@@ -827,7 +830,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     workflowsOnPrs: ci.workflows,
   };
 
-  const outcomes = { wait, jobs, tests };
+  const outcomes = { wait, jobs, tests, jobGraph };
   const { score, parts, detail } = scoreOf({
     p50: wait.p50,
     p90: wait.p90,
@@ -871,6 +874,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     main: { heads: main.heads, p50: main.p50, p90: main.p90, redRate: main.redRate, redBy: main.redBy },
     botRunShare: bots,
     jobs,
+    jobGraph,
     tests,
     practices: pr,
     stack,

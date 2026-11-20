@@ -25,6 +25,10 @@ Wait with `--interval 60`, or your harness's PR watcher: every run on one login 
 3. **Is the failure the PR's?** Check the base's latest run before blaming the PR. A failure outside the PR's files goes by [CI exceptions](ci-result.md#exceptions).
 4. **Which of three is it?** A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure (a lost runner, a full disk, a network or quota error) are three different things; [flakes](../speed-up-tests/references/flakes.md#retries-reruns-and-infrastructure) says what each gets.
 
+## An installer that says only "see the log"
+
+When setup or install fails with a summary that points at a log on the runner, the next failure is lost unless the log reaches the job's output. Add a step after the install that runs only on its failure (`if: failure() && steps.<install>.outcome == 'failure'`) and prints the installer's own log, then wait for the next failure to name the cause. Add no retry: an installer that already retries several times and fails the same way won't pass on one more. A passing run pays nothing for it. Put the step in the shared setup action every job installs through, and in each other workflow that installs on its own.
+
 ## Then
 
 | It's | Go to |
