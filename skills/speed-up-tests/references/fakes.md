@@ -22,6 +22,7 @@ Part of the [`speed-up-tests`](../SKILL.md) skill. Read it when a test talks to 
 - **Holds beat delays.** A fake that holds a call until the test releases it orders a race with no clock. Hold the exact call: a one-shot fault let the client's own second try reach a hold keyed more broadly, which then waited out a 30 s deadline.
 - **Pick a fault's status for what the test proves.** A 500 took a retry's wait before the refusal the test was about; a 404 takes none.
 - **Make a request's promise in that request.** A fake that handed one promise to later requests failed once the runtime (workerd) began rejecting an await on a promise whose request had ended.
+- **Cache a module's settled value, never its pending promise.** In a runtime that ties I/O to the request that started it, such as workerd, a module-level cache that keeps the promise a request created hands later requests I/O owned by a request that may have ended. Await it, then keep the value. Test it by ending the creating request before another request reads the value.
 
 ## Nothing reaches the network by accident
 
