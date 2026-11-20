@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CliError } from './errors.ts';
+import { CliError, RateLimitError } from './errors.ts';
 
 const DAY = 24 * 3600e3;
 const NOT_SIGNED_IN = "gh isn't signed in. Run `gh auth login`, then run this again.";
@@ -52,8 +52,18 @@ export class ApiCache {
 interface ExecError {
   code?: string;
   status?: number | null;
+  stdout?: string;
   stderr?: string;
 }
+
+/** GraphQL's own rate limit answers 200 with a RATE_LIMITED error, which gh prints and exits 1 on. */
+const graphqlThrottled = (stdout: string) => {
+  try {
+    return (JSON.parse(stdout)?.errors ?? []).some((e: { type?: string; message?: string }) => e.type === 'RATE_LIMITED' || /rate limit/i.test(e.message ?? ''));
+  } catch {
+    return false;
+  }
+};
 
 const statusOf = (stderr: string) => Number(stderr.match(/HTTP (\d{3})/)?.[1]) || undefined;
 
@@ -136,6 +146,27 @@ export class Gh {
     return login;
   }
 
+  /** When the limit that `path` spends resets, from GitHub's rate_limit answer, which spends none; vaguer if that fails. */
+  private resetsAt(path: string): string {
+    const resource = path === 'graphql' ? 'graphql' : path.startsWith('search/') ? 'search' : 'core';
+    try {
+      this.calls++;
+      const limits = JSON.parse(
+        execFileSync('gh', ['api', '--hostname=github.com', 'rate_limit'], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
+          windowsHide: true,
+        }),
+      );
+      const reset = Number(limits?.resources?.[resource]?.reset);
+      if (Number.isFinite(reset) && reset > 0) return `it resets at ${new Date(reset * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    } catch {
+      // The reset time is a courtesy; the error stands without it.
+    }
+    return 'try again once it resets';
+  }
+
   private fetch(path: string, options: ReadOptions): string | undefined {
     // --hostname pins every read to github.com, which the remote named, whatever GH_HOST says.
     const args = () => [
@@ -176,19 +207,19 @@ export class Gh {
         }
 
         const status = statusOf(stderr);
-        // A rate limit or a 429 says nothing about whether the answer exists, so it's never read as absent.
-        const throttled = status === 429 || /rate limit/i.test(stderr);
-        if (status !== undefined && !throttled && options.absentOn?.includes(status)) return undefined;
+        // A rate limit or a 429 says nothing about whether the answer exists, so it's never read as absent, and it
+        // isn't asked again at once: it won't change before the limit resets.
+        const throttled = status === 429 || /rate limit/i.test(stderr) || graphqlThrottled(String(err.stdout ?? ''));
+        const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '').replace(/\.$/, '') || `gh exited ${err.status}`;
+        if (throttled) throw new RateLimitError(`Couldn't read ${path}: ${said}. GitHub's rate limit for this account ran out; ${this.resetsAt(path)}.`);
+        if (status !== undefined && options.absentOn?.includes(status)) return undefined;
         if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
 
         // A 5xx or a dropped connection gets one more try; a 4xx won't change.
         const transient = status === undefined || status >= 500;
         if (transient && attempt < 2) continue;
 
-        const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '') || `gh exited ${err.status}`;
-        const hint = throttled
-          ? " GitHub's rate limit for this account ran out; try again once it resets."
-          : status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
+        const hint = status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
         throw new CliError(`Couldn't read ${path}: ${said}.${hint}`);
       }
     }
