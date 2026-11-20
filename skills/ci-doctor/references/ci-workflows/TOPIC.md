@@ -10,7 +10,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../../../agent-knowledge/templates/repo-facts/ci.md)): its Entry points and gate names the repo's workflows, whose headers say what runs when, and the comment above each job and step says why it's shaped as it is. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs. [guide sections 3 to 7](../../../../docs/pages/03-workflow-anatomy.md) explain the design.
 
-The rules here hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](../ci-runners/TOPIC.md); if you run on Blacksmith, [`blacksmith`](../blacksmith/TOPIC.md) has its CLI, labels, disks and bill. The [templates](../../../../templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
+The rules here hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](../../../ci-runners/SKILL.md); if you run on Blacksmith, [`blacksmith`](../blacksmith/TOPIC.md) has its CLI, labels, disks and bill. The [templates](../../../../templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
 
 ## The checks for a change to CI
 
@@ -34,7 +34,7 @@ Read a value from its file. Don't copy it here or into a plan. ci.md's Runners, 
 
 Each of these is a choice a change could undo. Keep it, or measure first.
 
-- A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](../ci-runners/TOPIC.md).
+- A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](../../../ci-runners/SKILL.md).
 - What selects a change's checks, lockfile routing or test selection: read [selection rules](references/selection.md) and verify the selected jobs against real output.
 - Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](../../../speed-up-tests/SKILL.md).
 - Cache keys, scopes, setup caches or image reuse: read [cache rules](references/caches.md); if your stack uses Rust, also [Rust](references/rust.md).
@@ -46,7 +46,7 @@ Tests that run the repo's code against real containers are the slowest, and thei
 
 ## Related
 
-- [`ci-runners`](../ci-runners/TOPIC.md): runner size, packing and cost, and choosing a provider.
+- [`ci-runners`](../../../ci-runners/SKILL.md): runner size, packing and cost, and choosing a provider.
 - [`blacksmith`](../blacksmith/TOPIC.md): if you run on Blacksmith, its CLI, labels, sticky disks and bill.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): read a PR's result, run CI by hand, merge.
 - [`speed-up-tests`](../../../speed-up-tests/SKILL.md): make a slow test faster without losing what it proves.

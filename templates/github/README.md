@@ -115,7 +115,7 @@ Each exists in this playbook at the path in the first column, with the CLI and e
 
 ## Runner labels
 
-The templates use Blacksmith's labels, sized per job. On other runners, start every job on the label it runs on today. On GitHub-hosted runners that's usually the standard `ubuntu-24.04` for all of them: with one eligible size, keep one static label and delete the plan's size output. Ask for a larger runner only after you've compared queue, startup, capacity and priced cost on it, as the [`ci-runners`](../../skills/ci-doctor/references/ci-runners/references/sizing.md) skill says. Set worker counts and shard targets from the runner you have. Check your provider's current runner list: hosted labels and sizes change.
+The templates use Blacksmith's labels, sized per job. On other runners, start every job on the label it runs on today. On GitHub-hosted runners that's usually the standard `ubuntu-24.04` for all of them: with one eligible size, keep one static label and delete the plan's size output. Ask for a larger runner only after you've compared queue, startup, capacity and priced cost on it, as the [`ci-runners`](../../skills/ci-runners/references/sizing.md) skill says. Set worker counts and shard targets from the runner you have. Check your provider's current runner list: hosted labels and sizes change.
 
 | Template's label | GitHub-hosted, if you've measured a reason to change | Self-hosted or ARC |
 |---|---|---|

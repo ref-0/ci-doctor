@@ -29,7 +29,7 @@ Your agent maps your stack, measures your CI's median and p90, and writes a plan
 
 ## Installing
 
-The plugin holds ten skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and day-to-day CI work, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, `speed-up-tests`, for a slow test in CI or locally, `fix-flaky-test`, for a test that fails sometimes, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, `agent-knowledge`, for where agents' instructions and a repo's facts live and how they stay true, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
+The plugin holds eleven skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and triages a failed check, `ci-runners`, for runner size, jobs that wait for a runner and the bill, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, `speed-up-tests`, for a slow test in CI or locally, `fix-flaky-test`, for a test that fails sometimes, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, `agent-knowledge`, for where agents' instructions and a repo's facts live and how they stay true, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
 
 ### Claude Code
 

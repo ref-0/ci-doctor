@@ -11,7 +11,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 ## Check
 
-- [ ] Spend is priced by job and by event over a complete window, with every attempt, at each label's list price, as [billing](../ci-runners/references/billing.md#auditing-spend) says. Exact (from a bill), estimated (from labels) and unpriced parts are reported apart.
+- [ ] Spend is priced by job and by event over a complete window, with every attempt, at each label's list price, as [billing](../../../ci-runners/references/billing.md#auditing-spend) says. Exact (from a bill), estimated (from labels) and unpriced parts are reported apart.
 - [ ] Latency is measured over first attempts, with the clock named, as [CI history data](../../../speed-up-tests/references/ci-history-data.md#name-the-clock) says.
 - [ ] The limiter is named from the job graph and step timestamps: queueing, setup, a wait on another job or the work. For a test shard, the file that sets the shard's time.
 - [ ] The change is modelled from those numbers, in billed vCPU-minutes and wall time, before it's built.
@@ -27,7 +27,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 - Price each label at its list price and unit, as [budget CI at list price](budget-ci-at-list-price.md) says. Quote a money total only when every label is priced.
 - To model a shard layout, take each file's fresh elapsed time from runs that executed it, check the selection against every eligible file at that commit, and fill the shards' workers longest file first. List files with no fresh time and give each a labelled, conservative estimate. Count each shard's setup and, where the provider rounds per job, its whole started minutes. A run with many shards isn't proof it selected every file, and one ready run rarely measures both a full and a small run.
 - Print each file's time in every job: a verbose reporter that prints only tests' times can't check a file's estimate.
-- Audit spend over equal, complete windows, as [billing](../ci-runners/references/billing.md#auditing-spend) says, and collect history as [CI history data](../../../speed-up-tests/references/ci-history-data.md) says.
+- Audit spend over equal, complete windows, as [billing](../../../ci-runners/references/billing.md#auditing-spend) says, and collect history as [CI history data](../../../speed-up-tests/references/ci-history-data.md) says.
 
 ## Why
 
