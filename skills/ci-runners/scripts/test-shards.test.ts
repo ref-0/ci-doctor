@@ -289,10 +289,9 @@ describe('merged', () => {
   const a = server('src/a.test.ts');
   const b = server('src/b.test.ts');
   /** Stored times: each file's planned time and its samples, as `merged` writes them. */
-  const stored = (files: Record<string, [number, ReadonlyArray<number>]>, through?: string) =>
+  const stored = (files: Record<string, [number, ReadonlyArray<number>]>) =>
     JSON.stringify({
       version: 1,
-      ...(through === undefined ? {} : { through }),
       projects: {
         workspace: {
           files: Object.fromEntries(
@@ -311,8 +310,9 @@ describe('merged', () => {
     const sweep = results({ [a]: 30 }, 2);
 
     deepStrictEqual(
-      timesIn([merged([sweep, before]).text]),
+      timesIn([merged([sweep, before])]),
       new Map([
+        // The lower of its two samples' middle, as the planner rounds down.
         [a, 30],
         [b, 60],
       ]),
@@ -323,42 +323,33 @@ describe('merged', () => {
     const before = stored({ [a]: [10_000, [10_000, 10_500]] });
     const slow = results({ [a]: 22_000 }, 9);
 
-    strictEqual(timesIn([merged([slow, before]).text]).get(a), 10_500);
+    strictEqual(timesIn([merged([slow, before])]).get(a), 10_500);
   });
 
   test(`keeps only each file’s newest ${keptSamples} samples`, () => {
     const before = stored({ [a]: [1_000, [1_000, 1_000, 1_000]] });
     const after = [10, 11, 12].map((at) => results({ [a]: 5_000 }, at));
-    const { text, moved } = merged([...after, before]);
+    const text = merged([...after, before]);
 
     strictEqual(read(text)[a].samples.length, keptSamples);
     strictEqual(timesIn([text]).get(a), 5_000);
-    strictEqual(moved, 1);
   });
 
-  test('a fold adds the files the stored times lack, and leaves stored files for a sweep', () => {
-    const before = stored({ [a]: [10_000, [10_000, 10_000, 10_000]] });
-    const fresh = server('src/new.test.ts');
-    const prs = [4, 5].map((at) => results({ [a]: 40_000, [fresh]: 7_000 + at }, at));
-
-    const fold = merged(prs, { fold: before });
-    deepStrictEqual([fold.added, fold.moved], [1, 0]);
-    // A pull request's run hands over a merge of its shards, samples and all: still measurements.
-    deepStrictEqual(read(merged([merged(prs).text], { fold: before }).text)[a], read(before)[a]);
-    deepStrictEqual(read(fold.text)[a], read(before)[a]);
-    strictEqual(timesIn([fold.text]).get(fresh), 7_004);
-
-    // A sweep's refresh then takes the slower file's new times.
-    strictEqual(timesIn([merged([...prs, fold.text]).text]).get(a), 40_000);
-  });
-
-  test('a fold keeps a stored entry from before samples were kept, as one stored sample', () => {
+  test('reads times stored before samples were kept as one sample each', () => {
     // The shape stored before this format: a planned time with no samples.
     const legacy = results({ [a]: 100 }, 1);
-    const fold = merged([results({ [a]: 10 }, 2)], { fold: legacy });
+    const text = merged([results({ [a]: 10 }, 2), results({ [a]: 300 }, 3), legacy]);
 
-    deepStrictEqual([fold.added, timesIn([fold.text]).get(a)], [0, 100]);
-    deepStrictEqual(read(fold.text)[a].samples, [[1, 100]]);
+    deepStrictEqual(read(text)[a].samples, [[1, 100], [2, 10], [3, 300]]);
+    strictEqual(timesIn([text]).get(a), 100);
+  });
+
+  test('counts a sample once when the same results come twice', () => {
+    const fresh = server('src/new.test.ts');
+    const pr = results({ [fresh]: 40_000 }, 3);
+    const once = merged([pr]);
+
+    deepStrictEqual(read(merged([pr, once]))[fresh].samples, [[3, 40_000]]);
   });
 
   test('drops a time past longestFile and a run dated ahead, so a bad record outranks nothing', () => {
@@ -368,40 +359,16 @@ describe('merged', () => {
     const real = results({ [a]: 9_000, [b]: 4_000 }, now - 1);
 
     deepStrictEqual(
-      timesIn([merged([bad, ahead, real], { now }).text]),
+      timesIn([merged([bad, ahead, real], { now })]),
       new Map([
         [a, 9_000],
         [b, 4_000],
       ]),
     );
-    strictEqual(read(merged([results({ [a]: longestFile + 1 }, 1)], { now }).text)[a], undefined);
+    strictEqual(read(merged([results({ [a]: longestFile + 1 }, 1)], { now }))[a], undefined);
   });
 
-  test('a fold adds only files in the inventory', () => {
-    const fresh = server('src/new.test.ts');
-    const fold = merged([results({ [fresh]: 7_000, 'README.md': 1 }, 2)], { fold: stored({}), inventory: new Set([fresh]) });
-
-    deepStrictEqual(Object.keys(read(fold.text)), [fresh]);
-  });
-
-  test('records when a fold ran, and a refresh carries it', () => {
-    const fold = merged([], { fold: stored({ [a]: [1, [1]] }), through: 'abc', foldedAt: 42 }).text;
-
-    deepStrictEqual([JSON.parse(fold).foldedAt, JSON.parse(merged([fold, results({ [a]: 2 }, 3)]).text).foldedAt], [42, 42]);
-  });
-
-  test('counts a sample once when the same results come twice', () => {
-    const fresh = server('src/new.test.ts');
-    const pr = results({ [fresh]: 40_000 }, 3);
-    const once = merged([pr]).text;
-
-    deepStrictEqual(read(merged([pr, once]).text)[fresh].samples, [[3, 40_000]]);
-  });
-
-  test('carries the newest merge it holds, unless told a newer one', () => {
-    const before = stored({ [a]: [10_000, [10_000]] }, 'abc');
-
-    strictEqual(JSON.parse(merged([before]).text).through, 'abc');
-    strictEqual(JSON.parse(merged([before], { through: 'def' }).text).through, 'def');
+  test('drops a file the checkout no longer tracks', () => {
+    deepStrictEqual(Object.keys(read(merged([results({ [a]: 1, [b]: 2 })], { tracked: new Set([a]) }))), [a]);
   });
 });

@@ -53,7 +53,7 @@ jobs:
           # then fails without one installed: this job installs nothing.
           package-manager-cache: false
       # Each test file's planned time on main, the median of its newest samples, as ci.yml's
-      # test-times and times-fold jobs keep them.
+      # test-times job keeps them.
       - name: Main's test times
         uses: actions/cache/restore@v6
         with:
