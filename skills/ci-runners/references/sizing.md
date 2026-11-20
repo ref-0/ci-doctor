@@ -17,7 +17,7 @@ Part of the [`ci-runners`](../SKILL.md) skill. [guide section 7](https://ci-doct
 - **A job that waits can take the smallest compatible runner:** on containers, the network, timers or a harness, more cores sit idle. The check decides, from its p90 and memory as well.
 - **More workers isn't faster.** Past the CPU a runner has, extra test workers slowed the shard and added timing failures.
 - **Size each architecture separately.** A bigger runner halved one architecture's compile and didn't help the other's.
-- **Cheaper cores aren't cheaper service.** Runners at a lower minute price ran the same tests slower, and some failed. Measure the same tests on both before switching.
+- **A lower minute price isn't better service.** Runners at a lower minute price ran the same tests slower, and some failed. Measure the same tests on both before switching.
 - **Watch memory too.** A job whose p95 memory nears its runner's limit gets a bigger runner whatever its CPU says.
 - **Keep a slow install to the one job that needs it:** an apt update can cost more than the job's work.
 - **Run macOS only where it's needed,** such as a release, and by hand only with a person's yes: a macOS minute costs several Linux ones on every provider we know.
