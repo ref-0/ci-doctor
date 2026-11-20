@@ -214,6 +214,12 @@ describe('resolution', () => {
   });
 });
 
+describe('replayed changes', () => {
+  it('reads a commit\'s changed paths unquoted, renames as a delete and an add', () => {
+    deepStrictEqual(changesOf('M\0src/café.ts\0R100\0src/a.ts\0src/b.ts\0'), [{ status: 'M', path: 'src/café.ts' }, { status: 'D', path: 'src/a.ts' }, { status: 'A', path: 'src/b.ts' }]);
+  });
+});
+
 describe('the four graphs, measured', () => {
   const dir = repo('mono');
   const r = report(dir, { ...options, layers });
