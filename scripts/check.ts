@@ -20,7 +20,7 @@
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `ci-runners` and `blacksmith` topics as skills, the hub's `graphs`,
- *    `speed-up-tests`, `verify-evidence` and `ci-workflows` topics, `ci-workflows`' `selection.md`, its `flakes.md`, `references/agent-knowledge/`,
+ *    `speed-up-tests`, `verify-evidence` and `ci-workflows` topics, `ci-workflows`' `selection.md` and `caches.md`, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -75,6 +75,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
   [/ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/, 'skills/ci-workflows/'],
   [/(?<![\w-])ci-workflows\/references\/selection\.md/, 'skills/optimize-graphs/references/selection.md'],
+  [/(?<![\w-])ci-workflows\/references\/caches\.md/, 'skills/cache-ci/references/caches.md'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
