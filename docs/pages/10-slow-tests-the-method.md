@@ -59,7 +59,7 @@ A wait can hide behind another: a server retry *and* an SDK's own retry loop bot
 
 **Applies when:** A before and after, or any timing comparison, is reported. **Skip when:** Nothing is compared.
 
-The [`prove-it`](../../skills/prove-it/SKILL.md) skill carries these rules for a coding agent, for any claim that something is faster, cheaper or fixed: the decision and noise floor first, then like for like, interleaving, controls and the limiter.
+The [`prove-it`](../../skills/prove-it/SKILL.md) skill carries these rules for a coding agent, for any claim that something is faster, cost less or fixed: the decision and noise floor first, then like for like, interleaving, controls and the limiter.
 
 - **Same command, field and machine** on both sides, and test time, not wall time, when setup is shared.
 - **Interleave** before/after/before/after on a loaded machine, and state the load.

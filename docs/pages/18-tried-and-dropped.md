@@ -10,7 +10,7 @@ See what we tried and dropped, the evidence that ruled each out, and what would 
 |---|---|---|---|---|---|
 | Week 1 | Local-only pre-merge checks, no CI | Shipped then replaced | Runner spend stopped for the interval; no controlled total-cost or reliability comparison was recorded | No CI bill isn't a measured saving | Dedicated-runner CI |
 | Weeks 1–2 | Many tiny parallel jobs (39) | Measured and rejected | Faster completion, but substantially more rounded runner usage than packed jobs | Include setup and billing rounding in the model | Fewer, fuller jobs; retry only if setup and rounding stop dominating |
-| Week 2 | Arm runners for JS tests | Measured and rejected | Tests ran ~30% slower and three integration files failed, despite a ~37% cheaper minute | Unit price isn't service price | Arm stays useful for native builds; retry when the same tests run as fast and pass |
+| Week 2 | Arm runners for JS tests | Measured and rejected | Tests ran ~30% slower and three integration files failed, despite a ~37% lower minute price | Unit price isn't service price | Arm stays useful for native builds; retry when the same tests run as fast and pass |
 | Week 2 | Specialized checkout cache (a mirrored checkout) | Rejected | The existing checkout was already cheap, and the mirror bills storage | Measure fixed work before adding persistent storage | Repos whose checkout is several GB |
 | Week 2 | Docker layer caching for intentionally clean, verified builds | Rejected | Conflicted with the clean-build contract; verified images were already reused by content tag | Reuse only independently verified complete images | — |
 | Weeks 2 and 4 | Dependency disk containing only `node_modules` | Measured and rejected | Installation and postinstall work remained, because their markers lived in the store outside the disk | Preserve and verify the complete installation, including toolchain, store markers and workspace links | The complete-install disk ([section 6](06-reuse-work-by-its-real-inputs.md#setup-caches-on-blacksmith)) |
@@ -53,7 +53,7 @@ See what we tried and dropped, the evidence that ruled each out, and what would 
 | Week 5 | Several broad local cached suites at once on a shared machine | Measured and replaced | Warm single runs didn't survive several together: timeouts and resets | A shared-host result, not a rule against broad checks | Fewer slots and focused local selection |
 | Week 5 | Four server files per cached task | Measured and rejected | Fewer launches, but longer shards and much more idle time at the end | Indivisible groups lose to lanes | — |
 | Week 5 | Fully async SQL test transport, or deferred writes | Measured and rejected | Changed completion order and visibility, breaking clock-driven cases | Optimize transport while preserving the caller's contract | The synchronous socket (section 10) |
-| Undated | Cheap external sandboxes as runners | Measured and rejected | About a third slower on average, and flaky | Don't trade every-PR wait for cents | — |
+| Undated | Low-priced external sandboxes as runners | Measured and rejected | About a third slower on average, and flaky | Don't trade every-PR wait for cents | — |
 | By week 2 | Long-lived test boxes | Rejected | Idle time billed up to a 30-minute timeout | Lifecycle economics matter | — |
 | — | A separate "fast" local command | Rejected on principle | — | Make the default command fast | — |
 | — | A test mode in production code | Rejected on principle | — | One code path; a period differs by setting | — |

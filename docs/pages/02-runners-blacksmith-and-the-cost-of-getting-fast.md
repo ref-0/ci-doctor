@@ -12,7 +12,7 @@ The principles, the planner and the scripts hold on any CI platform. The workflo
 
 - **Size each job from its work.** The plan and bookkeeping need little; static checks some more; test shards and type-aware lint the most. A provider that offers a size per job, and bills by it, lets each job take only what it uses. Resize only from measured CPU, when three runs agree (section 7).
 - **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job at 2:01 costs the same as one at 2:59. That's why we aim for two minutes elapsed or less per shard, including setup (section 7). Find whether your provider prices per runner or per vCPU, and per job or per run.
-- **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 was cheaper per minute than x64 and macOS several times dearer than Linux; check your provider's current prices. A cheaper minute isn't a cheaper run until the same tests are measured on it (section 7).
+- **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 cost less per minute than x64 and macOS several times more than Linux; check your provider's current prices. A lower minute price isn't a lower cost per run until the same tests are measured on it (section 7).
 - **A warm setup matters as much as the runner.** Each job pays for its own install, so a snapshot of main's install keyed by the manifests (section 6), on a persistent disk or in the Actions cache, decides how much of a short job is setup.
 - **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels (the [`ci-runners`](../../skills/ci-runners/SKILL.md) skill).
 - **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-runners/references/providers.md`](../../skills/ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../templates/github/README.md#runner-labels) maps the templates' labels to each.
@@ -43,7 +43,7 @@ The [`ci-runners`](../../skills/ci-runners/SKILL.md) skill's [queues page](../..
 
   Our sizing rule (resize only when 3 runs agree) and our audits run on these.
 
-**Its billing model.** Each job is billed per started minute × vCPUs. At its list price when we checked, arm64 was cheaper per minute than x64 and macOS ~6.7× x64; check the current price list. Sticky disks bill per GB-month until a week after last use.
+**Its billing model.** Each job is billed per started minute × vCPUs. At its list price when we checked, arm64 cost less per minute than x64 and macOS ~6.7× x64; check the current price list. Sticky disks bill per GB-month until a week after last use.
 
 ## Setting up Blacksmith
 
@@ -69,7 +69,7 @@ The [`ci-runners`](../../skills/ci-runners/SKILL.md) skill's [queues page](../..
 
 **Applies when:** The plan prices its own optimization period: sweeps, replays, measurement runs, bisects and debugging. **Skip when:** The plan changes nothing that runs in CI.
 
-Be honest with yourself about this: **optimizing a slow CI burns money and weeks before it pays off.** Ours got more expensive before it got cheaper:
+Be honest with yourself about this: **optimizing a slow CI burns money and weeks before it pays off.** Ours cost more before it cost less:
 
 - **A spike while broad.** In one audit week, spend rose ~70% over the week before: macOS running on every PR, the Rust job on every package edge, and every merge rerunning all container tests. One day's rate projected to several times our monthly cap.
 - **The work itself costs:**

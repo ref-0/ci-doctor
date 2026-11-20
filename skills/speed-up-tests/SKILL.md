@@ -9,7 +9,7 @@ metadata:
 
 A slow test is usually a test that waits: on a production period it inherits, a retry's backoff, a poll, a sleep that arranges a race, or a wall-clock window. A test that does real work at the size it proves is usually fine as it is. The job is to tell the two apart from CI's own records, take the wait out while every assertion still holds, and show it in CI. The waits worth most are shared: one in a helper, a fake or a production constant reaches dozens of files.
 
-The method behind this skill is [guide section 10](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md), and the harness around the tests [section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-cheaper-test-harness.md). [The checks](references/checks.md) it follows are here in short: read them before you change a test or quote a number.
+The method behind this skill is [guide section 10](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md), and the harness around the tests [section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-faster-test-harness.md). [The checks](references/checks.md) it follows are here in short: read them before you change a test or quote a number.
 
 ## Start here
 
