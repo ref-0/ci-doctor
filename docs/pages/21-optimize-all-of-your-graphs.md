@@ -16,7 +16,7 @@ How far a change reaches, and how long CI waits for it, are set by five graphs. 
 
 The first three are one graph seen at three sizes, packages, entry points and folders, and the fourth and fifth are built on them. An edge that's wider than the code needs costs on every run, and nothing flags it, so each graph below has a check that fails on a new edge and a measurement that shows the width of the old ones.
 
-The measuring tool for graphs 1–4 is coming to `scripts/graph/` (its README will be `scripts/graph/README.md`); it runs locally, read-only. Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). Until the tool lands, [Measure the graphs](#measure-the-graphs) says what to count by hand.
+[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand.
 
 ## Package dependencies, declared and checked
 
@@ -140,7 +140,7 @@ Its fixes "Setup on the critical path" and "A blocker most jobs wait on" link he
 
 Count before you move code. Our selector's tests do this against the workspace's own import graph: for a handful of modules, they check that the selector picks every test file the real import graph reaches from an edit to it. That's how one package's edges were caught picking 520 test files, 179 of them in one consumer whose import graph reached 11.
 
-The measuring tool for graphs 1–4 is coming to `scripts/graph/`. Until it lands, measure by hand:
+[`scripts/graph/`](../../scripts/graph/README.md#measure-the-graphs) counts graphs 1–4 and replays recent merges through them. It measures and `package-graph` enforces. Without it, measure by hand:
 
 | Graph | Count | From |
 |---|---|---|
