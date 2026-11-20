@@ -1,7 +1,7 @@
 /**
  * Tests for ci-time.ts, on synthetic jobs: no network, no `gh`. The Blacksmith adapter's own tests are
- * in the blacksmith topic's scripts/blacksmith-bill.test.ts; the one here that loads it needs it in
- * the hub, beside this topic.
+ * beside blacksmith-bill.ts; the one here that loads it needs it among the skills installed beside this
+ * one, where ADAPTER_DIRS looks.
  *
  * Runs: `node --test ci-time.test.ts` from this folder (Node 24).
  * Reference implementation from a production monorepo; adapt to your repo.
@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { billedMinutes, DEFAULTS, FILE, type Job, jobRows, loadAdapter, quantile, readSettings, report, vcpu, vcpus, wall } from './ci-time.ts';
+import { ADAPTER_DIRS, billedMinutes, DEFAULTS, FILE, type Job, jobRows, loadAdapter, quantile, readSettings, report, vcpu, vcpus, wall } from './ci-time.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -102,7 +102,7 @@ describe('vCPU-minutes', () => {
 });
 
 describe('the settings', () => {
-  const template = join(here, '..', '..', '..', '..', 'agent-knowledge', 'templates', 'repo-facts', 'ci-time.json');
+  const template = join(here, '..', '..', 'agent-knowledge', 'templates', 'repo-facts', 'ci-time.json');
 
   it('has a template that holds every default', () => {
     // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.
@@ -125,10 +125,11 @@ describe('the settings', () => {
 });
 
 describe('the billing adapter', () => {
-  const sibling = join(here, '..', '..', 'blacksmith', 'scripts', 'blacksmith-bill.ts');
+  const skills = join(here, '..', '..');
+  const found = ADAPTER_DIRS('blacksmith').map((d) => join(skills, d, 'blacksmith-bill.ts')).filter((f) => existsSync(f));
 
-  it('loads the blacksmith topic\'s adapter from the hub', async () => {
-    ok(existsSync(sibling), `${sibling}: the blacksmith topic's adapter is missing`);
+  it('loads Blacksmith\'s adapter from the skills beside this one', async () => {
+    ok(found.length > 0, `no blacksmith-bill.ts in ${ADAPTER_DIRS('blacksmith').join(' or ')}, from ${skills}`);
     const adapter = await loadAdapter('blacksmith');
     equal(typeof adapter.billed, 'function');
     equal(typeof adapter.cpu, 'function');

@@ -106,7 +106,7 @@ Storage and requests bill separately from CI minutes; check them against your ow
 
 **Applies when:** The stack has Rust. **Skip when:** It has none.
 
-For agents, [`skills/ci-doctor/references/ci-workflows/references/rust.md`](../../skills/ci-doctor/references/ci-workflows/references/rust.md) holds these rules, if your stack uses Rust.
+For agents, [`skills/ci-workflows/references/rust.md`](../../skills/ci-workflows/references/rust.md) holds these rules, if your stack uses Rust.
 
 - **Two keys:**
   - a **pass key** over everything the checks read: sources, tests, fixtures, lockfile, toolchain, Cargo config found above the crate, shared contract vectors, the build workflow and its pinned action, and the relevant CI job blocks;

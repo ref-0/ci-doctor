@@ -1,6 +1,6 @@
 ---
 name: optimize-graphs
-description: "An edit reruns most of the workspace's tests, builds or type checks, or misses its caches: package dependencies and cycles, `exports`, entry points and barrel files, layers and folders inside a package, task inputs and the CI job graph. Measure them read-only, then split, declare or check."
+description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrel files, layers, task inputs, the CI job graph and which checks a change selects. Use when one edit reruns most tests or builds, caches miss, or CI runs everything. Not for a slow CI job (ci-workflows); a slow test (speed-up-tests)."
 metadata:
   version: "0.1.0"
 ---
@@ -83,13 +83,17 @@ Replay the last merges through the graph before and after, and compare like with
 
 The bundle is the wrong measure: a bundler already drops unused modules. Measure selection, cache keys and the type checks that rerun.
 
+## Which checks a change runs
+
+The selector, the script or rule that picks a change's jobs and test files, walks these graphs. Before changing it, lockfile routing or test selection, read [selection](references/selection.md): read the selected files in a run's log, add an edge no import shows as a named edge, replay real diffs through the old and new selector, and replay past regressions to check it still picks the test that caught each. The repo's own cases are in `.agents/repo/ci.md`'s Selection and tiers.
+
 ## 5. Adopt the checks in a repo that has none
 
 Graphs 1–3 are declared in one file and held by one check. [Fixes](references/fixes.md#adopt-the-checks) has the steps, with `package-graph` from [`tools/workspace/`](https://github.com/ref-0/ci-doctor/blob/next/tools/workspace/README.md#the-package-graph) for TypeScript, copied into the repo, and its contract for other languages. In short: generate the graph as it is, fix only what it can't declare, turn the check on, then tighten with `--unused`, entry points and layers. A stale exception fails, so the count only falls.
 
 ## Not here
 
-- Slow CI runs, runners, the bill, remote caches and the ci-doctor plan: the `ci-doctor` skill. Its Phase 1 maps these graphs with this skill.
+- Editing a workflow, its jobs, tiers and slow runs: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Runners, the bill and the ci-doctor plan: the `ci-doctor` skill. Its Phase 1 maps these graphs with this skill.
 - Whether a test is worth keeping: `test-audit`.
 
 ## Outside this skill
