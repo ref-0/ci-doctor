@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Measuring before and after
 
-Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it before you rank files or quote a number in a pull request or a plan. This page owns where CI's records are and how to read them; for history collected from the API, read [CI history data](ci-history-data.md). How to judge any number, before and after, is [`verify-evidence`](../../verify-evidence/TOPIC.md): the decision and noise floor first, interleaved runs, the limiter, a control group's drift, what else it measured, and observed versus modelled. The rules below are only what's particular to tests and CI.
+Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it before you rank files or quote a number in a pull request or a plan. This page owns where CI's records are and how to read them; for history collected from the API, read [CI history data](ci-history-data.md). How to judge any number, before and after, is the [`prove-it`](../../../../prove-it/SKILL.md) skill: the decision and noise floor first, interleaved runs, the limiter, a control group's drift, what else it measured, and observed versus modelled. The rules below are only what's particular to tests and CI.
 
 The records themselves: per-file times written by the test reporter into the job's log ([`scripts/records/`](../../../../../scripts/records/README.md)), collected nightly and ranked; each job's start and end in the CI provider's jobs API ([`ci-time.ts`](../../ci-workflows/scripts/ci-time.ts)); and, if you run on Blacksmith, its job records and CPU stats ([CLI](../../blacksmith/references/cli.md)). The repo's own collector and paths are in `.agents/repo/speed-up-tests.md`.
 

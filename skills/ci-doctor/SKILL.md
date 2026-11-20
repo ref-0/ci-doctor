@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "CI speed, cost and flakes on any provider: why a PR's check failed, slow CI runs or queues, changing workflows and jobs, runners and the bill, slow or flaky tests (local too), checking CI evidence or a before/after claim, and starting or continuing the ci-doctor plan."
+description: "CI speed, cost and flakes on any provider: why a PR's check failed, slow CI runs or queues, changing workflows and jobs, runners and the bill, slow or flaky tests (local too), and starting or continuing the ci-doctor plan."
 metadata:
   version: "0.1.0"
 ---
@@ -51,7 +51,7 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
   - Every test you speed up must still fail when you break what it guards. After approval, show that with a deliberate mutation, as Phase 4 says.
   - If a change does give up some proof on purpose, name it as a tradeoff in the plan and get the user's yes, as guide section 7 does for the debug-profile Rust run.
 - **Keep the repo's current gate semantics** until the user approves a change: its required checks, its retry and rerun behavior, its merge method and its triggers.
-- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow [`verify-evidence`](references/verify-evidence/TOPIC.md): write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
+- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow the [`prove-it`](../prove-it/SKILL.md) skill: write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
 - **The code is the source of truth.** If the user's docs disagree with their code, say so in the plan.
 - **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
 - **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
@@ -69,7 +69,7 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, queues, changing provider | [ci-runners](references/ci-runners/TOPIC.md) |
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | Slow or flaky tests, in CI or locally: finding them from CI's records, fixing the wait, fakes, flakes | [speed-up-tests](references/speed-up-tests/TOPIC.md) |
-| A measurement, a before/after, a cost or a claim about CI | [verify-evidence](references/verify-evidence/TOPIC.md) |
+| A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
 | How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
 | Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
@@ -81,6 +81,7 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
+- Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
 - Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
 
 ## Outside the skills

@@ -16,7 +16,7 @@ Follow the [`agent-knowledge`](../../../agent-knowledge/SKILL.md) skill for the 
   - `campaign.md`: running many fixes at once.
 
   Start each from guide sections 10–11 and keep only what fits this repo.
-- **An evidence check** from [`verify-evidence`](../verify-evidence/TOPIC.md), which owns how to judge a number, linked from the measuring and test-value docs.
+- **An evidence check** from the [`prove-it`](../../../prove-it/SKILL.md) skill, which owns how to judge a number, linked from the measuring and test-value docs.
 - **Stack-specific pages** only for the stacks the repo has.
 - **A "what was tried" register** in the one place `.agents/repo/ci.md`'s Tried and dropped section names ([template](../checks/ci-read-what-was-tried.md)), holding what the baseline and the plan measured and dropped.
 - **Freshness:** propose the skill's drift sweep and, if their CI allows it, its size budget, each as its own step.
