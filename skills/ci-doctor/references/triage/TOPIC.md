@@ -37,5 +37,5 @@ When setup or install fails with a summary that points at a log on the runner, t
 | A flake | The [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md) skill |
 | The workflow: setup, the job graph | [ci-workflows](../../../ci-workflows/SKILL.md) |
 | An install or a cache step: a slow install, a cache that missed or restored the wrong thing | [cache-ci](../../../cache-ci/SKILL.md) |
-| A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../ci-runners/TOPIC.md) |
+| A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../../../ci-runners/SKILL.md) |
 | Green, and ready to merge | `ci-merge-workflow`, if adopted |

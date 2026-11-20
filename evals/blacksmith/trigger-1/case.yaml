@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: blacksmith-trigger-1
+description: Should load blacksmith.
+tags: [blacksmith, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "We're moving our GitHub Actions to Blacksmith. What do we change in the workflows?"
+graders:
+  - name: loaded-blacksmith
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?blacksmith"'

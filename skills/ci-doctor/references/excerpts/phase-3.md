@@ -16,25 +16,16 @@ From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../..
 - **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job at 2:01 costs the same as one at 2:59. That's why we aim for two minutes elapsed or less per shard, including setup (section 7). Find whether your provider prices per runner or per vCPU, and per job or per run.
 - **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 was cheaper per minute than x64 and macOS several times dearer than Linux; check your provider's current prices. A cheaper minute isn't a cheaper run until the same tests are measured on it (section 7).
 - **A warm setup matters as much as the runner.** Each job pays for its own install, so a snapshot of main's install keyed by the manifests (section 6), on a persistent disk or in the Actions cache, decides how much of a short job is setup.
-- **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels ([`skills/ci-doctor/references/ci-runners/`](../ci-runners/TOPIC.md)).
-- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-doctor/references/ci-runners/references/providers.md`](../ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../../../templates/github/README.md#runner-labels) maps the templates' labels to each.
+- **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels (the [`ci-runners`](../../../ci-runners/SKILL.md) skill).
+- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-runners/references/providers.md`](../../../ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../../../templates/github/README.md#runner-labels) maps the templates' labels to each.
 
 ### When jobs wait to start
 
 **Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time is a large share of the PR wait. **Skip when:** Queue time is seconds, as on most repos.
 
-A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds. When the slowest tenth of jobs wait minutes, people wait on capacity, not on tests, and faster tests won't help.
+A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds: in 219 public repos scored in November 2026, the median repo's p90 was 4 seconds, and one repo in ten waited 596 seconds or more at p90 ([ci-doctor-db's findings](https://github.com/ref-0/ci-doctor-db/blob/main/FINDINGS.md)). Ours was the runners' own start-up: GitHub-hosted runners took minutes to start at busy times, even with few jobs running, and that's what moved us to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). A queue can also be a plan's concurrency cap, fan-out, a label no runner carries or a pool scaled to zero, and each has its own fix.
 
-- **Measure it first,** at p50 and p90, by runner label, over a normal week. Compare it with the PR wait: a queue that's a large share of the wait is the first thing to fix.
-- **The usual cause is the runners themselves.** GitHub-hosted runners can take minutes to start at busy times, even with few jobs running. That's what moved us off them to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Tell it from the other causes by when it happens:
-  - **Long even when few jobs run:** the provider. Price a move as the plan's runner recommendation (section 7 for the measured comparison), and propose it.
-  - **Grows with the number of jobs running at once:** the account's concurrency cap (larger and macOS runners have their own, lower caps; check the plan's current limits), or fan-out, where each push starts many jobs and every push starts them again.
-  - **Only on some labels:** a self-hosted pool that's too small, or a label no idle runner carries.
-- **Fixes:**
-  - **For the provider:** move to one that starts jobs in seconds; we recommend Blacksmith. Measure queue time on both before deciding, as with any runner change.
-  - **For the cap or fan-out:** cancel superseded runs and skip drafts (section 4), start fewer jobs per push (merge tiny jobs, size shards from measured time, section 7, and move broad checks to a sweep, section 5), then raise the cap if it's still the limit.
-  - **For self-hosted:** add or autoscale runners, and check the labels match.
-- **Check it moved:** queue time at p90 again, over the same kind of week.
+The [`ci-runners`](../../../ci-runners/SKILL.md) skill's [queues page](../../../ci-runners/references/queues.md) has the procedure: measuring the queue apart from the jobs, telling the causes apart by when they happen, the fixes for each, and checking that it moved.
 
 ## Shards: splitting tests by measured time
 
@@ -85,7 +76,7 @@ Each row says how it runs, because these are four different things: *CI* is a sc
 | Cadence | Job | What it does |
 |---|---|---|
 | Daily (CI) | Health report | Budgets, shard balance, slow files, retries and spend projection, kept in one issue |
-| Daily or weekly (agent) | **Runner review** | Each job's CPU and memory over its runs since the last review, against its runner's size. Proposes a smaller runner for a job that stays well under its CPU, a bigger one for a job near its memory limit or CPU-bound on the critical path, and a shard-count change when the runner changes. Daily when PRs land often enough that each job has a fair sample every day; weekly otherwise. It only proposes: a resize needs the user's yes. [`ci-runners`' sizing](../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule) |
+| Daily or weekly (agent) | **Runner review** | Each job's CPU and memory over its runs since the last review, against its runner's size. Proposes a smaller runner for a job that stays well under its CPU, a bigger one for a job near its memory limit or CPU-bound on the critical path, and a shard-count change when the runner changes. Daily when PRs land often enough that each job has a fair sample every day; weekly otherwise. It only proposes: a resize needs the user's yes. [`ci-runners`' sizing](../../../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule) |
 | Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for late cron. |
 | Daily (CI) | Latest external tools | The newest versions of external tools we integrate with, run against our latest release, without packing a snapshot. One compatibility issue. |
 | Daily (CI) | Infra drift | Read-only diff of production resources against applied state. One issue per stage, closed only when all are in sync. |

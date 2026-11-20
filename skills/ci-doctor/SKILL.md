@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "Plans CI speed and cost work and triages a failed PR check: the PR, a flake or the runner. Use when asked to make CI faster or cheaper, review CI, or find why a check failed or was cancelled. Not for workflow edits (ci-workflows); flaky tests (fix-flaky-test); slow tests (speed-up-tests); claims (prove-it)."
+description: "Plans CI speed and cost work and triages a failed PR check: the PR, a flake or the runner. Use when asked to make CI faster or cheaper, review CI, or say why a check failed. Not for workflow edits (ci-workflows); runners or the bill (ci-runners); flaky tests (fix-flaky-test); slow tests (speed-up-tests)."
 metadata:
   version: "0.1.0"
 ---
@@ -67,9 +67,9 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | A PR's check failed or was cancelled: reading the run, telling a test failure from a flake or an infrastructure failure, whether the run counts | [triage](references/triage/TOPIC.md) |
 | Change or debug a workflow: the job graph, tiers, the checks for a CI change, a slow run's job order | The [`ci-workflows`](../ci-workflows/SKILL.md) skill |
 | Setup that takes too long, adding a cache, a cache that never hits, cache keys | The [`cache-ci`](../cache-ci/SKILL.md) skill |
-| The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, queues, changing provider | [ci-runners](references/ci-runners/TOPIC.md) |
-| Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
+| The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, jobs that wait for a runner, changing provider | The [`ci-runners`](../ci-runners/SKILL.md) skill |
+| Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | The [`blacksmith`](../blacksmith/SKILL.md) skill |
 | A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
 | A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
 | How far an edit reaches, and which checks a change selects: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
@@ -85,6 +85,7 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 - Editing a workflow, its jobs and tiers, and a slow run: `ci-workflows`. Caches and slow setup: `cache-ci`.
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs, and which checks a change selects: `optimize-graphs`.
 - A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
+- Runner size, queues, the bill, the spend cap and choosing a provider: `ci-runners`. Blacksmith's labels, sticky disks, CLI and bill: `blacksmith`.
 - Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
 - Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
 

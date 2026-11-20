@@ -1,5 +1,5 @@
 <!--
-What: the plugin's twelve agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for workflows, caches, a workspace's graphs, slow and flaky tests, evidence, agents' knowledge, review, merging, test value and proof tiers, and how to keep them fresh.
+What: the plugin's fourteen agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for workflows, caches, runners and the bill, Blacksmith, a workspace's graphs, slow and flaky tests, evidence, agents' knowledge, review, merging, test value and proof tiers, and how to keep them fresh.
 Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
 Configure: write your repo's facts files from the agent-knowledge skill's templates/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -15,26 +15,26 @@ Each topic has one home; the others link to it.
 
 | Skill | Owns | Applies when |
 | --- | --- | --- |
-| [`ci-doctor`](ci-doctor/SKILL.md) | The rules, `progress.md` and the plan's [phases](ci-doctor/references/phases/), and the CI topics below, CI-result [triage](ci-doctor/references/triage/TOPIC.md), and the one-rule [checks](ci-doctor/references/checks/README.md). | Always |
+| [`ci-doctor`](ci-doctor/SKILL.md) | The rules, `progress.md` and the plan's [phases](ci-doctor/references/phases/), CI-result [triage](ci-doctor/references/triage/TOPIC.md), and the one-rule [checks](ci-doctor/references/checks/README.md). | Always |
 | [`review-gate`](review-gate/SKILL.md) | The review gate in CI, for a repo that adopts it: what the gate requires before a draft's one CI run, the tests reviewer, and the review record (`scripts/review-record.ts`) CI's result job checks for format and reviewer types. Who reviews and how is the repo's own; [guide section 15](../docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review) has ours. | The repo adopted the gate (`.agents/repo/review.md`); otherwise the repo's own review process |
 | [`ci-merge-workflow`](ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run: marking ready, runs by hand, merging, releases, then main and the deploy. | Adopted (`.agents/repo/ci.md`); otherwise the repo's own merge path |
 | [`test-audit`](test-audit/SKILL.md) | A test's value, weak or duplicate coverage and test-only seams. From openclaw, under its MIT licence: see [`test-audit/UPSTREAM.md`](test-audit/UPSTREAM.md). | Any repo |
 | [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). | Any repo with them |
 | [`optimize-graphs`](optimize-graphs/SKILL.md) | The five graphs that set how far an edit reaches and how long CI waits: package dependencies, export paths, layers inside packages, workspace tasks and CI jobs. How to measure them, what to propose and in what order, how to adopt the checks, and [selection](optimize-graphs/references/selection.md): which checks a change runs. The hub's Phase 1 maps them with it. | Any repo with several packages or jobs |
-| [`ci-workflows`](ci-workflows/SKILL.md) | Editing a workflow without making CI slower, costlier or less trustworthy: the checks for a CI change, tiers and scheduled runs, slow runs and long files, Rust in CI, and `scripts/ci-time.ts`, which prints where a run's time and minutes went. Runner size and cost are the hub's `ci-runners`; which checks a change selects, `optimize-graphs`; caches, `cache-ci`. | Any repo with CI workflows; the repo's facts from `.agents/repo/ci.md` |
+| [`ci-workflows`](ci-workflows/SKILL.md) | Editing a workflow without making CI slower, costlier or less trustworthy: the checks for a CI change, tiers and scheduled runs, slow runs and long files, Rust in CI, and `scripts/ci-time.ts`, which prints where a run's time and minutes went. Runner size, queues and cost are `ci-runners`'; which checks a change selects, `optimize-graphs`; caches, `cache-ci`. | Any repo with CI workflows; the repo's facts from `.agents/repo/ci.md` |
 | [`cache-ci`](cache-ci/SKILL.md) | CI's dependency, build and toolchain caches: measuring setup, keying a cache by every input that can change its output, who may write it, a cache that never hits, and what isn't worth caching. The remote task cache's soundness is guide section 6's. | Any repo whose CI installs or builds before its work; the repo's caches from `.agents/repo/ci.md` |
 | [`speed-up-tests`](speed-up-tests/SKILL.md) | Slow tests, in CI or locally: CI's records and how to read them (`measuring`, `ci-history-data`), naming the wait, fixes, fakes, campaigns over many files, and stack pages for [Cloudflare Workers](speed-up-tests/references/workers.md) and [Effect](speed-up-tests/references/effect.md). | Any repo with tests |
 | [`fix-flaky-test`](fix-flaky-test/SKILL.md) | A test that fails sometimes or passes only on a retry: telling it from a real or infrastructure failure, matching the symptom, forcing the interleaving, the fix, proving it with retries off, and filing what's left. | Any repo with tests; the repo's flake policy from `.agents/repo/ci.md` |
 | [`prove-it`](prove-it/SKILL.md) | Whether the evidence for a claim holds: that something is faster, cheaper or fixed, from a benchmark, a before and after, a cost or a test result. The decision and noise floor first, like-for-like comparisons, interleaving, controls, the limiter, and a label on every number. The hub's rules and topics hand evidence to it. | Any repo |
 | [`agent-knowledge`](agent-knowledge/SKILL.md) | Where agents' knowledge lives and how it stays true: the top-level instruction file, skills, checks, facts files and the register of what was tried; dated lessons, generalizing instead of appending, drift sweeps and size budgets; and the [templates](agent-knowledge/templates/README.md) for a repo's facts, `progress.md` and a campaign's files. The hub's Phase 6 uses it. | Any repo agents work in |
+| [`ci-runners`](ci-runners/SKILL.md) | Runners on any provider: size and architecture from measured CPU, shards against a runner's size, packing against minute rounding, the bill, the spend cap and auditing spend, the cost of getting fast, jobs that wait for a runner (measuring a queue apart from the jobs, its causes and fixes), and choosing a provider or leaving GitHub-hosted runners. | Any repo whose CI runs on runners it pays for or waits on |
+| [`blacksmith`](blacksmith/SKILL.md) | Blacksmith only: its CLI, labels, sticky disks, its Actions cache and Docker disk, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter (`scripts/blacksmith-bill.ts`). Provider-neutral sizing, queues and spend are `ci-runners`'. | The repo runs on Blacksmith, or the user approved a move there |
 
 The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL.md`, since Codex registers a `SKILL.md` at any depth as a skill of its own:
 
 | Topic | Owns | Not here: see |
 | --- | --- | --- |
 | [`triage`](ci-doctor/references/triage/TOPIC.md) | A PR's CI result: which job failed and why, whether the run counts, and the exceptions. | Readying and merging: `ci-merge-workflow`. A flake's cause and fix: `fix-flaky-test`. |
-| [`ci-runners`](ci-doctor/references/ci-runners/TOPIC.md) | Runner size and architecture, packing against minute rounding, the spend cap, the cost of getting fast, and choosing a provider. | Workflows: the `ci-workflows` skill. One provider's specifics: `blacksmith`. |
-| [`blacksmith`](ci-doctor/references/blacksmith/TOPIC.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |
 
 ## Writing a description
 
@@ -88,11 +88,11 @@ Install the plugin, as [the README's Installing](../README.md#installing) says f
 
 The plan the user approves says which skills the repo **adopts**, and the repo's facts files record it. A skill the repo didn't adopt stays installed but defers to the repo's own process.
 
-The map's **Applies when** says when each one applies. In the hub, the `blacksmith` topic applies only when the repo runs on Blacksmith, or the user approved a move there.
+The map's **Applies when** says when each one applies. `blacksmith` applies only when the repo runs on Blacksmith, or the user approved a move there.
 
 1. **Write the repo's facts:** `.agents/repo/ci.md`, `speed-up-tests.md`, and the others the adopted skills read, from the [templates](agent-knowledge/templates/README.md). Add the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) to the instruction file your harness loads.
 2. **Configure the scripts the adopted skills use:** `.agents/repo/ci-time.json`, from [its template](agent-knowledge/templates/repo-facts/ci-time.json), or `ci-time.ts`'s flags (`node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`; add `--bill blacksmith` only on Blacksmith); and, with `review-gate`, `.agents/repo/review-record.json`, from [its template](agent-knowledge/templates/repo-facts/review-record.json), with `review-record.ts` wired into the gate as [the record](review-gate/references/record.md) says.
-3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `ci-doctor/references/blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `review-gate/scripts/` with `review-gate`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
+3. **Check the result:** run [`scripts/docs/check-links.ts`](../scripts/docs/check-links.ts) from the repo's root on `.agents/repo`: every link and anchor in the facts must resolve. Run the skills' tests from this repo: `node --test ci-time.test.ts` in `ci-workflows/scripts/`, `node --test blacksmith-bill.test.ts` in `blacksmith/scripts/` on Blacksmith, `node --test review-record.test.ts` in `review-gate/scripts/` with `review-gate`, and `node --test run-breaks.test.ts` in `proof-tiers/scripts/` with `proof-tiers`.
 
 ## Keeping them fresh
 

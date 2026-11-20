@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ci-runners-not-blacksmith
+description: Belongs to blacksmith, so should not load ci-runners.
+tags: [ci-runners, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Set up sticky disks for our node_modules on Blacksmith."
+graders:
+  - name: did-not-load-ci-runners
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-runners"'
+    min: 0
+    max: 0
+    arm: both
