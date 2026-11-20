@@ -211,6 +211,9 @@ export const readable = (r: Report) => {
 
 // ---- Command line -------------------------------------------------------------------------------
 
+/** Layers from a file of them, or from `package-graph.json`'s `layers`. */
+const layersFrom = (json: { layers?: Layers } & Layers): Layers => (json.layers !== undefined && !Array.isArray(json.layers) ? json.layers : json);
+
 const main = () => {
   const { values } = parseArgs({
     args: argv.slice(2),
@@ -233,7 +236,7 @@ const main = () => {
     conditions: values.conditions ? values.conditions.split(',').map((c) => c.trim()).filter(Boolean) : [],
     ...(values.rev ? { rev: values.rev } : {}),
     commits,
-    ...(values.layers ? { layers: JSON.parse(readFileSync(values.layers, 'utf8')) as Layers } : {}),
+    ...(values.layers ? { layers: layersFrom(JSON.parse(readFileSync(values.layers, 'utf8'))) } : {}),
   }, stderr.isTTY ? (done, total) => stderr.write(`\rreplaying ${done}/${total}`) : undefined);
   if (stderr.isTTY) stderr.write('\n');
   stdout.write(values.json ? `${JSON.stringify(result, null, 2)}\n` : `${readable(result)}\n`);
