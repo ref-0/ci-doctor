@@ -9,7 +9,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`blacksmith`](../TOPIC.md) topic. The move changes spend and the runner platform, so it needs the user's yes first, as a plan item with a monthly projection ([`ci-runners`' providers](../../ci-runners/references/providers.md#choosing)). Blacksmith's own [quickstart](https://docs.blacksmith.sh/introduction/quickstart) has the current steps.
 
-1. **Measure first:** median and p90 wall time, queue time, minutes by job, and each job's runner, from the plan's baseline ([the guide's collection](../../../../../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs)). [`ci-time.ts`](../../ci-workflows/TOPIC.md#measuring-a-run) is a spot check, not the baseline.
+1. **Measure first:** median and p90 wall time, queue time, minutes by job, and each job's runner, from the plan's baseline ([the guide's collection](../../../../../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs)). [`ci-time.ts`](../../../../ci-workflows/SKILL.md#measuring-a-run) is a spot check, not the baseline.
 2. **The user installs the Blacksmith GitHub app** on the organization and chooses its repos. It works for organizations, not personal accounts. An org with an IP allowlist adds Blacksmith's addresses.
 3. **Set the spend limit and your watcher first** ([billing](billing.md)).
 4. **Swap labels, job by job, at today's size:** `ubuntu-latest` becomes `blacksmith-2vcpu-ubuntu-2404`, a 4-core larger runner `blacksmith-4vcpu-ubuntu-2404`, and so on; the [templates' README](../../../../../templates/github/README.md#runner-labels) has the map. Blacksmith's dashboard also has a migration wizard that edits the workflow files.

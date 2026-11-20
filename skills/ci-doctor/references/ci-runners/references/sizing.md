@@ -36,7 +36,7 @@ shards = clamp(ceil(total_test_seconds / (workers_per_shard * target_seconds_per
 - **Twice the shards with half the work each costs about the same compute,** plus each shard's setup again. More shards shorten wall time only until setup and the slowest file set the floor.
 - **Model the overheads,** per-file process start and per-group start, measured in your current CI, and give new or split files a pessimistic estimate.
 - **Keep one plan's assignment for every shard,** from a full run's times, so shards don't disagree about who runs what.
-- **A shard can't end before its longest file;** split or shorten that file first, as [slow runs](../../ci-workflows/references/performance.md) says.
+- **A shard can't end before its longest file;** split or shorten that file first, as [slow runs](../../../../ci-workflows/references/performance.md) says.
 
 ## Reviewing sizes on a schedule
 

@@ -25,10 +25,10 @@ A runner's size, the way its provider rounds minutes and the number of shards a 
 - **Never re-enable a workflow a spend watcher disabled,** and never raise its cap: that's the budget owner's decision.
 - **Cost a change as a monthly projection,** from its measured frequency at each label's list price, and say what it changes in median and p90 wall time. Quote a money total only when every label it covers has a price.
 
-[`ci-workflows`](../ci-workflows/scripts/ci-time.ts)' `ci-time.ts` is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window, as [billing](references/billing.md#auditing-spend) says.
+[`ci-workflows`](../../../ci-workflows/scripts/ci-time.ts)' `ci-time.ts` is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window, as [billing](references/billing.md#auditing-spend) says.
 
 ## Related
 
-- [`ci-workflows`](../ci-workflows/TOPIC.md): workflows, selection, tiers and caches.
+- [`ci-workflows`](../../../ci-workflows/SKILL.md): workflows, tiers and caches.
 - [`blacksmith`](../blacksmith/TOPIC.md): if you run on Blacksmith, its labels, CLI, sticky disks and billing specifics.
 - The [`prove-it`](../../../prove-it/SKILL.md) skill: before you quote a cost or a speed-up.
