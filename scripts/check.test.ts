@@ -23,7 +23,7 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+    for (const line of ['see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
       equal(flagged(line), true, line);
     }
   });

@@ -27,7 +27,7 @@ Your agent maps your stack, measures your CI's median and p90, and writes a plan
 
 ## Installing
 
-The plugin holds six skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and day-to-day CI work, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
+The plugin holds seven skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and day-to-day CI work, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
 
 ### Claude Code
 
@@ -90,7 +90,7 @@ Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method fo
 | [`PROMPT.md`](PROMPT.md) | Points your agent at the `ci-doctor` skill |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release, and what to do about it |
 | [`docs/`](docs/) | The guide and harness notes |
-| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics, the one-rule checks and the agent-knowledge templates, and the skills for a workspace's graphs, review, merging, test value and proof tiers |
+| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics, the one-rule checks and the agent-knowledge templates, and the skills for a workspace's graphs, evidence, review, merging, test value and proof tiers |
 | [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
 | [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
