@@ -63,8 +63,9 @@ export class Gh {
   oldestCachedAt: number | undefined;
   readonly cache: ApiCache | undefined;
   private readonly startedAt = Date.now();
-  // One run asks for some answers twice, such as a run's jobs; it reads them once, in memory.
-  private readonly memo = new Map<string, string>();
+  // One run asks for some answers twice, such as a run's jobs or a workflow file; it reads them once, in memory. An
+  // absent answer (a status in `absentOn`) is remembered too, as undefined.
+  private readonly memo = new Map<string, string | undefined>();
   // gh 2.97 and later escape control characters unless told not to; logs and files are wanted as they are.
   private escapesFlag = true;
 
@@ -85,8 +86,7 @@ export class Gh {
   /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
   text(path: string, options: ReadOptions = {}): string | undefined {
     const key = options.query !== undefined ? `graphql:${options.query}` : `${options.raw ? 'raw' : 'api'}:${path}`;
-    const seen = options.noCache ? undefined : this.memo.get(key);
-    if (seen !== undefined) return seen;
+    if (!options.noCache && this.memo.has(key)) return this.memo.get(key);
 
     const hit = options.noCache ? undefined : this.cache?.get(this.scope + key);
     if (hit) {
@@ -101,6 +101,7 @@ export class Gh {
 
     const body = this.fetch(path, options);
     // An empty body is a 202 still being computed; keeping it would hide the real answer next time.
+    if (body === undefined && !options.noCache) this.memo.set(key, undefined);
     if (body !== undefined && body.trim() !== '' && !options.noCache) {
       this.memo.set(key, body);
       this.cache?.set(this.scope + key, body);

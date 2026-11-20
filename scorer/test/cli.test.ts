@@ -205,6 +205,16 @@ describe('the stack', () => {
     assert.match(text.stdout, /^  Package graph\s+1 package, 0 internal edges, depth 0, 0 cycles$/m);
   });
 
+  it('reads a workflow that the tree lists but GitHub no longer has once, for the practices and the stack', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const tree = routes[`repos/${PUBLIC}/git/trees/main`]!.json as { tree: { path: string; type: string; size: number }[] };
+    tree.tree.push({ path: '.github/workflows/gone.yml', type: 'blob', size: 10 });
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(paths(r.calls).filter((p) => p.startsWith(`repos/${PUBLIC}/contents/.github/workflows/gone.yml`)).length, 1);
+  });
+
   it("in a checkout, comes from its files, with GitHub's languages and runners unknown", async () => {
     const r = await runCli(['--json'], { cwd: checkout() });
 
