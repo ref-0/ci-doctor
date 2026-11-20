@@ -2,7 +2,7 @@
 /**
  * What: the Blacksmith adapter for ci-workflows' ci-time.ts: each job's billed vCPU-minutes from
  *   Blacksmith's job records, and a job's CPU from its stats.
- * Where: loaded by `ci-time.ts --bill blacksmith`, from this folder when the blacksmith topic is
+ * Where: loaded by `ci-time.ts --bill blacksmith`, from this folder when the blacksmith skill is
  *   installed beside ci-workflows, or from `--adapter-dir`.
  * Configure: nothing here. Needs Node 24 and the `blacksmith` CLI, logged in to <org> by a person
  *   (`blacksmith auth login`). It never reads the CLI's credentials.

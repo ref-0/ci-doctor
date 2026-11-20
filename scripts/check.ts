@@ -19,8 +19,9 @@
  *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's `ci-runners` and `blacksmith` topics as skills, the hub's `graphs`,
- *    `speed-up-tests`, `verify-evidence` and `ci-workflows` topics, `ci-workflows`' `selection.md` and `caches.md`, its `flakes.md`, `references/agent-knowledge/`,
+ *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
+ *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md` and
+ *    `caches.md`, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -58,24 +59,20 @@ export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-runners|blacksmith';
-
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/code-review/, 'review-gate'],
   [/<root>/, 'a path from the skill, or the skill by name'],
   [/(?<![\w-])install\.ts/, 'the plugin install, and scripts/docs/check-links.ts for links'],
-  [new RegExp(`(?<![\\w-])skills/(${TOPICS})\\b`), 'skills/ci-doctor/references/<topic>/'],
-  [new RegExp(`<skills-dir>/(${TOPICS})\\b`), '<skills-dir>/ci-doctor/references/<topic>/'],
-  [new RegExp(`\\b(${TOPICS})/SKILL\\.md`), '<topic>/TOPIC.md'],
-  [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
-  [new RegExp(`\\bskills? \`(${TOPICS})\``), 'the hub\'s <topic> topic'],
   [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
   [/verify-evidence/, 'skills/prove-it/'],
   [/references\/agent-knowledge\b|(?<![\w-])agent-knowledge\/(?!SKILL\.md|templates\b|references\b)[\w-]+(?:\.md|\/)/, 'skills/agent-knowledge/templates/'],
   [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
+  [/ci-doctor\/references\/ci-runners\b|(?<![\w-])ci-runners\/TOPIC\.md/, 'skills/ci-runners/'],
+  [/(?<![\w-])`?ci-runners`?('s)? topic\b/, 'the `ci-runners` skill'],
+  [/ci-doctor\/references\/blacksmith\b|(?<![\w-])blacksmith\/TOPIC\.md|(?<![\w-])`?blacksmith`?('s)? topic\b/, 'skills/blacksmith/'],
   [/ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/, 'skills/ci-workflows/'],
   [/(?<![\w-])ci-workflows\/references\/selection\.md/, 'skills/optimize-graphs/references/selection.md'],
   [/(?<![\w-])ci-workflows\/references\/caches\.md/, 'skills/cache-ci/references/caches.md'],
