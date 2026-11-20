@@ -102,7 +102,7 @@ describe('vCPU-minutes', () => {
 });
 
 describe('the settings', () => {
-  const template = join(here, '..', '..', 'agent-knowledge', 'repo-facts', 'ci-time.json');
+  const template = join(here, '..', '..', '..', '..', 'agent-knowledge', 'templates', 'repo-facts', 'ci-time.json');
 
   it('has a template that holds every default', () => {
     // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.

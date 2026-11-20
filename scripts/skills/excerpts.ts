@@ -88,7 +88,6 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
       { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Checking a cache on another task runner'], why: 'Checking a cache before the plan relies on it.' },
       { from: 'docs/pages/16-standing-automations.md', whole: true, why: 'The automations table, for the plan\'s automations step.' },
       { from: 'docs/pages/10-slow-tests-the-method.md', sections: ['Name the wait before changing anything'], why: 'The slow-test fix table, for each file in the inventory.' },
-      { from: 'docs/pages/17-keeping-agent-knowledge-from-going-stale.md', whole: true, why: "Where agent knowledge lives and what keeps it fresh, for the plan's agent-knowledge step." },
     ],
   },
 ];

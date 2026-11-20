@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "CI speed and cost on any provider: reading why a PR's check failed and triaging it (the PR, a flake or the runner), slow CI runs or queues, workflows and jobs, runners and the bill, checking CI evidence or a before/after claim, and the ci-doctor plan. Fixing a flaky test: fix-flaky-test; a slow one: speed-up-tests."
+description: "CI speed and cost on any provider: reading why a PR's check failed and triaging it (the PR, a flake or the runner), slow CI runs or queues, workflows and jobs, runners and the bill, and the ci-doctor plan. Fixing a flaky test: fix-flaky-test; a slow one: speed-up-tests; a before/after claim: prove-it."
 metadata:
   version: "0.1.0"
 ---
@@ -11,7 +11,7 @@ Make CI faster, cheaper and more trustworthy. This file holds the rules and rout
 
 ## Pick up where the last session stopped
 
-This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](references/agent-knowledge/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
+This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](../agent-knowledge/templates/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
 
 - **No `progress.md`:** if the user asked for the plan (make CI faster, cut its cost, a CI review, or a pasted `<ci-report>`), ask once whether an earlier session left one, then start at [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md). Otherwise, use the [topic map](#topic-map).
 - **A `progress.md`:** read it before anything else, and resume at the phase and step it records, even right after approval: Phases 4–6 run from there. Trust it, the repo's history and CI's records over your own memory of earlier work. If its playbook version differs from this skill's, read [the changelog](../../CHANGELOG.md) between the two before going on.
@@ -51,7 +51,7 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
   - Every test you speed up must still fail when you break what it guards. After approval, show that with a deliberate mutation, as Phase 4 says.
   - If a change does give up some proof on purpose, name it as a tradeoff in the plan and get the user's yes, as guide section 7 does for the debug-profile Rust run.
 - **Keep the repo's current gate semantics** until the user approves a change: its required checks, its retry and rerun behavior, its merge method and its triggers.
-- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow [`verify-evidence`](references/verify-evidence/TOPIC.md): write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
+- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow the [`prove-it`](../prove-it/SKILL.md) skill: write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
 - **The code is the source of truth.** If the user's docs disagree with their code, say so in the plan.
 - **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
 - **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
@@ -70,10 +70,11 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
 | A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
-| A measurement, a before/after, a cost or a claim about CI | [verify-evidence](references/verify-evidence/TOPIC.md) |
+| A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
 | How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
+| Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
-The one-rule [checks](references/checks/README.md) the topics link to, and the [agent-knowledge templates](references/agent-knowledge/README.md) for a repo's facts, are here too.
+The one-rule [checks](references/checks/README.md) the topics link to are here too. The templates for a repo's facts, `progress.md` and a campaign's files are the [`agent-knowledge`](../agent-knowledge/templates/README.md) skill's.
 
 ## Not here
 
@@ -82,6 +83,8 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
 - A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
+- Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
+- Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
 
 ## Outside the skills
 

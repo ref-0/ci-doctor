@@ -6,7 +6,7 @@ description: "Take a PR from draft to merged by the repo's merge path: dispatch 
 <!--
 What: the CI side of a pull request's life: draft, review, one CI run, merge, and the checks after.
 Where: read by a coding agent that opens, reviews or merges a pull request, or runs CI by hand.
-Configure: your repo's facts file, `.agents/repo/ci.md`, from the ci-doctor hub's references/agent-knowledge/repo-facts/ci.md.
+Configure: your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
