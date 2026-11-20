@@ -170,6 +170,20 @@ export const defaultBranch = (git: Git) => {
   return 'HEAD';
 };
 
+/** `git diff-tree -z --name-status` output as changes, a rename as a delete and an add, paths unquoted. */
+export const changesOf = (out: string) => {
+  const fields = out.split('\0');
+  const changes: Array<{ status: string; path: string }> = [];
+  for (let i = 0; i + 1 < fields.length && fields[i] !== '';) {
+    const status = fields[i++]!;
+    if (/^[RC]/.test(status)) {
+      const [from, to] = [fields[i++]!, fields[i++]!];
+      changes.push(...(status.startsWith('R') ? [{ status: 'D', path: from }] : []), { status: 'A', path: to });
+    } else changes.push({ status, path: fields[i++]! });
+  }
+  return changes;
+};
+
 /** Replays the last `count` first-parent commits of `branch`, oldest first, `progress` called after each. */
 export const replay = (git: Git, branch: string, count: number, options: ReadOptions, progress: (done: number, of: number) => void = () => {}): Replay => {
   const shas = git.run('rev-list', '--first-parent', `--max-count=${count}`, branch).split('\n').filter(Boolean).reverse();
@@ -191,10 +205,7 @@ export const replay = (git: Git, branch: string, count: number, options: ReadOpt
     last = { graph, tasks };
     if (parent !== undefined) {
       const before = graphAt(parent);
-      const changes = git.run('diff-tree', '-r', '--no-commit-id', '--name-status', '-M', parent, sha).split('\n').filter(Boolean).flatMap((line) => {
-        const [status = '', a = '', b] = line.split('\t');
-        return status.startsWith('R') ? [{ status: 'D', path: a }, { status: 'A', path: b ?? a }] : [{ status, path: a }];
-      });
+      const changes = changesOf(git.run('diff-tree', '-r', '-z', '--no-commit-id', '--name-status', '-M', parent, sha));
       const found = commitReach(sha, changes, graph, before, tasks);
       commits.push(found.widest ? found : { ...found, ...((): { widest?: { path: string; tests: number; why: string } } => { const w = widestPath(graph, changes.map((c) => c.path)); return w ? { widest: w } : {}; })() });
     }
