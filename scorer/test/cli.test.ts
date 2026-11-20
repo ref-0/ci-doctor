@@ -173,6 +173,29 @@ describe('too little history', () => {
     assert.equal(json(r.stdout).unscored, '20 of 20 PR pushes in the window came from bots (syncbot[bot]), and only pushes people make are timed; 5 are needed.');
   });
 
+  it('counts a bot\'s push whose runs were all skipped among the bots\' pushes', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { head_sha: string; conclusion: string; actor: { login: string } }[] };
+    for (const run of prRuns.workflow_runs) {
+      run.actor = { login: 'syncbot[bot]' };
+      if (/-sha-1?[0-4]$/.test(run.head_sha)) run.conclusion = 'skipped';
+    }
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(json(r.stdout).unscored, /^20 of 20 PR pushes in the window came from bots \(syncbot\[bot\]\)/);
+  });
+
+  it("with PR runs of no gating workflow, doesn't blame bots", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { name: string }[] };
+    for (const run of prRuns.workflow_runs) run.name = 'PR labeler';
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(json(r.stdout).unscored, 'Only 0 PR pushes in the window ran the main workflows; 5 are needed.');
+  });
+
   it('with no PR runs at all, says so', async () => {
     const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC, heads: 0 }) });
 

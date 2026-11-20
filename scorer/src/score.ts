@@ -133,7 +133,7 @@ const ranJobs = (gh: Gh, repo: string, cap: number) => {
   const seen = new Map<number, boolean>();
   return (run: Run): boolean => {
     if (run.run_attempt > 1 || Date.parse(run.updated_at) - Date.parse(run.run_started_at) <= 60 * 60e3) return true;
-    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, readAllJobs(gh, repo, run.id).length > 0);
+    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=1&page=1`).jobs.length > 0);
     return seen.get(run.id) ?? true;
   };
 };
@@ -152,6 +152,7 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
   const bots: string[] = [];
   const redBy: string[] = [];
   for (const [sha, rs] of heads) {
+    if (rs.every((r) => isBotActor(r.actor?.login))) bots.push(rs[0]?.actor?.login ?? '');
     // One push starts its runs together. A run created later came from another event, such as a
     // label, a comment or an approval, so it isn't part of this push's wait.
     const started = rs.filter((r) => r.conclusion !== 'skipped' && r.conclusion !== 'neutral' && r.conclusion !== 'action_required');
@@ -162,7 +163,6 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
     const counted = ran.filter((r) => Date.parse(r.created_at) - pushedAt <= PUSH_WINDOW);
     const startedAt = counted.map(startOf).sort()[0]!;
     const byBot = counted.every((r) => isBotActor(r.actor?.login));
-    if (byBot) bots.push(counted[0]?.actor?.login ?? '');
     const reruns = counted.filter((r) => r.run_attempt > 1);
     // Green only on a rerun: the first attempt failed and the latest passed.
     const flaked = reruns.some((r) => r.conclusion === 'success' && first(r) === 'failure');
@@ -880,7 +880,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
       ? `There are no GitHub Actions workflows on ${meta.default_branch}, so there's no CI history to score.`
       : prRuns.length === 0
         ? `There were no pull-request runs of GitHub Actions in the last ${days} days.`
-        : wait.botPushes >= 0.8 * wait.heads
+        : wait.heads > 0 && wait.botPushes >= 0.8 * wait.heads
           ? `${wait.botPushes} of ${wait.heads} PR pushes in the window came from bots (${wait.bots.map(([name]) => name).join(', ')}), and only pushes people make are timed; ${MIN_TIMED} are needed.`
           : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
 
