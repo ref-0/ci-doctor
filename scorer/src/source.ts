@@ -129,3 +129,27 @@ export const localSource = (root: string): Source => {
     },
   };
 };
+
+/**
+ * The same files, each read at most once: what one part of the report read, another gets from memory. The stack
+ * reads every manifest; the graphs read them again, and the entry files beside them, for no second call.
+ */
+export const remembered = (source: Source): Source => {
+  const texts = new Map<string, string>();
+  const failed = new Map<string, string>();
+  const asked = new Set<string>();
+  const readMany = (paths: string[]): Read => {
+    const fresh = [...new Set(paths)].filter((p) => !asked.has(p));
+    if (fresh.length) {
+      const got = source.readMany(fresh);
+      for (const p of fresh) asked.add(p);
+      for (const [p, t] of got.texts) texts.set(p, t);
+      for (const [p, why] of got.failed) failed.set(p, why);
+    }
+    return {
+      texts: new Map(paths.flatMap((p) => (texts.has(p) ? [[p, texts.get(p)!] as const] : []))),
+      failed: new Map(paths.flatMap((p) => (failed.has(p) ? [[p, failed.get(p)!] as const] : []))),
+    };
+  };
+  return { tree: source.tree, read: source.read, readMany };
+};
