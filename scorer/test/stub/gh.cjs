@@ -32,13 +32,15 @@ if (args[0] !== 'api') {
 
 let path;
 const headers = [];
-const fields = [];
+let input;
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '-H') headers.push(args[++i]);
-  else if (args[i] === '-f' || args[i] === '-F') fields.push(args[++i]);
+  else if (args[i] === '--input') input = args[++i];
   else if (args[i].startsWith('-')) continue;
   else path = args[i];
 }
+// A GraphQL query comes as the request body on stdin, never in the arguments.
+const body = input === '-' ? JSON.parse(readFileSync(0, 'utf8')) : undefined;
 
 // The key keeps only what tells answers apart: the path and its event, branch, page and ref.
 const keyOf = (full) => {
@@ -54,7 +56,11 @@ const routes = JSON.parse(readFileSync(process.env.GH_STUB_FIXTURES, 'utf8'));
 // A GraphQL query of aliased blobs, `f0: object(expression: "main:path")`, is answered from the same files' raw
 // answers, null where there's none, unless the fixtures hold a `graphql` answer of their own.
 if (path === 'graphql' && !routes.graphql) {
-  const query = fields.find((f) => f.startsWith('query='))?.slice('query='.length) ?? '';
+  if (!body) {
+    process.stderr.write('stub gh: a GraphQL query must come on stdin with --input -\n');
+    process.exit(2);
+  }
+  const query = body.query;
   const [, owner, name] = query.match(/repository\(owner: "([^"]+)", name: "([^"]+)"\)/) ?? [];
   const repository = {};
   for (const [, alias, ref, file] of query.matchAll(/(\w+): object\(expression: "([^":]+):([^"]+)"\)/g)) {
