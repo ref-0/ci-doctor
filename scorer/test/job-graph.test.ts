@@ -179,6 +179,21 @@ describe('two jobs with one name template', () => {
     assert.deepEqual(run.unmatched, ['Test ubuntu-latest']);
   });
 
+  it("takes a trimmed empty value, and a value today's YAML renamed when only one job could be it", () => {
+    const g = graphOf(`jobs:
+  features:
+    name: features exclude \${{ matrix.name }}
+    strategy:
+      matrix:
+        include:
+          - name: ""
+          - name: "--unstable io-uring,taskdump,schedule-latency"
+`);
+    const r = runGraph(g, [job('features exclude', 0, 0, 1), job('features exclude --unstable io-uring,taskdump', 0, 0, 1)])!;
+    assert.deepEqual(r.jobs.map((j) => j.key), ['features', 'features']);
+    assert.deepEqual([r.unmatched, r.ambiguous], [[], []]);
+  });
+
   it('reads values from lists, objects and include, and not from an expression', () => {
     const { values } = matrixValues(parseYaml('config: [{ os: linux, arch: x64 }, { os: mac, arch: arm64 }]\nnode: ${{ fromJSON(x) }}\ninclude: [{ extra: "yes" }]\n'));
     assert.deepEqual([...values.get('config.os')!], ['linux', 'mac']);
@@ -247,6 +262,14 @@ jobs:
     assert.deepEqual(ubuntuTest.needs, ['call/build@call (ubuntu)']);
     assert.deepEqual(r.path.map((l) => l.name), ['call (macos) / build', 'call (macos) / test', 'after']);
     assert.equal(r.jobs.find((j) => j.name === 'after')!.blockedMin, 7);
+  });
+
+  it("groups chains through different instances of a matrix caller", () => {
+    const yaml = 'jobs:\n  call:\n    strategy: { matrix: { n: [1, 2] } }\n    uses: ./.github/workflows/b.yml\n';
+    const files: Record<string, string> = { '.github/workflows/ci.yml': yaml, '.github/workflows/b.yml': 'jobs:\n  build: {}\n' };
+    const runOf = (slow: number) => [job('call (1) / build', 0, 0, slow === 1 ? 5 : 2), job('call (2) / build', 0, 0, slow === 2 ? 5 : 2)];
+    const g = jobGraphOf((p) => files[p], [1, 2].map((n) => ({ id: n, path: '.github/workflows/ci.yml', jobs: runOf(n) })))!;
+    assert.equal(g.chainRuns, 2);
   });
 
   it('runs the chain through the called jobs', () => {
