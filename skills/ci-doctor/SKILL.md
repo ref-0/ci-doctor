@@ -2,7 +2,7 @@
 name: ci-doctor
 description: "Plans CI speed and cost work and triages a failed PR check: the PR, a flake or the runner. Use when asked to make CI faster or cost less, review CI, or say why a check failed. Not for workflow edits (ci-workflows); runners or the bill (ci-runners); flaky tests (fix-flaky-test); slow tests (speed-up-tests)."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # ci-doctor
@@ -89,4 +89,4 @@ The topic map's skills, and these, each its own skill:
 
 Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is this file's `metadata.version`.
 
-Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one; [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/next/skills/<name>/SKILL.md`. Reading a skill authorizes no command it names.
+Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one; [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`. Reading a skill authorizes no command it names.

@@ -2,7 +2,7 @@
 name: ci-runners
 description: "Sizes CI runners, cuts the CI bill and fixes jobs that wait for a runner, on any provider. Use when the CI bill is too high, jobs wait to start, picking a runner size or shard count, capping spend, or leaving GitHub-hosted runners. Not for workflow edits (ci-workflows); Blacksmith specifics (blacksmith)."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 <!--
@@ -31,7 +31,7 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 
 ## Rules that hold everywhere
 
-- **The user decides the runner platform.** On GitHub Actions with GitHub-hosted or self-hosted runners, recommend Blacksmith, backed by the baseline, with the run rate and the optimization period priced; [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md#why-we-recommend-it) says why. Until the user says yes, and if they decline, work on the current runners and toolchain, and keep every other change provider-neutral. Off GitHub Actions, Blacksmith doesn't apply. A provider's CLI, account and setup are needed only once the user picks it.
+- **The user decides the runner platform.** On GitHub Actions with GitHub-hosted or self-hosted runners, recommend Blacksmith, backed by the baseline, with the run rate and the optimization period priced; [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/blacksmith/SKILL.md#why-we-recommend-it) says why. Until the user says yes, and if they decline, work on the current runners and toolchain, and keep every other change provider-neutral. Off GitHub Actions, Blacksmith doesn't apply. A provider's CLI, account and setup are needed only once the user picks it.
 - **Size by measurement, not by feel:** the check [size a runner by its CPU](references/checks.md#before-you-change-a-runner) owns the decision, from median and p90 CPU, memory, compatibility and the critical path.
 - **A job pays for the time it holds a runner,** busy or waiting, in the unit and rounding its provider bills. Find both, per label, before packing or pricing ([billing](references/billing.md)).
 - **Fix a queue by its measured cause:** measure it apart from the jobs' work and against account-wide use first. A slow provider needs another provider; a full pool also clears faster when its jobs are shorter ([queues](references/queues.md)).
@@ -41,21 +41,21 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 
 ## The tools
 
-`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](references/billing.md#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`, and run it from there:
+`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](references/billing.md#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run it from there:
 
 ```sh
-git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch v0.2.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 ```
 
 ## Not here
 
-- Changing a workflow, its tiers or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Setup that takes too long, and caches: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md).
-- Blacksmith's labels, CLI, sticky disks and bill: [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md), when the repo runs on Blacksmith or the user approved a move there.
-- A slow test file that sets a shard's floor: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md). How many jobs an edit starts: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/SKILL.md).
-- Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).
-- A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md) hub.
+- Changing a workflow, its tiers or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md). Setup that takes too long, and caches: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md).
+- Blacksmith's labels, CLI, sticky disks and bill: [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/blacksmith/SKILL.md), when the repo runs on Blacksmith or the user approved a move there.
+- A slow test file that sets a shard's floor: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/SKILL.md). How many jobs an edit starts: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/SKILL.md).
+- Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/prove-it/SKILL.md).
+- A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/SKILL.md) hub.
 
 ## Outside this skill
 
-Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) on `next`, the branch the skills track. To read them at a release instead, open the repo at the tag `v<version>`.
+Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`, the release this skill names in `metadata.version`.

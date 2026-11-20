@@ -12,7 +12,7 @@ Part of the [`speed-up-tests`](../SKILL.md) skill. The general rules hold; this 
 
 ## Run the Effect
 
-A test that returns an Effect must run it. With `@effect/vitest`, use `it.effect` (test services, including a test clock) or `it.live` (the live clock and services), never a plain `it` that returns an Effect it never runs: three tests in the source repo passed in 0 ms with impossible assertions that way. The check [make a regression test fail for the right reason first](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/make-the-test-fail-first.md) has the general rule: every assertion executes.
+A test that returns an Effect must run it. With `@effect/vitest`, use `it.effect` (test services, including a test clock) or `it.live` (the live clock and services), never a plain `it` that returns an Effect it never runs: three tests in the source repo passed in 0 ms with impossible assertions that way. The check [make a regression test fail for the right reason first](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/make-the-test-fail-first.md) has the general rule: every assertion executes.
 
 ## A fake clock
 
@@ -21,8 +21,8 @@ A test that returns an Effect must run it. With `@effect/vitest`, use `it.effect
 
 ## Property tests
 
-Schema's `Arbitrary` derives a generator from a schema, so a property can draw the shapes a sender sends. Still plant the bounds and raw bytes the schema refuses, as [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/references/properties.md#generators-that-reach-the-edges) says; a schema-shaped generator alone never reaches the parser's refusals. `@effect/vitest`'s `it.prop` runs a property with the repo's shared seed settings.
+Schema's `Arbitrary` derives a generator from a schema, so a property can draw the shapes a sender sends. Still plant the bounds and raw bytes the schema refuses, as [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/proof-tiers/references/properties.md#generators-that-reach-the-edges) says; a schema-shaped generator alone never reaches the parser's refusals. `@effect/vitest`'s `it.prop` runs a property with the repo's shared seed settings.
 
 ## Types and lint
 
-Effect's language-service diagnostics can run inside the one authoritative type check, so no separate framework-only pass is needed. [guide section 9's "If you use Effect"](https://ci-doctor.ref0.dev/guide/docs/pages/09-workspace-tooling.md#if-you-use-effect) has the setup, and [`tools/workspace/`](https://github.com/ref-0/ci-doctor/blob/next/tools/workspace/README.md) takes `effect-tsgo tsrs` as its injectable checker.
+Effect's language-service diagnostics can run inside the one authoritative type check, so no separate framework-only pass is needed. [guide section 9's "If you use Effect"](https://ci-doctor.ref0.dev/guide/docs/pages/09-workspace-tooling.md#if-you-use-effect) has the setup, and [`tools/workspace/`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/tools/workspace/README.md) takes `effect-tsgo tsrs` as its injectable checker.
