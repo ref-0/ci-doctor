@@ -263,6 +263,8 @@ export interface Graph {
   unknown: string[];
 }
 
+/** GitHub runs reusable workflows nested up to 10 levels, the caller's own file counted. */
+const MAX_NESTING = 10;
 const EXPR = /\$\{\{[\s\S]*?\}\}/g;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** A name as a pattern: expressions match anything, and a matrix job without one gets GitHub's ` (values)` suffix. */
@@ -314,11 +316,12 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
       if (!uses) continue;
 
       // A reusable workflow: its jobs show in the API as `caller / inner`.
-      const local = uses.match(/^\.\/(\.github\/workflows\/[^@\s]+\.ya?ml)$/)?.[1];
-      const called = local && depth < 4 ? read(local) : undefined;
+      // `./` is this repo, at the caller's commit: never another repo's, however it reads.
+      const local = uses.trim().match(/^\.\/(\.github\/workflows\/[^@\s]+\.ya?ml)$/)?.[1];
+      const called = local && depth < MAX_NESTING ? read(local) : undefined;
       if (called === undefined) {
         if (!local) unknown.push(`"${label}" calls ${uses.split('@')[0]}, in another repo, so the jobs inside it are taken as one`);
-        else if (depth >= 4) unknown.push(`"${label}" calls workflows nested past GitHub's limit`);
+        else if (depth >= MAX_NESTING) unknown.push(`"${label}" calls ${local} past GitHub's ${MAX_NESTING} levels of nesting`);
         else unknown.push(`"${label}" calls ${local}, which couldn't be read`);
         // GitHub shows a skipped caller under its own name, and the called jobs as `caller / inner`.
         job.pattern = new RegExp(`^${source}(?: / .+)?$`);

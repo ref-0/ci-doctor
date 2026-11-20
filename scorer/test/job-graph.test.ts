@@ -187,6 +187,29 @@ jobs:
   });
 });
 
+describe('local reusable workflows', () => {
+  it("expands calls nested to GitHub's 10 levels, and no deeper", () => {
+    const files: Record<string, string> = {};
+    for (let i = 1; i <= 10; i++) files[`.github/workflows/w${i}.yml`] = `jobs:\n  c${i}:\n    uses: ./.github/workflows/w${i + 1}.yml\n`;
+    files['.github/workflows/w9.yml'] = 'jobs:\n  leaf: {}\n';
+    const nine = graphOf('jobs:\n  c0:\n    uses: ./.github/workflows/w1.yml\n', files);
+    assert.ok(nine.jobs.some((j) => j.key.endsWith('/c8/leaf')));
+    assert.deepEqual(nine.unknown, []);
+
+    delete files['.github/workflows/w9.yml'];
+    files['.github/workflows/w9.yml'] = 'jobs:\n  c9:\n    uses: ./.github/workflows/w10.yml\n';
+    files['.github/workflows/w10.yml'] = 'jobs:\n  c10:\n    uses: ./.github/workflows/w11.yml\n';
+    const eleven = graphOf('jobs:\n  c0:\n    uses: ./.github/workflows/w1.yml\n', files);
+    assert.match(eleven.unknown.join(), /past GitHub's 10 levels/);
+  });
+
+  it('never takes a local call for another repo, quoted or not readable', () => {
+    const g = graphOf(`jobs:\n  a:\n    uses: "./.github/workflows/gone.yml"\n  b:\n    uses: ./.github/workflows/here.yaml\n`, { '.github/workflows/here.yaml': 'jobs:\n  x: {}\n' });
+    assert.deepEqual(g.unknown, ['"a" calls .github/workflows/gone.yml, which couldn\'t be read']);
+    assert.ok(g.jobs.some((j) => j.key === 'b/x'));
+  });
+});
+
 describe('a skipped job', () => {
   const graph = graphOf(`jobs:
   test: {}
