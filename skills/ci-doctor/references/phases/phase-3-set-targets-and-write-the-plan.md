@@ -15,22 +15,23 @@
 
    Then the baseline and targets.
 2. **Stack map and technique table** from Phase 1.
-3. **Ordered changes.** For each change:
+3. **Ordered changes,** as a table: a row for each change, with a column for each of these.
    - what it changes, by file;
    - **its objective:** median or p90 latency, billed cost, reliable coverage, or local feedback;
    - the expected effect on median wall time, p90 and monthly cost, labelled as measured, modelled or guessed;
    - the tradeoffs the user approves, such as more wall time for a lower bill;
    - what it risks, and how you'll show the tests still prove what they did;
-   - whether it adds spend, a schedule or a tier change, which needs the user's yes.
+   - whether it adds spend, a schedule or a tier change, which needs the user's yes;
+   - **Skill:** the one Phase 4 loads to carry it out, named by each lever below. The plan says what and why; the skill says how.
 
    Rank by the observed limiter, not by this list. These are the levers, roughly cheapest first:
-   1. Drafts run nothing. Evaluate it on its own: it changes the trigger policy and saves only work drafts actually run.
-   2. Concurrency and cancel rules. These save spend more than they shorten one head's successful run.
-   3. Per-file timing records (instrumentation only: keep the current retry behavior).
-   4. Time-based shards: start with a deterministic static assignment per suite, each exact list run through the installed runner, the aggregate checked against the collected inventory ([a fixed split](../excerpts/phase-3.md#start-simple-a-fixed-split)). Keep families that share fixture state together, include install and collection time in the model, and cap matrix concurrency by the organization's limits. Work stealing is a later, separately measured step.
-   5. Split the longest files. Split a dominating, indivisible file before tuning a layout.
+   1. Drafts run nothing (`ci-workflows`). Evaluate it on its own: it changes the trigger policy and saves only work drafts actually run.
+   2. Concurrency and cancel rules (`ci-workflows`). These save spend more than they shorten one head's successful run.
+   3. Per-file timing records (`speed-up-tests`; instrumentation only: keep the current retry behavior).
+   4. Time-based shards (`ci-runners` for shards against runner size, `ci-workflows` for the matrix): start with a deterministic static assignment per suite, each exact list run through the installed runner, the aggregate checked against the collected inventory ([a fixed split](../excerpts/phase-3.md#start-simple-a-fixed-split)). Keep families that share fixture state together, include install and collection time in the model, and cap matrix concurrency by the organization's limits. Work stealing is a later, separately measured step.
+   5. Split the longest files (`speed-up-tests`). Split a dominating, indivisible file before tuning a layout.
    6. Selection by what a diff reaches, keeping coverage as Phase 1 says. Where a graph's width is what keeps it wide, the graph changes [`optimize-graphs`](../../../optimize-graphs/SKILL.md#3-propose-in-this-order) proposes, in its order: each a change to the user's code, as its own step with its own yes.
-   7. Caches keyed by real inputs, including a **remote task cache**:
+   7. Caches keyed by real inputs (`cache-ci`), including a **remote task cache**:
       - **Audit the current cache first.** Then choose: local only, the existing remote service, or an explicitly approved self-hosted implementation of the task runner's protocol, by measured need. For Turborepo, Nx, Bazel or Gradle, skip this repo's Vite+ Worker, its wrapper, token scripts and OIDC example. If the user approves self-hosting, Cloudflare (Worker, R2, D1) is what we recommend ([`cache/remote/`](../../../../cache/remote/README.md) for Vite+).
       - **Record:** the runner's installed version, the endpoint and team configuration, who owns the credentials, the CI writer, reader and fork policy, retention, and rollback.
       - **The trust decision:** who may write, which release or deploy paths consume results, and the policy ([guide section 6, "Trust"](../excerpts/phase-1.md#trust)).
@@ -39,10 +40,12 @@
       - **Invalidation probes,** run with remote writes off: a file added, deleted, and made present where it was missing, as well as modified.
       - **Cold, warm and fresh-worktree measurements,** reported separately.
       - If a standard task runner would also change selection, a replay showing it keeps the coverage the current selector gives. Keep the existing build and test commands while you validate outputs.
-   8. Tiers: heavy and deep tests to a scheduled sweep that gates release. Leave required coverage on PRs until **every** shipping path checks a successful full eligible inventory at the exact release commit, or at a proven-equivalent input identity. Define freshness, and what happens on a missed, failed or stale sweep and on a manual promotion. For Python, the release check covers wheel and sdist build metadata, resolved build inputs, and a clean-environment install and smoke test. Bind a direct deploy to a checked commit or artifact digest.
-   9. Budgets and a health report, report-only first (Phase 5).
-   10. Auto-filed flake issues.
-   11. The standing slow-test campaign.
+   8. Tiers (`ci-workflows`): heavy and deep tests to a scheduled sweep that gates release. Leave required coverage on PRs until **every** shipping path checks a successful full eligible inventory at the exact release commit, or at a proven-equivalent input identity. Define freshness, and what happens on a missed, failed or stale sweep and on a manual promotion. For Python, the release check covers wheel and sdist build metadata, resolved build inputs, and a clean-environment install and smoke test. Bind a direct deploy to a checked commit or artifact digest.
+   9. Budgets and a health report, report-only first (Phase 5; the spend cap is `ci-runners`').
+   10. Auto-filed flake issues (`fix-flaky-test`).
+   11. The standing slow-test campaign (`speed-up-tests`).
+
+   The runner platform is `ci-runners`' (and `blacksmith`'s, if chosen); a test whose value is in doubt goes to `test-audit` before it's cut or merged; a model check or property test, to `proof-tiers`.
 
    Treat our thresholds (5/3/2 minutes, p95 + 15%, 90 s files) as examples to tune, not targets to copy. Prefer existing job dependencies and artifacts. Start setup early with a polling wait only when an approved model shows it wins after idle runner cost and queueing.
 4. **Slow-test inventory,** only once timings identify an expensive cohort and the user agrees to the reading work (and any model spend it needs). Until then, say which files you'd read and why. When you do it: every test file over the agreed cutoff (ours was 10 s), with a verdict and a `file:line` reading (see below).
@@ -69,6 +72,7 @@ The plan lists, for each kind of action, whether the user authorizes it, and its
 | Settings, secrets and permissions | Each one, by name |
 | Schedules and standing automations | Each one, its kind and cadence |
 | Accounts and external services | Each one, and who signs in |
+| Skills | Each skill Phase 4 may load, from the Skill column, and which the repo adopts; a missing one is the user's to install (Phase 0) |
 | Progress file | Where `progress.md` lives from now on, such as `.agents/ci-doctor/progress.md`, and whether it's committed |
 
 Some changes need their own explicit yes even inside an approved plan: a tier or coverage reduction, extra spend, and recurring or destructive automation. A campaign may implement approved items; it proposes any new coverage or tier change.

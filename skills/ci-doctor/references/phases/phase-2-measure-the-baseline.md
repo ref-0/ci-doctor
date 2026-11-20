@@ -27,6 +27,16 @@ From the CI provider's API and logs, with no new runs.
 
 **How to collect it.** Follow the guide's [read-only collection recipe](../excerpts/phase-2.md#collecting-from-the-api-without-losing-runs) and [`ci-history-data.md`](../../../speed-up-tests/references/ci-history-data.md): page everything, split date windows below the API's caps, keep every attempt, cover every workflow in the current gate, include non-PR events for spend, and count what you couldn't read. The `ci-time.ts` script in the [`ci-workflows`](../../../ci-workflows/SKILL.md#measuring-a-run) skill is a spot-check of recent runs, not this baseline.
 
+**Hand each measurement to its skill,** read-only, and take back the number with its count, spread, window and label:
+
+| Measuring | Skill |
+| --- | --- |
+| Before any number counts: the decision it serves and the noise floor from comparable runs | [`prove-it`](../../../prove-it/SKILL.md#1-before-you-measure) |
+| Queue to start, and spend and the bill | [`ci-runners`](../../../ci-runners/SKILL.md#what-to-read)' queues and billing; on Blacksmith, [`blacksmith`](../../../blacksmith/SKILL.md)'s billing adapter |
+| Per-file test time from CI's records | [`speed-up-tests`](../../../speed-up-tests/SKILL.md#1-find-them-from-cis-records) |
+| Setup and cache restores | [`cache-ci`](../../../cache-ci/SKILL.md#1-measure-where-setup-goes) |
+| Flake history: retries, reruns and infrastructure kept apart | [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md#retries-reruns-and-infrastructure) |
+
 This is a bounded, one-time read of metadata and log samples. It isn't a backfill or a standing collector: those need the user's yes (guide section 13). Keep an API-call reserve for other users of the quota.
 
 **A pasted `<ci-report>`,** from `npx @ref0/ci-doctor` or ci-doctor.ref0.dev, is dated data from a sample of recent runs, not the baseline. Check each of its headline numbers against the runs you collect, one by one: the PR wait p50, p75 and p90, the queue p90, red heads, green only on rerun, and the critical path. Where they agree, take them and spend the collection on what it left out; where they don't, say so and use yours. Its guide links name pages in this repo's `docs/pages/`.
