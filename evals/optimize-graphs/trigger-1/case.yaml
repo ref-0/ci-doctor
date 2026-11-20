@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: optimize-graphs-trigger-1
+description: Should load optimize-graphs.
+tags: [optimize-graphs, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Changing one line in the utils package reruns every test in the monorepo. Why, and how do we stop it?"
+graders:
+  - name: loaded-optimize-graphs
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?optimize-graphs"'

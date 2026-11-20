@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: test-audit-trigger-2
+description: Should load test-audit.
+tags: [test-audit, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Go through the auth tests and find duplicates, or ones that only re-check the implementation."
+graders:
+  - name: loaded-test-audit
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?test-audit"'

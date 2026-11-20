@@ -1,6 +1,6 @@
 ---
 name: review-gate
-description: "The review gate in CI, for a repo that adopted it (.agents/repo/review.md): a draft reviewed before its one CI run, what the gate requires, the tests reviewer, and the record CI's result job checks with review-record.ts. Otherwise follow the repo's own review. Merging: ci-merge-workflow; a test's value: test-audit."
+description: "Runs the review gate in CI, for a repo that adopted it: a draft PR reviewed before its one CI run, and the review record CI checks. Use when reviewing a PR before marking it ready, or when CI fails on a missing review record. Not for merging (ci-merge-workflow); a test's value (test-audit)."
 ---
 
 <!--

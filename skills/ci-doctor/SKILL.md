@@ -1,6 +1,6 @@
 ---
 name: ci-doctor
-description: "CI speed and cost on any provider: reading why a PR's check failed and triaging it (the PR, a flake or the runner), slow CI runs or queues, workflows and jobs, runners and the bill, and the ci-doctor plan. Fixing a flaky test: fix-flaky-test; a slow one: speed-up-tests; a before/after claim: prove-it."
+description: "Plans CI work and routes it: a whole plan to make CI faster or cheaper, or why a PR's check failed and what to do next. Use when asked to speed up CI, cut its cost or review it, or when a check is red. Not for a flaky test (fix-flaky-test); a slow test (speed-up-tests); a before and after claim (prove-it)."
 metadata:
   version: "0.1.0"
 ---

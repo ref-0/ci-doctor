@@ -1,6 +1,6 @@
 ---
 name: test-audit
-description: "Judge a test's value: the gate for a new or changed test's design, audits of weak or duplicate coverage, and test-only production seams. Use when deciding whether a test should exist or what it proves. Slow or flaky tests: ci-doctor; models and property tests: proof-tiers; a PR's tests reviewer: review-gate."
+description: "Judges whether a test is worth having: gates new or changed tests and audits weak, duplicate or implementation-coupled ones. Use when writing or reviewing tests, pruning a suite, or asking what a test proves. Not for slow tests (speed-up-tests); flaky tests (fix-flaky-test); property tests (proof-tiers)."
 ---
 
 <!--

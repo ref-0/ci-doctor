@@ -1,6 +1,6 @@
 ---
 name: agent-knowledge
-description: "Write or fix our AGENTS.md or CLAUDE.md, skills or agent docs gone stale or contradicting each other, or where agents' knowledge should live: what goes where, dated lessons, a tried register, generalize don't append, drift sweeps, budgets, facts templates. Not a skill's technical content: that is the skill's own."
+description: "Decides where agents' instructions live and keeps them short and true: AGENTS.md, CLAUDE.md, skills and facts files. Use when writing or fixing AGENTS.md or CLAUDE.md, when agent docs are stale, bloated or contradict each other, or a lesson needs a home. Not for the CI plan itself (ci-doctor)."
 metadata:
   version: "0.1.0"
 ---

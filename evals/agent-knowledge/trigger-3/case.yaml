@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: agent-knowledge-trigger-3
+description: Should load agent-knowledge.
+tags: [agent-knowledge, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Where should I write down what we learned from the cache bug so agents remember it next time?"
+graders:
+  - name: loaded-agent-knowledge
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?agent-knowledge"'
