@@ -181,6 +181,19 @@ describe('resolution', () => {
     deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts']);
   });
 
+  it('resolves `paths` against an inherited `baseUrl`, else the config declaring them', () => {
+    const g = graphOf({
+      ...lib({ '.': './src/x.ts' }),
+      'tsconfig.base.json': '{ "compilerOptions": { "baseUrl": "." } }',
+      'packages/app/tsconfig.json': '{ "extends": "../../tsconfig.base.json", "compilerOptions": { "paths": { "@/*": ["packages/lib/src/*"] } } }',
+      'packages/lib/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./src/*"] } } }',
+      'packages/lib/src/x.ts': "import '~/y';\n",
+      'packages/lib/src/y.ts': 'export const y = 1;\n',
+      'packages/app/a.ts': "import '@/x';\n",
+    });
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts', 'packages/lib/src/x.ts static packages/lib/src/y.ts']);
+  });
+
   it('counts a `#` specifier with no `imports` match as unresolved, not a package', () => {
     const g = graphOf({ ...lib({ '.': './src/x.ts' }), 'packages/lib/src/x.ts': "import '#missing';\n" });
     strictEqual(g.specifiers.external, 0);
