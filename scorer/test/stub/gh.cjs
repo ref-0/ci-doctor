@@ -11,7 +11,9 @@
 const { appendFileSync, readFileSync } = require('node:fs');
 
 const args = process.argv.slice(2);
-if (process.env.GH_STUB_LOG) appendFileSync(process.env.GH_STUB_LOG, `${JSON.stringify(args)}\n`);
+// A GraphQL query comes as the request body on stdin, never in the arguments; the log keeps it after them.
+const stdin = args.includes('--input') ? readFileSync(0, 'utf8') : undefined;
+if (process.env.GH_STUB_LOG) appendFileSync(process.env.GH_STUB_LOG, `${JSON.stringify(stdin === undefined ? args : [...args, `stdin:${stdin}`])}\n`);
 
 if (process.env.GH_STUB_MODE === 'signed-out' || (process.env.GH_STUB_TOKEN && process.env.GH_TOKEN !== process.env.GH_STUB_TOKEN)) {
   process.stderr.write('To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n');
@@ -39,8 +41,7 @@ for (let i = 1; i < args.length; i++) {
   else if (args[i].startsWith('-')) continue;
   else path = args[i];
 }
-// A GraphQL query comes as the request body on stdin, never in the arguments.
-const body = input === '-' ? JSON.parse(readFileSync(0, 'utf8')) : undefined;
+const body = input === '-' ? JSON.parse(stdin) : undefined;
 
 // The key keeps only what tells answers apart: the path and its event, branch, page and ref.
 const keyOf = (full) => {
@@ -62,8 +63,9 @@ const answerGraphql = (answer) => {
 };
 if (path === 'graphql' && routes.graphql) answerGraphql(routes.graphql.json);
 
-// A GraphQL query of aliased blobs, `f0: object(expression: "main:path")`, is answered from the same files' raw
-// answers, null where there's none, unless the fixtures hold a `graphql` answer of their own.
+// A GraphQL query of aliased blobs by id, `f0: object(oid: "…")`, is answered from the raw answer of the file the
+// fixtures' tree lists with that id, at that tree's ref, null where there's none, unless the fixtures hold a `graphql`
+// answer of their own.
 if (path === 'graphql') {
   if (!body) {
     process.stderr.write('stub gh: a GraphQL query must come on stdin with --input -\n');
@@ -72,8 +74,14 @@ if (path === 'graphql') {
   const query = body.query;
   const [, owner, name] = query.match(/repository\(owner: "([^"]+)", name: "([^"]+)"\)/) ?? [];
   const repository = {};
-  for (const [, alias, ref, file] of query.matchAll(/(\w+): object\(expression: "([^":]+):([^"]+)"\)/g)) {
-    const raw = routes[`repos/${owner}/${name}/contents/${file}?ref=${ref}`]?.raw;
+  const files = new Map();
+  for (const [key, answer] of Object.entries(routes)) {
+    const ref = key.match(new RegExp(`^repos/${owner}/${name}/git/trees/([^?]+)$`))?.[1];
+    for (const t of (ref && answer.json?.tree) || []) if (t.sha) files.set(t.sha, { ref, path: t.path });
+  }
+  for (const [, alias, oid] of query.matchAll(/(\w+): object\(oid: "([^"]+)"\)/g)) {
+    const file = files.get(oid);
+    const raw = file && routes[`repos/${owner}/${name}/contents/${file.path}?ref=${file.ref}`]?.raw;
     repository[alias] = raw === undefined ? null : { isTruncated: false, text: raw };
   }
   answerGraphql({ data: { repository } });
