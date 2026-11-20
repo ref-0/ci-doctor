@@ -263,45 +263,107 @@ const decodeManifest = (text: string): Manifest => {
 const git = (...args: ReadonlyArray<string>) =>
   execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
-/** A file's text at a commit, or undefined when the commit has no such file. */
-const fileAt = (commit: string, path: string) => {
-  const shown = spawnSync('git', ['show', `${commit}:${path}`], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 256 * 1024 * 1024,
-  });
+// Each tree a run lists, by the commit it was asked for, and each file it reads, by object ID. A
+// Git process for each question added up: the same tree was listed once for each folder asked
+// about, and each manifest read with a `git show` of its own. So one listing serves every path a
+// commit has, and one batch every file not read before.
+const trees = new Map<string, ReadonlyMap<string, string | undefined>>();
 
-  return shown.status === 0 ? shown.stdout : undefined;
-};
+const blobs = new Map<string, string>();
 
-/** Each path's contents at `head`, read in one batch. */
-const contents = (head: string, paths: ReadonlyArray<string>) => {
-  const found = new Map<string, string>();
-  if (paths.length === 0) return found;
+/**
+ * Each path a commit has, in Git's order, with its file's object ID, or undefined for a submodule.
+ * Listed once a run, in one `ls-tree`.
+ */
+const treeAt = (commit: string) => {
+  const known = trees.get(commit);
+  if (known !== undefined) return known;
 
-  const output = execFileSync('git', ['cat-file', '--batch'], {
-    cwd: root,
-    input: paths.map((path) => `${head}:${path}\n`).join(''),
-    maxBuffer: 256 * 1024 * 1024,
-  });
-  let at = 0;
+  const tree = new Map<string, string | undefined>();
 
-  for (const path of paths) {
-    const end = output.indexOf(0x0a, at);
-    const header = output.subarray(at, end).toString('utf8');
-    const size = header.endsWith(' missing') ? -1 : Number(header.slice(header.lastIndexOf(' ') + 1));
+  for (const entry of git('ls-tree', '-r', '-z', commit).split('\0')) {
+    if (entry === '') continue;
 
-    if (size < 0) {
-      at = end + 1;
-      continue;
-    }
+    // `<mode> <type> <id>\t<path>`, where only the path may hold a tab.
+    const tab = entry.indexOf('\t');
+    const [, type, id] = entry.slice(0, tab).split(' ');
 
-    found.set(path, output.subarray(end + 1, end + 1 + size).toString('utf8'));
-    at = end + 1 + size + 1;
+    tree.set(entry.slice(tab + 1), type === 'blob' ? id : undefined);
   }
 
-  return found;
+  trees.set(commit, tree);
+
+  return tree;
 };
+
+/** The paths a commit has under any of `folders`, in Git's order. An empty folder is the whole tree. */
+const pathsUnder = (commit: string, ...folders: ReadonlyArray<string>) => {
+  const prefixes = folders.map((folder) => (folder === '' || folder.endsWith('/') ? folder : `${folder}/`));
+
+  return [...treeAt(commit).keys()].filter((path) => prefixes.some((prefix) => path.startsWith(prefix)));
+};
+
+/**
+ * Each file's text, a commit and a path each, or undefined when the commit has no such file. Those
+ * not read before are read in one `cat-file --batch`.
+ */
+const readFiles = (files: ReadonlyArray<readonly [commit: string, path: string]>) => {
+  const ids = files.map(([commit, path]) => treeAt(commit).get(path));
+  const unread = [...new Set(ids)].filter((id): id is string => id !== undefined && !blobs.has(id));
+
+  if (unread.length > 0) {
+    const output = execFileSync('git', ['cat-file', '--batch'], {
+      cwd: root,
+      input: unread.map((id) => `${id}\n`).join(''),
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    let at = 0;
+
+    // Each is `<id> blob <size>\n<contents>\n`, in the order asked.
+    for (const id of unread) {
+      const end = output.indexOf(0x0a, at);
+      const header = output.subarray(at, end).toString('utf8');
+      const size = Number(header.slice(header.lastIndexOf(' ') + 1));
+
+      blobs.set(id, output.subarray(end + 1, end + 1 + size).toString('utf8'));
+      at = end + 1 + size + 1;
+    }
+  }
+
+  return ids.map((id) => (id === undefined ? undefined : blobs.get(id) ?? ''));
+};
+
+/** A file's text at a commit, or undefined when the commit has no such file. */
+const fileAt = (commit: string, path: string) => readFiles([[commit, path]])[0];
+
+/** Each path's contents at `head`, of those it has as files. */
+const contents = (head: string, paths: ReadonlyArray<string>) => {
+  const texts = readFiles(paths.map((path) => [head, path] as const));
+
+  return new Map(
+    paths.flatMap((path, index) => {
+      const text = texts[index];
+
+      return text === undefined ? [] : [[path, text] as const];
+    }),
+  );
+};
+
+/**
+ * Reads, in one batch, each file of `commit` a run may ask about: its modules, manifests, the
+ * workspace file and CI's files, so later questions start no Git process.
+ */
+const readSources = (commit: string) =>
+  readFiles(
+    [...treeAt(commit).keys()].flatMap((path) =>
+      moduleFile.test(path) ||
+      posix.basename(path) === 'package.json' ||
+      path === 'pnpm-workspace.yaml' ||
+      path.startsWith('.github/')
+        ? [[commit, path] as const]
+        : [],
+    ),
+  );
 
 // ---- Paths --------------------------------------------------------------------------------------
 
@@ -419,14 +481,13 @@ const workspaceGlobs = (head: string) => {
 const manifests = (head: string) => {
   const packages = new Map<string, Package>();
   const { included, excluded } = workspaceGlobs(head);
-  const listed = git('ls-tree', '-r', '--name-only', '-z', head, '--', ...config.packageRoots);
+  const paths = pathsUnder(head, ...config.packageRoots).filter(
+    (path) => included.some((glob) => glob.test(path)) && !excluded.some((glob) => glob.test(path)),
+  );
+  const texts = contents(head, paths);
 
-  for (const path of listed.split('\0')) {
-    if (!included.some((glob) => glob.test(path)) || excluded.some((glob) => glob.test(path))) {
-      continue;
-    }
-
-    const manifest = decodeManifest(git('show', `${head}:${path}`));
+  for (const path of paths) {
+    const manifest = decodeManifest(texts.get(path) ?? '');
     if (packages.has(manifest.name)) throw new Error('duplicate workspace package name');
 
     packages.set(manifest.name, { directory: path.slice(0, path.lastIndexOf('/') + 1), manifest });
@@ -536,9 +597,7 @@ const importersOf = (directory: string, head: string) =>
   importersAmong(
     contents(
       head,
-      git('ls-tree', '-r', '--name-only', '-z', head, '--', directory)
-        .split('\0')
-        .filter((path) => moduleFile.test(path)),
+      pathsUnder(head, directory).filter((path) => moduleFile.test(path)),
     ),
   );
 
@@ -773,8 +832,10 @@ const installChanges = (
   head: string,
   packages: ReadonlyMap<string, Package>,
 ) => {
-  const before = fileAt(base, path);
-  const after = fileAt(head, path);
+  const [before, after] = readFiles([
+    [base, path],
+    [head, path],
+  ]);
   if (before === undefined || after === undefined) return null;
 
   if (path === 'pnpm-workspace.yaml') {
@@ -1668,8 +1729,7 @@ const changedActions = (parse: Parse, paths: ReadonlyArray<string>, base: string
 
   // An action another one uses changes that one too.
   const uses = [base, head].flatMap((commit) =>
-    git('ls-tree', '-r', '--name-only', '-z', commit, '--', '.github/actions/')
-      .split('\0')
+    pathsUnder(commit, '.github/actions/')
       .filter((path) => /^\.github\/actions\/[^/]+\/action\.ya?ml$/.test(path))
       .map((path) => {
         const steps = parsedAt<Action>(parse, commit, path)?.value.runs?.steps ?? [];
@@ -1755,6 +1815,8 @@ const ciJobs = async (paths: ReadonlyArray<string>, base: string, head: string) 
   }
 
   try {
+    // CI's files on both sides, read in one batch for the questions below.
+    readFiles([base, head].flatMap((commit) => pathsUnder(commit, '.github/').map((path) => [commit, path] as const)));
     const before = workflowAt(parse, base, config.ciWorkflow);
     const after = workflowAt(parse, head, config.ciWorkflow);
     if (!isDeepStrictEqual(before.top, after.top)) return null;
@@ -1847,8 +1909,9 @@ const select = async (base: string, head: string, near: boolean) => {
     .split('\0')
     .filter((path) => path !== '');
   const from = git('merge-base', base, commit).trim();
+  readSources(commit);
   const packages = manifests(commit);
-  const tracked = new Set(git('ls-tree', '-r', '--name-only', '-z', commit).split('\0'));
+  const tracked = new Set(treeAt(commit).keys());
 
   // With --near, a change to CI's own files runs the jobs it changes and selects nothing else.
   const ci = near && touches(edited, ciFiles) ? await ciJobs(edited, from, commit) : undefined;
