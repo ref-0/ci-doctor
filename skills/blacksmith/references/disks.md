@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Labels, disks and caches
 
-Part of the [`blacksmith`](../SKILL.md) skill. The provider-neutral rules these follow, a warm install keyed by the manifests, who may write a cache and probing a toolchain, are in [`ci-workflows`' caches](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/references/caches.md). The template actions are [`dependencies` and `rust-toolchain`](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#composite-actions), each with an `actions/cache` fallback for other runners.
+Part of the [`blacksmith`](../SKILL.md) skill. The provider-neutral rules these follow, a warm install keyed by the manifests, who may write a cache and probing a toolchain, are in [`cache-ci`'s caches](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/references/caches.md). The template actions are [`dependencies` and `rust-toolchain`](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#composite-actions), each with an `actions/cache` fallback for other runners.
 
 ## Runner labels
 

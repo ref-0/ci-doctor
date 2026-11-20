@@ -10,20 +10,20 @@
  *
  * Where CI's time goes: a spot check of recent runs, timed from GitHub's jobs API.
  *
- *   ci-time.ts                 the last 100 runs of the workflow that didn't skip: minutes by job and
+ *   node ci-time.ts            the last 100 runs of the workflow that didn't skip: minutes by job and
  *                              by event, each run's checks span and time to the gate, the job that
  *                              ended last, then the newest large run's shards (large by shard count, a
  *                              heuristic): their slowest files
- *   ci-time.ts --runs 40       the last 40 instead
- *   ci-time.ts --shards <run-id>
+ *   node ci-time.ts --runs 40  the last 40 instead
+ *   node ci-time.ts --shards <run-id>
  *                              only the shards of run <run-id>
- *   ci-time.ts --repo <owner/name>
+ *   node ci-time.ts --repo <owner/name>
  *                              another repo than the one `gh repo view` finds from this folder
- *   ci-time.ts --workflow checks.yml --shard Test --shard E2E
+ *   node ci-time.ts --workflow checks.yml --shard Test --shard E2E
  *                              a repo whose workflow file or sharded jobs aren't named as the settings say,
  *                              as its .agents/repo/ci.md names them: a job whose name starts with a
  *                              --shard prefix is a shard
- *   ci-time.ts --bill blacksmith
+ *   node ci-time.ts --bill blacksmith
  *                              take each job's billed vCPU-minutes from Blacksmith's bill, and each
  *                              shard's CPU from its stats, through Blacksmith's adapter
  *
@@ -384,11 +384,16 @@ export function newestLargeRun(worked: readonly WorkflowRun[], jobs: ReadonlyMap
  */
 export const ADAPTER_DIRS = (name: string): string[] => [join(name, 'scripts')];
 
-/** A billing adapter by name, from --adapter-dir or the first of ADAPTER_DIRS that has it. */
+/** The skills folder this script is installed in: `<skills-dir>`, two folders above it. */
+const SKILLS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/** Where a provider's `<provider>-bill.ts` is: in `folder` when one is given, else the first of ADAPTER_DIRS under `skills` that has it. */
+export const adapterFile = (name: string, skills: string, folder?: string): string | undefined =>
+  (folder ? [resolve(folder)] : ADAPTER_DIRS(name).map((d) => join(skills, d))).map((d) => join(d, `${name}-bill.ts`)).find((f) => existsSync(f));
+
+/** A billing adapter by name, from --adapter-dir or the installed skills, as adapterFile finds it. */
 export async function loadAdapter(name: string, folder?: string): Promise<Adapter> {
-  const skills = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const dirs = folder ? [resolve(folder)] : ADAPTER_DIRS(name).map((d) => join(skills, d));
-  const file = dirs.map((d) => join(d, `${name}-bill.ts`)).find((f) => existsSync(f));
+  const file = adapterFile(name, SKILLS_DIR, folder);
   if (file === undefined) {
     stderr.write(`--bill ${name}: no ${name}-bill.ts found beside the ci-workflows skill; pass --adapter-dir\n`);
     exit(1);
@@ -396,8 +401,8 @@ export async function loadAdapter(name: string, folder?: string): Promise<Adapte
   return (await import(pathToFileURL(file).href)) as Adapter;
 }
 
-const USAGE = 'usage: ci-time.ts [--runs <n>] [--shards <run-id>] [--repo <owner/name>] [--workflow <file>]\n'
-  + '                  [--shard <prefix>]... [--bill blacksmith] [--adapter-dir <dir>]';
+const USAGE = 'usage: node ci-time.ts [--runs <n>] [--shards <run-id>] [--repo <owner/name>] [--workflow <file>]\n'
+  + '                       [--shard <prefix>]... [--bill blacksmith] [--adapter-dir <dir>]';
 const HELP = `Where CI's time goes: a spot check of recent runs, timed from GitHub's jobs API.
 
 ${USAGE}
