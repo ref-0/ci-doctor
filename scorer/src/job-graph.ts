@@ -1,6 +1,7 @@
 // The job graph: which jobs wait on which, from the workflow files, joined with a run's job times. It names the chain
 // of jobs that sets a PR's wait, each job's blocked, queue and work time, and the job most others wait on. Guide
-// sections 1 and 7 ask for this critical path; section 3 for waiting on a step instead of a whole job.
+// sections 1 and 7 ask for this critical path, section 3 for waiting on a step instead of a whole job, and section 21
+// treats it as one of the graphs to measure.
 // It reads no more of GitHub than the scorer already has: the workflow files `practices` read and the jobs of the
 // sampled runs, both remembered by Gh.
 
@@ -675,6 +676,7 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
 export type JobGraph = NonNullable<ReturnType<typeof jobGraphOf>>;
 
 const m = (x: number | null | undefined) => (x === null || x === undefined ? '–' : x.toFixed(1));
+const runs = (n: number) => `${n} run${n === 1 ? '' : 's'}`;
 const pc = (x: number | null) => (x === null ? '–' : `${Math.round(x * 100)}%`);
 
 /** The chain that sets the wait, as one line: each job with its minutes and share. */
@@ -699,13 +701,13 @@ export const graphBlock = (g: JobGraph) => {
     `  Ends the gate       ${g.gateEnd.map((e) => `"${e.name}" ×${e.runs}`).join(', ')}`,
     `  Critical path p50   ${g.pathJobsP50} job${g.pathJobsP50 === 1 ? '' : 's'}, ${m(g.pathMinP50)} min: work ${m(g.workMinP50)}, queue ${m(g.queueMinP50)}; the last job blocked ${m(g.blockedMinP50)}`,
     `  Top blocker         ${blockerText(g)}`,
-    ...g.topBlockers.slice(1).map((b) => `                      then "${b.name}", ${b.heldJobs} jobs for ${m(b.tookMin)} min (${b.runs} runs)`),
+    ...g.topBlockers.slice(1).map((b) => `                      then "${b.name}", ${b.heldJobs} jobs for ${m(b.tookMin)} min (${runs(b.runs)})`),
     `  Setup in the path   ${m(g.setupInPathMinP50)} min p50 in jobs that first waited on others, which overlapping with upstream work could hide`,
-    ...g.stepWaits.slice(0, 2).map((w) => `  One step, a guess   "${w.job}" waits on all of "${w.waitsOn}", whose "${w.step}" ended ${m(w.earlyMin)} min before it did (${w.runs} runs)`),
+    ...g.stepWaits.slice(0, 2).map((w) => `  One step, a guess   "${w.job}" waits on all of "${w.waitsOn}", whose "${w.step}" ended ${m(w.earlyMin)} min before it did (${runs(w.runs)})`),
     g.hidden.runs
       ? `  Waits not in YAML   ${g.hidden.runs} of ${g.runsSampled} runs had a job GitHub queued over ${LATE_MIN} minutes after its needs finished (${g.hidden.jobs.map((j) => `"${j.name}"`).join(', ')}, p50 ${m(g.hidden.lateMinP50)} min): it waited on something the YAML doesn't name, such as a concurrency group or an environment`
       : `  Waits not in YAML   none seen: GitHub queued every job as soon as its needs finished`,
-    ...(g.hidden.waitSteps.length ? [`  Waiting steps       ${g.hidden.waitSteps.map((w) => `${w.step} (${w.runs} runs)`).join(', ')}`] : []),
+    ...(g.hidden.waitSteps.length ? [`  Waiting steps       ${g.hidden.waitSteps.map((w) => `${w.step} (${runs(w.runs)})`).join(', ')}`] : []),
     ...(g.unmatched.length ? [`  Not in the YAML     ${g.unmatched.map((n) => `"${n}"`).join(', ')}: taken as waiting on nothing`] : []),
     ...g.unknown.map((u) => `  Unknown because: ${u}.`),
     `  Other workflows, \`workflow_run\` triggers and polling actions can hold a job up without \`needs\`; the YAML of one workflow doesn't show them.`,
@@ -728,7 +730,7 @@ export const graphFixes = (g: JobGraph | undefined) => {
   if (b && b.runs * 2 >= g.runsSampled && b.heldJobs * 2 >= b.jobs && (b.tookMin ?? 0) >= 3)
     fixes.push({
       text: `A blocker most jobs wait on: "${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs for ${m(b.tookMin)} min; shorten it, or let them start setup and wait only for what they need`,
-      page: '03-workflow-anatomy.md',
+      page: '21-optimize-all-of-your-graphs.md#ci-jobs',
       weight: 6,
     });
   return fixes;

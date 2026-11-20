@@ -27,7 +27,7 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 
 Every call names `github.com`, whatever `GH_HOST` says, and turns `gh`'s own telemetry off (`GH_TELEMETRY=false`). Any `gh` version with `gh api` works.
 
-This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 78 calls. Each workflow file is one more call, up to 40.
+This uses some of your account's hourly API limit: scoring `vitejs/vite` on 19 Nov 2026 took 78 calls. Each workflow file is one more call, up to 40. The job graph, which job waits on which and what sets the wait, comes from those workflow files and the sampled runs' jobs, so it adds none, except one call for each local reusable workflow a sampled workflow calls that isn't among the 40 files read.
 
 **Unknown isn't absent.** When it couldn't check a practice, such as when GitHub cuts a big repo's file tree short or the repo has more than 40 workflow files, that practice shows as `unknown`, with the reason, and no fix is suggested for it. Statistics GitHub is still computing, such as the weekly commit counts, leave the pace unknown for that run. A read that fails for any other reason, such as a 5xx after one retry, a lost connection, a rate limit or a missing permission, stops the run with exit code 1, rather than scoring on partial data.
 
