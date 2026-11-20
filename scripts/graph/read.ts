@@ -446,7 +446,8 @@ interface PathsConfig { readonly base: string; readonly paths: ReadonlyArray<rea
 const tsconfigs = (files: ReadonlyMap<string, string>, git: Git, packages: ReadonlyArray<Package>) => {
   const configs = [...files.keys()].filter((p) => /(^|\/)tsconfig\.json$/.test(p) && !p.includes('node_modules/'));
   const parent = (dir: string) => (posix.dirname(dir) === '.' ? '' : posix.dirname(dir));
-  const read = (path: string, seen: Set<string>): { paths?: Record<string, unknown>; pathsBase?: string; baseUrl?: string } => {
+  // TypeScript resolves `paths` against the effective `baseUrl`, inherited or not, else against the config declaring them.
+  const read = (path: string, seen: Set<string>): { paths?: Record<string, unknown>; pathsDir?: string; baseUrl?: string } => {
     const id = files.get(path);
     if (seen.has(path) || id === undefined) return {};
 
@@ -470,7 +471,7 @@ const tsconfigs = (files: ReadonlyMap<string, string>, git: Git, packages: Reado
     return {
       ...inherited,
       ...(baseUrl !== undefined ? { baseUrl } : {}),
-      ...(options.paths ? { paths: record(options.paths), pathsBase: baseUrl ?? dir } : {}),
+      ...(options.paths ? { paths: record(options.paths), pathsDir: dir } : {}),
     };
   };
 
@@ -478,7 +479,7 @@ const tsconfigs = (files: ReadonlyMap<string, string>, git: Git, packages: Reado
   for (const path of configs) {
     const found = read(path, new Set());
     byDir.set(parent(path), {
-      base: found.pathsBase ?? found.baseUrl ?? parent(path),
+      base: found.baseUrl ?? found.pathsDir ?? parent(path),
       paths: Object.entries(found.paths ?? {}).map(([k, v]) => [k, strings(v)] as const),
       ...(found.baseUrl !== undefined ? { baseUrl: found.baseUrl } : {}),
     });
