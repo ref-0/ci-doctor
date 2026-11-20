@@ -93,6 +93,42 @@ A skipped suite still runs its file's top-level code, since the runner collects 
 
 A test that runs a CLI against a seeded Git repo, as the selector's tests do: build the seed once per suite and copy it for each test, point the spawned processes at one shared Node compile cache, and run the CLI once per case, reading every field the assertions need from that one run. Keep each call a real process; running it in-process would mean exporting an entry from a production script only for the test.
 
+**Build the immutable part once, and the mutable part per test.** Sort each fixture input before caching it:
+
+- **Compile, then instantiate.** A compiled Wasm module is immutable; cache it a file, and give each test its own instance and memory.
+- **Bundle, then spawn.** Bundle a child process's entry once in the test, rather than having each child load it through a transform at start; each test still starts its own process.
+- **Seed, then copy.** A bare Git repo or a clone made once a file (or once a worker thread), copied into each test's checkout. The test still gets a real repo.
+- **Key material, not live state.** Certificate bytes, signing keys, migrations and bundle inputs once; each test keeps its own server, database and runtime.
+
+Before building it, time three things: a cold setup, the copy that replaces it, and setup's share of the file's time. We skipped files where setup was under a third of the time: the saving couldn't pay for the extra fixture. In paired local runs, back to back on one machine, caching the compiled module took one suite to about half its time and bundling the child's entry took another to about a third.
+
+## A fixture builder's own CPU
+
+A fixture that generates data, such as a tree of thousands of paths, can cost more than the test. Profile the builder apart from the test, and read it as an algorithm: one tree builder scanned every path once for each folder, quadratic in the folder count; handing each folder only its children's paths took a 3,050-file tree from about 1.2 s to 5 ms in a local benchmark. Before switching, run the old and new builders side by side on generated inputs, including names shared between files and folders and other edges, and compare every output.
+
+## Deep setup, one step at a time
+
+A test that needs a deep queue or a long history may build it through the same path a single request takes, one turn per entry. Build it the way production builds it in bulk instead: one grouped write, then one turn.
+
+- **Name the operation the test measures,** and keep the setup before it out of the measurement.
+- **Show the measured operation sees the same state.** Compare what it reads and asserts on before and after: identical row and statement counts at a small and a large size were our evidence.
+- **A readiness wait returns when ready,** keeps its old count as a ceiling, and fails if the state never gets ready.
+- **Move a proof that dominates the file to its own file,** unchanged, and check the selector still picks both files for the source they test ([a long file](#a-long-file)).
+
+In paired local runs, back to back at the same load, one file fell by about a quarter.
+
+## A proof that waits for a terminal to go still
+
+A black-box proof that drives an interactive tool often waits until the screen stops changing for a few seconds before it sends the next input. That wait is paid on every step, though the step usually finished well before it.
+
+- **Wait for completion evidence,** from more than one source: the command's own log line, the tool's completion marker below the last prompt, and no prompt still active (nothing says it can be interrupted).
+- **Check the predicate on saved screens** from real runs before shortening any wait.
+- **Keep the first input separate:** a starting screen has no end to wait for, so it still settles.
+- **Fall back to stillness, and say so,** after a bound with no end seen. A new release of the tool that words its end differently then slows the proof instead of failing it.
+- **Poll more often, keep every deadline.** Waits that checked every 0.5 s now check every 0.2 s, with the same ceilings.
+
+With the same sessions, checks and end state, the proof step shrank by about a third in CI; that figure includes starting the server alongside independent setup and the other waits made event-driven at the same time.
+
 ## Real work
 
 Many checks with full outputs, a large graph, a tree of tens of thousands of files: smaller would no longer prove the bound. Leave these, or move them to a later tier with the paths they cover ([guide section 5](../../../../../docs/pages/05-tiers-what-runs-where.md)), keeping them honest as [`proof-tiers`](../../../../proof-tiers/SKILL.md) says.

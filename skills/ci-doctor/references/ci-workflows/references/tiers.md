@@ -24,6 +24,16 @@ Read each from its source, as `.agents/repo/ci.md`'s Selection and tiers names t
 7. **State the cost and the delay** in the pull request: the test-seconds a run saves, the minutes a month, and how long a fault it would catch can now sit on main.
 8. **Keep a deep proof honest in its new tier.** A model or property test keeps its cheap PR run and its breaks, as [`proof-tiers`](../../../../proof-tiers/SKILL.md) says.
 
+## Replaying recorded sessions
+
+To test a path that depends on an outside tool that is slow, paid or nondeterministic, such as an agent harness calling a model, replay what it sent instead of running it. [guide section 5](../../../../../docs/pages/05-tiers-what-runs-where.md#replaying-recorded-sessions) has the why.
+
+1. **Choose the boundary** where your code first reads the tool's output: its hook payloads, the commands it runs. Record there, and replay through every layer of yours behind it: client, local service, CLI and server.
+2. **Sanitize by contract.** A schema says, per field, what a recording may keep; everything else becomes synthetic text, and names a person chose become stable placeholders within the recording. A fixture check that fails any recording keeping more runs locally and on each PR.
+3. **Replay deterministically,** with no live tool and no model, on the PRs whose paths reach it (step 4 above) and in the sweep.
+4. **Test the capture workflow** with a scripted model, so recording again doesn't wait on paid calls.
+5. **Keep a live compatibility proof** against the real tool on a slower tier, and record again when the tool changes.
+
 ## Adding a scheduled run
 
 - **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](../../ci-runners/references/billing.md) says.
