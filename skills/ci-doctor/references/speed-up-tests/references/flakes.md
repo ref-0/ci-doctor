@@ -39,6 +39,18 @@ For a confirmed flake, use the issue CI filed for it, or, where CI didn't file o
 - **A fixture that writes one state in several calls** lets a background job, such as an alarm, act between them on a half-written state. Write what the rest refers to first. A throttle in the code can make a faked state impossible too: wait it out, don't fake past it.
 - **Don't change product code for a test's fault.** Fix the fixture, the oracle or the teardown. If the cause is a production bug, fixing the production code is in scope.
 
+## Match the symptom
+
+Cases from the source repo, each forced on purpose before it was fixed. [guide section 11](../../../../../docs/pages/11-flakes.md#cause-symptom-fix) has each with what the forced runs showed.
+
+- **`ETXTBSY` starting a program a test just copied in** → another test forked a child while the copy was open for writing, and the child holds the descriptor until its exec → every start in the process takes the copy's lock; where the test process can't fence every start, copy with a child `cp`. Trace inherited descriptors (`ls -l /proc/<pid>/fd` in the parked child) and force the interleaving: ordinary runs rarely show it.
+- **A vanished `.git/objects/maintenance.lock`, or `ENOTEMPTY` removing a test repo** → Git's detached auto maintenance, started by a commit, fetch, merge or push, still writing → `-c maintenance.auto=false -c gc.auto=0` on the fixture's commands, or in the repo's config where a server-side Git reads that instead. Confirm with `GIT_TRACE` (the start) and `strace -f` (the child's writes) first.
+- **`listen EINVAL`, or a fixture that waits out the test's timeout, only with a long `TMPDIR`** → the socket path is past 107 bytes (Linux) or 103 (macOS), and the fixture ignored the server's `error` event → socket homes under a short root, a length check, and a setup that fails on `error`.
+- **A fixture server still running after an interrupted run** → it runs in its own session, out of the group kill's reach → it exits on EOF of a pipe only the test process holds. Prove it with a `SIGKILL` to the run's process group mid-file.
+- **`EPIPE` or `ECONNRESET` from a call that should be refused** → the test bridge carries the body and the answer on one exchange, and the server answered while the body was still being sent → the fake drains the body before answering; check production's transport first ([Workers](workers.md#a-refused-upload-through-the-local-proxy)).
+- **A non-gating reporting step does nothing, and the run is green** → an earlier sparse checkout in the workspace left the step an empty tree, and `continue-on-error` hid it → each sparse checkout in its own folder, a test that the step's files exist, and a warning from the step's `outcome` ([check a CI change](../../ci-workflows/references/change-checks.md#a-step-that-must-not-gate)).
+- **An install that fails with only "see log for details"** → the installer's own log stays on the runner → print it on failure only ([triage](../../triage/TOPIC.md#an-installer-that-says-only-see-the-log)).
+
 ## Prove the fix
 
 Prove the cause locally: the whole file repeated with no retries, noting how many passed in a row and the load average, and a mutation that reopens the race and fails the test. Then:
