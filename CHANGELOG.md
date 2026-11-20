@@ -8,6 +8,17 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
+## Unreleased
+
+### Templates
+
+- **The dependencies action commits main's disk after the install copy ran, not `on-change`.** `on-change` skips a change under 4 KB, which a new install can be, and then the disk stays a lockfile behind and every job installs again. The copy step now detaches a disk that already holds this install, as the warm path does. **Action:** if you copied `templates/github/actions/dependencies/action.yml`, take its `commit:` line and the copy step's detach.
+- **`affected-checks.ts` lists each tree once and reads each commit's files in one batch,** memoised by object ID. Its output doesn't change; across its tests a run starts 6.1 Git processes, from 12.6. **Action:** if you copied the planner, take the Git section and its callers, or copy it again and refill the config block.
+
+### Skills
+
+- **`ci-merge-workflow`'s releases:** an optional handoff of a checked release tarball to its publish job through the Actions cache, keyed and checked by its digest, for when artifact storage runs out.
+
 ## v0.2.0
 
 Released 19 November 2026. Nine new skills, the hub's topics moved into them, the phases hand each step to a skill, and every description is rewritten.
