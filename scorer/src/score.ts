@@ -5,8 +5,9 @@
 // read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
 import { CliError } from './errors.ts';
 import { ApiCache, Gh } from './gh.ts';
+import { graphsFixes, graphsOf } from './graphs.ts';
 import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts';
-import { githubSource, localSource, type Source, type Tree } from './source.ts';
+import { githubSource, localSource, remembered, type Source, type Tree } from './source.ts';
 import { ecosystemOf, stackOf } from './stack.ts';
 
 const DAY = 24 * 3600e3;
@@ -699,6 +700,7 @@ export const fixesOf = (o: any, pr: Practices) => {
   add(pr.cancelInProgress === false, 4, 'Cancel superseded PR runs: no concurrency with cancel-in-progress', '04-run-only-what-a-change-can-reach.md');
   add(slow && pr.scheduled === false, 3, 'Move broad checks to a scheduled sweep', '05-tiers-what-runs-where.md');
   fixes.push(...graphFixes(o.jobGraph));
+  fixes.push(...graphsFixes(o.graphs));
   add(pr.timeouts === false, 2, 'Set timeout-minutes on jobs', '03-workflow-anatomy.md');
   add(slow && pr.eslint === true && pr.fastLint === false, 2, 'Lint with Oxlint or Biome', '09-workspace-tooling.md');
   add(slow && pr.testRunner === 'jest', 2, 'Jest: consider Vitest', '09-workspace-tooling.md');
@@ -806,7 +808,8 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     tests = slowTests(gh, repo, uniq);
   }
 
-  const source = githubSource(gh, repo, meta.default_branch);
+  // Remembered, so the graphs reread the stack's manifests from memory.
+  const source = remembered(githubSource(gh, repo, meta.default_branch));
   const pr = practices(source);
   const profile = profileOf(gh, repo, meta, source.tree, prRuns.length, covered);
   // Workflow files and the languages answer are remembered from the reads before: no second call.
@@ -820,6 +823,10 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   });
   // The sampled runs' jobs and the workflow files are remembered from the reads above: no new calls.
   const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })));
+  // The entry files and task configs: GraphQL blob batches at the tree's ids, counted here.
+  const callsBefore = gh.calls;
+  const graphs = graphsOf({ source, stack, jobGraph });
+  graphs.read.calls = gh.calls - callsBefore;
   const mergedInWindow = (profile.prsMergedPerWeek * Math.max(covered, 0.5)) / 7;
   const efficiency = {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
@@ -830,7 +837,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     workflowsOnPrs: ci.workflows,
   };
 
-  const outcomes = { wait, jobs, tests, jobGraph };
+  const outcomes = { wait, jobs, tests, jobGraph, graphs };
   const { score, parts, detail } = scoreOf({
     p50: wait.p50,
     p90: wait.p90,
@@ -878,6 +885,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     tests,
     practices: pr,
     stack,
+    graphs,
     // No workflows: no CI to fix yet, as for a checkout's inventory.
     fixes: pr.workflows === 0 ? [] : fixesOf(outcomes, pr),
     notes: notesOf(pr, profile.languages[0]?.[0] as string | undefined),
@@ -916,11 +924,13 @@ export const scoreRepo = (repo: string, { days = 7, token, cacheDir }: ScoreOpti
 
 /** No GitHub history to read: what the checkout's own files say, unscored, with the reason. */
 export const inventoryLocal = (root: string, reason: string) => {
-  const source = localSource(root);
+  const source = remembered(localSource(root));
   const pr = practices(source);
   const { codeBytes: _, ...profile } = treeProfile(source.tree);
   // A checkout has no GitHub languages or jobs: those stay unknown.
   const stack = stackOf({ source, manifestPaths: manifestPaths(source.tree), workflows: workflowFiles(source), languages: undefined, packages: profile.packages, runners: undefined });
+  const graphs = graphsOf({ source, stack });
+  graphs.read.calls = 0;
 
   return {
     repo: null,
@@ -933,8 +943,9 @@ export const inventoryLocal = (root: string, reason: string) => {
     band: null,
     practices: pr,
     stack,
+    graphs,
     // A checkout with no workflows has no CI to fix yet.
-    fixes: pr.workflows ? fixesOf({ wait: waits([]) }, pr) : [],
+    fixes: pr.workflows ? fixesOf({ wait: waits([]), graphs }, pr) : [],
     notes: notesOf(pr, undefined),
   };
 };
