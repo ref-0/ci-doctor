@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Flakes
 
-Part of the [`speed-up-tests`](../TOPIC.md) topic. Read it when a test fails sometimes, or passes only on a retry. [guide section 11](../../../../../docs/pages/11-flakes.md) describes the automation that files and closes flake issues. This page owns intermittent failures; a property test's seeds and replay are [`proof-tiers`' properties](../../../../proof-tiers/references/properties.md#findings-and-replay).
+Part of the hub's [triage](TOPIC.md) topic. Read it when a test fails sometimes, or passes only on a retry. [guide section 11](../../../../docs/pages/11-flakes.md) describes the automation that files and closes flake issues. This page owns intermittent failures; a property test's seeds and replay are [`proof-tiers`' properties](../../../proof-tiers/references/properties.md#findings-and-replay).
 
 ## Retries, reruns and infrastructure
 
@@ -41,22 +41,22 @@ For a confirmed flake, use the issue CI filed for it, or, where CI didn't file o
 
 ## Match the symptom
 
-Cases from the source repo, each forced on purpose before it was fixed. [guide section 11](../../../../../docs/pages/11-flakes.md#cause-symptom-fix) has each with what the forced runs showed.
+Cases from the source repo, each forced on purpose before it was fixed. [guide section 11](../../../../docs/pages/11-flakes.md#cause-symptom-fix) has each with what the forced runs showed.
 
 - **`ETXTBSY` starting a program a test just copied in** → another test forked a child while the copy was open for writing, and the child holds the descriptor until its exec → every start in the process takes the copy's lock; where the test process can't fence every start, copy with a child `cp`. Trace inherited descriptors (`ls -l /proc/<pid>/fd` in the parked child) and force the interleaving: ordinary runs rarely show it.
 - **A vanished `.git/objects/maintenance.lock`, or `ENOTEMPTY` removing a test repo** → Git's detached auto maintenance, started by a commit, fetch, merge or push, still writing → `-c maintenance.auto=false -c gc.auto=0` on the fixture's commands, or in the repo's config where a server-side Git reads that instead. Confirm with `GIT_TRACE` (the start) and `strace -f` (the child's writes) first.
 - **`listen EINVAL`, or a fixture that waits out the test's timeout, only with a long `TMPDIR`** → the socket path is past 107 bytes (Linux) or 103 (macOS), and the fixture ignored the server's `error` event → socket homes under a short root, a length check, and a setup that fails on `error`.
 - **A fixture server still running after an interrupted run** → it runs in its own session, out of the group kill's reach → it exits on EOF of a pipe only the test process holds. Prove it with a `SIGKILL` to the run's process group mid-file.
-- **`EPIPE` or `ECONNRESET` from a call that should be refused** → the test bridge carries the body and the answer on one exchange, and the server answered while the body was still being sent → the fake drains the body before answering; check production's transport first ([Workers](workers.md#a-refused-upload-through-the-local-proxy)).
-- **A non-gating reporting step does nothing, and the run is green** → an earlier sparse checkout in the workspace left the step an empty tree, and `continue-on-error` hid it → each sparse checkout in its own folder, a test that the step's files exist, and a warning from the step's `outcome` ([check a CI change](../../ci-workflows/references/change-checks.md#a-step-that-must-not-gate)).
-- **An install that fails with only "see log for details"** → the installer's own log stays on the runner → print it on failure only ([triage](../../triage/TOPIC.md#an-installer-that-says-only-see-the-log)).
+- **`EPIPE` or `ECONNRESET` from a call that should be refused** → the test bridge carries the body and the answer on one exchange, and the server answered while the body was still being sent → the fake drains the body before answering; check production's transport first ([Workers](../../../speed-up-tests/references/workers.md#a-refused-upload-through-the-local-proxy)).
+- **A non-gating reporting step does nothing, and the run is green** → an earlier sparse checkout in the workspace left the step an empty tree, and `continue-on-error` hid it → each sparse checkout in its own folder, a test that the step's files exist, and a warning from the step's `outcome` ([check a CI change](../ci-workflows/references/change-checks.md#a-step-that-must-not-gate)).
+- **An install that fails with only "see log for details"** → the installer's own log stays on the runner → print it on failure only ([triage](TOPIC.md#an-installer-that-says-only-see-the-log)).
 
 ## Prove the fix
 
 Prove the cause locally: the whole file repeated with no retries, noting how many passed in a row and the load average, and a mutation that reopens the race and fails the test. Then:
 
 - **The PR's own ready run is the CI evidence.** It runs once. A flaky failure in it gets one diagnostic rerun; a second failure is reported, as [above](#retries-reruns-and-infrastructure) says.
-- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](../../../../ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
+- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](../../../ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
 - **The PR body** gives the local count and load, the mutation, and `Closes #<n>`.
 
 A pull request that closes the issue by hand still has to hold: the next occurrence reopens it.

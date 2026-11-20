@@ -22,9 +22,9 @@ A pull request that changes a workflow runs its own version, so its run is the t
 
 ## Measuring a run
 
-[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](../speed-up-tests/references/ci-history-data.md) says. It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label; with `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [the blacksmith topic's adapter](../blacksmith/scripts/blacksmith-bill.ts). Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](../agent-knowledge/repo-facts/ci-time.json)). Its tests: `node --test ci-time.test.ts`, from `scripts/`.
+[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](../../../speed-up-tests/references/ci-history-data.md) says. It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label; with `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [the blacksmith topic's adapter](../blacksmith/scripts/blacksmith-bill.ts). Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](../agent-knowledge/repo-facts/ci-time.json)). Its tests: `node --test ci-time.test.ts`, from `scripts/`.
 
-Where CI's records are and how to read them is [measuring](../speed-up-tests/references/measuring.md). Judging what a number means is [`verify-evidence`](../verify-evidence/TOPIC.md).
+Where CI's records are and how to read them is [measuring](../../../speed-up-tests/references/measuring.md). Judging what a number means is [`verify-evidence`](../verify-evidence/TOPIC.md).
 
 ## Where each value lives
 
@@ -36,7 +36,7 @@ Each of these is a choice a change could undo. Keep it, or measure first.
 
 - A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](../ci-runners/TOPIC.md).
 - What selects a change's checks, lockfile routing or test selection: read [selection rules](references/selection.md) and verify the selected jobs against real output.
-- Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](../speed-up-tests/TOPIC.md).
+- Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](../../../speed-up-tests/SKILL.md).
 - Cache keys, scopes, setup caches or image reuse: read [cache rules](references/caches.md); if your stack uses Rust, also [Rust](references/rust.md).
 - Draft, push, sweep, pack and proof behaviour: read the headers and job dependencies of the workflows ci.md names.
 
@@ -49,6 +49,6 @@ Tests that run the repo's code against real containers are the slowest, and thei
 - [`ci-runners`](../ci-runners/TOPIC.md): runner size, packing and cost, and choosing a provider.
 - [`blacksmith`](../blacksmith/TOPIC.md): if you run on Blacksmith, its CLI, labels, sticky disks and bill.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): read a PR's result, run CI by hand, merge.
-- [`speed-up-tests`](../speed-up-tests/TOPIC.md): make a slow test faster without losing what it proves.
+- [`speed-up-tests`](../../../speed-up-tests/SKILL.md): make a slow test faster without losing what it proves.
 - [`verify-evidence`](../verify-evidence/TOPIC.md): before you quote a number from a run.
 - The repo's tried-and-dropped register, which ci.md names ([the check](../checks/ci-read-what-was-tried.md)), and [guide section 18](../../../../docs/pages/18-tried-and-dropped.md): what each earlier change measured.

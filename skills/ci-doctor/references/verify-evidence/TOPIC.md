@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Verify evidence
 
-[`test-audit`](../../../test-audit/SKILL.md) judges whether a test is worth keeping. This topic judges whether the evidence for a claim holds, and owns how to judge a number. Where CI's records are and how to read them is [`speed-up-tests`' measuring](../speed-up-tests/references/measuring.md).
+[`test-audit`](../../../test-audit/SKILL.md) judges whether a test is worth keeping. This topic judges whether the evidence for a claim holds, and owns how to judge a number. Where CI's records are and how to read them is [`speed-up-tests`' measuring](../../../speed-up-tests/references/measuring.md).
 
 ## An output: check the real thing
 
@@ -37,6 +37,6 @@ After:
 
 ## Where this applies
 
-- A CI baseline or a before/after: where the records are and the test-specific rules are in [measuring](../speed-up-tests/references/measuring.md), history from the API in [CI history data](../speed-up-tests/references/ci-history-data.md), and the check [measure CI before changing it](../checks/ci-measure-before-changing-it.md).
+- A CI baseline or a before/after: where the records are and the test-specific rules are in [measuring](../../../speed-up-tests/references/measuring.md), history from the API in [CI history data](../../../speed-up-tests/references/ci-history-data.md), and the check [measure CI before changing it](../checks/ci-measure-before-changing-it.md).
 - A campaign's report: the [report template](../agent-knowledge/report.md) carries these fields.
 - A spike or research result that decides what gets built: give it an experiment and a skeptic reviewer, as [`review-gate`](../../../review-gate/SKILL.md) says.
