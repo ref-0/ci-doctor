@@ -59,13 +59,17 @@ on:
 env:
   SWEEP_AT: '02:41'
   SERVER_AT: '08:41 14:41 20:41'
-  # Sweep early once this many commits have landed on main since the newest sweep's commit, or ''
-  # for the clock alone. A commit count: with merge commits, a PR's own commits count too.
+  # Sweep early once this many merges have landed on main since the newest sweep's commit, or ''
+  # for the clock alone. A merge is a first-parent commit on main, the unit sweep-cadence.ts counts
+  # and a bisect walks: a merged PR is one, each commit of a rebase-merge or a direct push one each.
+  # An early sweep doesn't move the crons' slots, as sweep-cadence.ts' replay assumes.
   SWEEP_AFTER_MERGES: ''
 
-# The run's own token may start a workflow_dispatch, unlike its other events.
+# The run's own token may start a workflow_dispatch, unlike its other events. contents: the
+# compare the merge count reads.
 permissions:
   actions: write
+  contents: read
 
 jobs:
   start:
@@ -83,15 +87,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # After N merges: the commits since the newest sweep's, whatever the clock says.
+          # Starts a sweep, then waits until GitHub lists it, so the next merge's start job, which
+          # waits its turn in the group above, finds it instead of starting a second.
+          sweep() {
+            asked=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sweep=true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 3
+              listed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&created=%3E%3D$asked&per_page=20" \
+                --jq '[.workflow_runs[] | select(.display_title | startswith("CI on main, "))] | length')
+              [ "$listed" -gt 0 ] && return 0
+            done
+            echo "::warning::The sweep started but isn't listed yet; a merge in the next seconds may start another, which waits behind it."
+          }
+
+          # After N merges since the newest sweep that ran or is running, passed or failed: a failed
+          # sweep checked its merges too, and its bisect looks for the break. A cancelled one
+          # checked nothing, so the count goes back past it. Merges are first-parent commits.
           if [ -n "$SWEEP_AFTER_MERGES" ] && [ "$GITHUB_EVENT_NAME" = push ]; then
-            last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&per_page=50" \
-              --jq '[.workflow_runs[] | select(.display_title | startswith("CI on main, "))][0].head_sha // empty')
+            last=
+            for page in 1 2 3 4 5; do
+              last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&per_page=100&page=$page" \
+                --jq '[.workflow_runs[] | select(.display_title | startswith("CI on main, ")) | select(.conclusion != "cancelled" and .conclusion != "skipped")][0].head_sha // empty')
+              [ -n "$last" ] && break
+            done
             if [ -n "$last" ]; then
-              since=$(gh api "repos/$GITHUB_REPOSITORY/compare/$last...$GITHUB_SHA" --jq .total_commits)
+              # Past the 250 commits GitHub's compare lists, the commit count stands in.
+              since=$(gh api "repos/$GITHUB_REPOSITORY/compare/$last...$GITHUB_SHA" | jq --arg base "$last" --arg head "$GITHUB_SHA" '
+                if .status != "ahead" then 0
+                elif .total_commits > (.commits | length) then .total_commits
+                else (.commits | map({key: .sha, value: (.parents[0].sha // "")}) | from_entries) as $p
+                  | [$head | recurse(if . == $base then empty else ($p[.] // empty) end) | select(. != $base)] | length
+                end')
               if [ "$since" -ge "$SWEEP_AFTER_MERGES" ]; then
-                echo "::notice::$since commits since the newest sweep's, at least $SWEEP_AFTER_MERGES: starting one."
-                gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sweep=true
+                echo "::notice::$since merges since the newest sweep's commit, at least $SWEEP_AFTER_MERGES: starting one."
+                sweep
                 exit 0
               fi
             fi
@@ -107,7 +137,7 @@ jobs:
             echo "::notice::A sweep started on main since $slot, so the next one checks this merge."
             exit 0
           fi
-          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sweep=true
+          sweep
 
   # Its plan, in ci.yml, runs nothing when the package's tests have nothing new to check.
   server:
