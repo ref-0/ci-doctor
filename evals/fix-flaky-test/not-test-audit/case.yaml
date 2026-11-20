@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: fix-flaky-test-not-test-audit
+description: Belongs to test-audit, so should not load fix-flaky-test.
+tags: [fix-flaky-test, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Half our tests only assert that mocks were called. Which ones are worth keeping?"
+graders:
+  - name: did-not-load-fix-flaky-test
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?fix-flaky-test"'
+    min: 0
+    max: 0
+    arm: both

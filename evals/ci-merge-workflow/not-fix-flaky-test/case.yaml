@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ci-merge-workflow-not-fix-flaky-test
+description: Belongs to fix-flaky-test, so should not load ci-merge-workflow.
+tags: [ci-merge-workflow, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "The integration test in Mo's PR fails maybe once in ten runs. Fix the flake."
+graders:
+  - name: did-not-load-ci-merge-workflow
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-merge-workflow"'
+    min: 0
+    max: 0
+    arm: both

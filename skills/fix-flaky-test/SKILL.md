@@ -1,6 +1,6 @@
 ---
 name: fix-flaky-test
-description: "A test fails sometimes, passes only on a retry or a rerun, or fails only in CI or under load: tell a flake from a real or infrastructure failure, match the symptom, force the interleaving to prove the cause, fix it, prove the fix with repeat runs and retries off, and file what's left. A slow test: speed-up-tests."
+description: "Finds why a flaky test fails, fixes it and proves the fix. Use when a test fails sometimes, passes only on a retry or rerun, fails only in CI or under load, or is intermittent. Not for a slow test (speed-up-tests); a check that fails every time (ci-doctor)."
 metadata:
   version: "0.1.0"
 ---

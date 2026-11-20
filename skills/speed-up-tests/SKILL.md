@@ -1,6 +1,6 @@
 ---
 name: speed-up-tests
-description: "A test, a test file or a suite is slow, in CI or locally: find the slow files from CI's records, name what each waits on (a sleep, poll, retry, timer, fake or setup), take the wait out without losing what the test proves, and measure before and after. A flaky test: `fix-flaky-test`. A test's value: `test-audit`."
+description: "Makes slow tests faster without losing what they prove: finds the slowest files and takes out what each waits on. Use when a test, a test file or a suite is slow, in CI or locally, or tests time out. Not for a flaky test (fix-flaky-test); whether a test is worth keeping (test-audit)."
 metadata:
   version: "0.1.0"
 ---
