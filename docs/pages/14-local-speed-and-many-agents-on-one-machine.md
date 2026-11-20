@@ -2,6 +2,8 @@
 
 # 14. Local speed, and many agents on one machine
 
+Get fast feedback on your own machine, and run many agents on one machine without their checks slowing each other down.
+
 Agents wait on local checks far more often than on CI, so local feedback got the same treatment. We run several AI engineers at once, each in its own git worktree, on one shared many-core machine.
 
 ## Fast local feedback

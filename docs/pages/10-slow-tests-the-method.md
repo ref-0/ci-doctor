@@ -2,6 +2,8 @@
 
 # 10. Slow tests: the method
 
+Find the slow tests in CI's records, name what each one waits on, and make it faster without losing what it proves.
+
 The [`speed-up-tests`](../../skills/speed-up-tests/SKILL.md) skill carries this section for a coding agent: finding the slow files, naming the wait, the fixes and fakes that keep each test's proof, and measuring before and after.
 
 ## Find them from CI's own records, not intuition

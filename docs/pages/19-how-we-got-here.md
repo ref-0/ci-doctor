@@ -2,6 +2,8 @@
 
 # 19. How we got here
 
+Follow our six weeks of CI changes week by week, with what each one measured and what it cost.
+
 1. **Week 1: CI moved to Blacksmith, with a plan job.** For a week before, checks had run only locally, with no recorded comparison. Then we packed fewer, fuller jobs: billed minutes more than halved for slightly more wall time. Sized each job from CPU use. Drafts stopped running CI.
 2. **Week 2: shared bundles and Postgres templates.** Added machine-wide test slots, and an explicit-input build cache with a lint rule enforcing complete inputs.
 3. **Weeks 2–3: sweeps instead of per-merge reruns.** Before, 33 merges had each rerun every sandbox file. Near selection, in replay, cut ordinary-test billed minutes ~65% and moved most PR runs from 3 shards to 1. Then macOS moved to release, and a merge-triggered fallback covered late cron.

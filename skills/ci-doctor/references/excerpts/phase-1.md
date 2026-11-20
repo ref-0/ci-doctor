@@ -91,6 +91,8 @@ Every technique in guide sections 2–17 and 21, by section, each with when it a
 
 From [docs/pages/18-tried-and-dropped.md](../../../../docs/pages/18-tried-and-dropped.md). What was tried and dropped, and what would have to change before trying again.
 
+See what we tried and dropped, the evidence that ruled each out, and what would have to change before it's worth trying again.
+
 **When** is the week of our six-week effort in which we tried or decided it. **Outcome** says what kind of evidence ruled it out: *measured*, *modelled* or *replayed* and rejected; *shipped then replaced* or *removed*; *folded into another change*; or *rejected on principle*. The last column says what replaced it, or what would have to change before trying again. Our rows' evidence was our own PRs and runs, which this public copy leaves out; your register keeps an Evidence column, as the [`ci-read-what-was-tried`](../checks/ci-read-what-was-tried.md) check's template has.
 
 | When | Idea | Outcome | What we saw | Lesson | Replaced by, or retry when |
@@ -152,6 +154,8 @@ Rows that were folded into another change, or closed before anyone measured them
 ## 20. Thresholds cheat sheet
 
 From [docs/pages/20-thresholds-cheat-sheet.md](../../../../docs/pages/20-thresholds-cheat-sheet.md). The source repo's starting values, as examples, not targets.
+
+Look up the starting values we used for slow files, shards, budgets and flakes, as examples to derive your own from.
 
 Our starting values, as examples from one repo. Don't adopt them as targets: derive yours from your own bottlenecks and comparable runs.
 

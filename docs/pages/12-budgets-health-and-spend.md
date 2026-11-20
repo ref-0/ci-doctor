@@ -2,6 +2,8 @@
 
 # 12. Budgets, health and spend
 
+Give every job and run a time budget, report CI's health, and compare spend only across windows that can be compared.
+
 **Applies when:** The plan sets job or run budgets, a spend cap or a health report, or a baseline compares spend across windows. **Skip when:** None of those is proposed or measured.
 
 - **A budget for every reachable job.** A script evaluates the workflow's expressions for a ready PR, matrices and reusable callers included. Tests fail on a reachable job with no budget, a budget for a removed job, or an oversized runner. Budgets are **measured p95 + 15%, rounded up to 5 s**, citing their source runs.

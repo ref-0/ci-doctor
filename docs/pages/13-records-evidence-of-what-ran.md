@@ -2,6 +2,8 @@
 
 # 13. Records: evidence of what ran
 
+Record which test files ran and how long each took, so a green check can't hide a file that never ran.
+
 **Applies when:** CI can't show which test files ran, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its time on each run.
 
 A green check can hide a file that never ran. So:

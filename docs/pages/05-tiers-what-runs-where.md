@@ -2,6 +2,8 @@
 
 # 5. Tiers: what runs where
 
+Decide which checks run on every PR, which on merges and which in a scheduled sweep, and release only what the sweep checked.
+
 **Applies when:** Checks too slow or costly for every PR could run on merges, on main's server runs or in a sweep instead. **Skip when:** No sweep has yet been shown to run every check it would take off PRs ("Releasing what the sweep checked", below).
 
 | Tier | When | What |

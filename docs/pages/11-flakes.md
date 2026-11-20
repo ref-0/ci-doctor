@@ -2,6 +2,8 @@
 
 # 11. Flakes
 
+Tell a flake from a real failure, find its cause and fix it, so a red check means something again and nobody reruns to get green.
+
 **Applies when:** CI's records show tests that failed and then passed, or jobs that passed on rerun. **Skip when:** The records show no failed-then-passed tests or jobs.
 
 The [`fix-flaky-test`](../../skills/fix-flaky-test/SKILL.md) skill carries this section for a coding agent: telling a flake from a real or infrastructure failure, matching its symptom, forcing the interleaving, the fix, proving it with retries off, and filing what's left.
