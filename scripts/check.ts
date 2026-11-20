@@ -20,7 +20,7 @@
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs`,
- *    `speed-up-tests` and `verify-evidence` topics, its `flakes.md`, `references/agent-knowledge/`,
+ *    `speed-up-tests`, `verify-evidence` and `ci-runners` topics, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -55,7 +55,7 @@ export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.tes
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-workflows|ci-runners|blacksmith';
+const TOPICS = 'ci-workflows|blacksmith';
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
@@ -73,6 +73,8 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
+  [/ci-doctor\/references\/ci-runners\b|(?<![\w-])ci-runners\/TOPIC\.md/, 'skills/ci-runners/'],
+  [/(?<![\w-])`?ci-runners`?('s)? topic\b/, 'the `ci-runners` skill'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],

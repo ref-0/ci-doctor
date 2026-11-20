@@ -23,13 +23,13 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill', 'skills/ci-doctor/references/speed-up-tests/', '[it](../speed-up-tests/TOPIC.md)', '../speed-up-tests/references/flakes.md', 'skills/ci-doctor/references/triage/flakes.md', 'the hub\'s speed-up-tests topic', 'the `speed-up-tests` topic']) {
+    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/blacksmith/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill', 'skills/ci-doctor/references/speed-up-tests/', '[it](../speed-up-tests/TOPIC.md)', '../speed-up-tests/references/flakes.md', 'skills/ci-doctor/references/triage/flakes.md', 'the hub\'s speed-up-tests topic', 'the `speed-up-tests` topic', 'skills/ci-doctor/references/ci-runners/references/billing.md', '[it](../ci-runners/TOPIC.md)', 'the hub\'s ci-runners topic', 'the `ci-runners` topic']) {
       equal(flagged(line), true, line);
     }
   });
 
   it('leaves the new paths alone', () => {
-    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'skills/speed-up-tests/SKILL.md', '../speed-up-tests/references/fixes.md', 'the `speed-up-tests` skill', 'skills/fix-flaky-test/SKILL.md', '../fix-flaky-test/references/symptoms.md']) {
+    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'skills/speed-up-tests/SKILL.md', '../speed-up-tests/references/fixes.md', 'the `speed-up-tests` skill', 'skills/fix-flaky-test/SKILL.md', '../fix-flaky-test/references/symptoms.md', 'skills/ci-runners/SKILL.md', '../ci-runners/references/queues.md', 'the `ci-runners` skill']) {
       equal(flagged(line), false, line);
     }
   });
