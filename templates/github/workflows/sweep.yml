@@ -4,12 +4,18 @@
 # Reference implementation from a production monorepo; adapt to your repo. Why: docs/README.md
 # section 5.
 #
+# How often to sweep is the user's cost and risk decision, recorded in .agents/repo/ci.md's "Sweep
+# cadence": the ci-workflows skill's tiers ("Choosing the sweep's cadence") measure this repo's merges
+# and a sweep's cost with sweep-cadence.ts and price each option, "after N merges or T hours,
+# whichever comes first". T is the crons below; N is SWEEP_AFTER_MERGES, which the `push` trigger
+# checks on each merge. Leave it empty to sweep by the clock alone.
+#
 # The slots: the times here are illustrative. Each slot appears in four coupled places, since GitHub
 # takes no expression in a cron or in a job's `if:`. Change them together:
 #   1. the two crons under `on.schedule`;
 #   2. the server cron's exact string in both jobs' `if:`;
 #   3. SWEEP_AT and SERVER_AT under `env`, which the steps compute the newest slot from.
-# A renamed run title (ci.yml's run-name) also has to change in both steps' `select`.
+# A renamed run title (ci.yml's run-name) also has to change in every step's `select`.
 #
 # Pushes don't each start a sweep. The `push` trigger is the fallback for a late or missing cron: a
 # merge starts a sweep only when none has started since the newest slot. On a new install, or after
@@ -26,7 +32,7 @@
 #
 # The daily sweep is the release's check: release publishes only what a passing sweep checked.
 # Pick its slot from your merge timing, the quietest few hours before your release, so the day's
-# run is done before the day's release.
+# run is done before the day's release. A cadence longer than the release's makes a release wait.
 #
 # Cron is not a scheduler you can trust: GitHub's scheduled runs arrived hours late, and in one
 # period most never started. So the first merge after each slot checks whether a run has started
@@ -54,6 +60,9 @@ on:
 env:
   SWEEP_AT: '02:41'
   SERVER_AT: '08:41 14:41 20:41'
+  # Sweep early once this many commits have landed on main since the newest sweep's commit, or ''
+  # for the clock alone. A commit count: with merge commits, a PR's own commits count too.
+  SWEEP_AFTER_MERGES: ''
 
 # The run's own token may start a workflow_dispatch, unlike its other events.
 permissions:
@@ -75,6 +84,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # After N merges: the commits since the newest sweep's, whatever the clock says.
+          if [ -n "$SWEEP_AFTER_MERGES" ] && [ "$GITHUB_EVENT_NAME" = push ]; then
+            last=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&per_page=50" \
+              --jq '[.workflow_runs[] | select(.display_title | startswith("CI on main, "))][0].head_sha // empty')
+            if [ -n "$last" ]; then
+              since=$(gh api "repos/$GITHUB_REPOSITORY/compare/$last...$GITHUB_SHA" --jq .total_commits)
+              if [ "$since" -ge "$SWEEP_AFTER_MERGES" ]; then
+                echo "::notice::$since commits since the newest sweep's, at least $SWEEP_AFTER_MERGES: starting one."
+                gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main -f sweep=true
+                exit 0
+              fi
+            fi
+          fi
           slot=$(date -u "+%Y-%m-%dT${SWEEP_AT}:00Z")
           if [ "$(date -u +%s)" -lt "$(date -u -d "$slot" +%s)" ]; then
             slot=$(date -u -d yesterday "+%Y-%m-%dT${SWEEP_AT}:00Z")
