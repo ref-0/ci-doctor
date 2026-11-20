@@ -35,6 +35,30 @@ The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL
 | [`ci-runners`](ci-doctor/references/ci-runners/TOPIC.md) | Runner size and architecture, packing against minute rounding, the spend cap, the cost of getting fast, and choosing a provider. | Workflows: `ci-workflows`. One provider's specifics: `blacksmith`. |
 | [`blacksmith`](ci-doctor/references/blacksmith/TOPIC.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |
 
+## Writing a description
+
+A harness picks a skill by its `description` alone, from a list of every skill installed, and shortens or drops descriptions when the list runs long. Each host's guidance: [Anthropic's best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), [Claude Code](https://code.claude.com/docs/en/skills), [Codex](https://developers.openai.com/codex/skills), [Cursor](https://cursor.com/docs/context/skills) and [the Agent Skills spec](https://agentskills.io/specification). From them:
+
+1. **Shape:** what it does, in the third person and present tense; then "Use when" and the asks and symptoms; then "Not for" each nearby request and its sibling in brackets. Good: "Finds why a flaky test fails, fixes it and proves the fix. Use when a test fails sometimes… Not for a slow test (speed-up-tests)."
+2. **Front-load:** the first clause holds the key use case and its trigger words, so a shortened description still matches.
+3. **When, not how:** words people ask with ("flaky", "barrel file", "runner"), not the method's. Bad: "noise floor first, interleaved runs, limiter"; those go in the body.
+4. **No first or second person, and no questions.** Bad: "Write or fix our AGENTS.md", "Is it really faster?".
+5. **Boundaries:** a sibling a nearby request should go to, by its exact folder name, and only skills that exist. Bad: "a flake: ci-doctor", once `fix-flaky-test` owns flakes.
+6. **Plain text:** no backticks, angle brackets or Markdown. Claude Code shows angle brackets as `&lt;`; write `[placeholder]`.
+7. **Length:** at most 320 characters, well under every host's cap.
+8. **Measured:** each skill has should-trigger and should-not-trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/next/evals). Change a description only with a run of its cases.
+
+`node scripts/check.ts` checks rules 4 to 7 and that each bracketed "Not for" sibling exists. Rules 1 to 3 and 8 are the reviewer's.
+
+**Running the trigger cases.** CI doesn't run them: each case is a Claude Code session on your own account, about $0.10. `evals/<skill>/` holds three prompts that should load the skill and two that belong to a sibling and shouldn't, each checked by a `tool_used: Skill` grader. From the repo's root, with Claude Code installed:
+
+```sh
+claude plugin eval . --ablation none --runs 1 --tag speed-up-tests   # one skill's five cases
+claude plugin eval . --ablation none --runs 1                        # every case, once
+```
+
+`--ablation none` skips the run without the plugin, which a selection check doesn't need, and `--runs 1` the default three runs a case. Results go to `evals/results/`, which Git ignores.
+
 ## When a topic becomes its own skill
 
 A harness picks a skill by its description alone, so a topic inside the hub reaches only tasks that sound like CI. A topic becomes a skill of its own when:
@@ -47,7 +71,7 @@ What moves, and what stays:
 
 - **Everything moves.** The topic's `TOPIC.md` becomes the skill's `SKILL.md`, its detail goes to the skill's `references/`, and the topic's folder goes. Each fact keeps one home.
 - **The hub keeps links only:** its topic map's row, the phases that used the topic, and its "Not here", each pointing to the skill by name and path. Nothing is copied back.
-- **The description is in the asker's words,** not CI's, under 320 characters, and names the skill's neighbours where two could claim one task.
+- **The description follows [Writing a description](#writing-a-description),** in the asker's words, not CI's, with trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/next/evals).
 - **It stands alone.** What an agent needs to start, such as the setup step, the facts it reads and the checks it follows, is inside the skill, as a short copy or a reference page of its own. Everything else is a full link, to the guide at `https://ci-doctor.ref0.dev/guide/<path>` or to the repo on GitHub at `next`, never a relative path out of the folder. The skill names its release in `metadata.version`, says how to run its tools from a skills-only install, and has its own "Outside this skill" section.
 - **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
 
@@ -73,7 +97,7 @@ The map's **Applies when** says when each one applies. In the hub, the `blacksmi
 
 The [`agent-knowledge`](agent-knowledge/SKILL.md) skill has the method: code wins, dated lessons, one register of what was tried, generalize don't append, a drift sweep every two weeks, size budgets and pinned upstream skills. For these skills in particular:
 
-- **The budget:** every description under 320 characters, upstream copies' too, and each of your own `SKILL.md` under 10 KB. Point the [docs budget](../scripts/docs/README.md)'s `layout.skillPath` at the installed skills and run it in CI.
+- **The budget:** every description under 320 characters, upstream copies' too, in the shape [Writing a description](#writing-a-description) gives, and each of your own `SKILL.md` under 10 KB. Point the [docs budget](../scripts/docs/README.md)'s `layout.skillPath` at the installed skills and run it in CI.
 - **The register** is the one `.agents/repo/ci.md` names (template: [read what was tried](ci-doctor/references/checks/ci-read-what-was-tried.md)).
 - **Upstream:** `test-audit` records its source commit and stays out of any skills lock. [Upstream sync](../tools/upstream-sync/README.md) diffs upstream weekly and files what changed as one issue; a person applies it, and nothing merges automatically.
 

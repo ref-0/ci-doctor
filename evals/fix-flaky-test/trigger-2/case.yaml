@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: fix-flaky-test-trigger-2
+description: Should load fix-flaky-test.
+tags: [fix-flaky-test, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "We keep hitting rerun on the payments suite until it goes green. Figure out what's actually wrong."
+graders:
+  - name: loaded-fix-flaky-test
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?fix-flaky-test"'

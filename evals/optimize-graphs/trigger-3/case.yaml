@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: optimize-graphs-trigger-3
+description: Should load optimize-graphs.
+tags: [optimize-graphs, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "The turbo cache misses on almost every edit. Look at how the workspace's packages and tasks depend on each other."
+graders:
+  - name: loaded-optimize-graphs
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?optimize-graphs"'

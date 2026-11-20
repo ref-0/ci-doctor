@@ -1,6 +1,6 @@
 ---
 name: optimize-graphs
-description: "An edit reruns most of the workspace's tests, builds or type checks, or misses its caches: package dependencies and cycles, `exports`, entry points and barrel files, layers and folders inside a package, task inputs and the CI job graph. Measure them read-only, then split, declare or check."
+description: "Narrows how far an edit reaches by measuring and fixing the package, export, layer, task and CI job graphs. Use when a small edit reruns most tests or builds, or when adding a package, a barrel file or an entry point, or splitting one. Not for one slow test (speed-up-tests); a CI plan (ci-doctor)."
 metadata:
   version: "0.1.0"
 ---

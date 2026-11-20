@@ -1,6 +1,6 @@
 ---
 name: ci-merge-workflow
-description: "Take a PR from draft to merged by the repo's merge path: dispatch existing CI, merge, then check main, deploys and releases. Use when opening, readying or merging a PR or dispatching a run. To review, use review-gate; a failed check or a CI change, ci-doctor; a flake, ci-doctor."
+description: "Takes a pull request from draft to merged by the repo's merge path, then checks main, the deploy and the release. Use when opening, readying or merging a PR, dispatching CI by hand, or shipping a release. Not for a review (review-gate); a failed check (ci-doctor); a flaky test (fix-flaky-test)."
 ---
 
 <!--

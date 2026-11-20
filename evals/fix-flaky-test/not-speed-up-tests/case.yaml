@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: fix-flaky-test-not-speed-up-tests
+description: Belongs to speed-up-tests, so should not load fix-flaky-test.
+tags: [fix-flaky-test, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "api.test.ts takes 48 seconds on every run. Make it faster."
+graders:
+  - name: did-not-load-fix-flaky-test
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?fix-flaky-test"'
+    min: 0
+    max: 0
+    arm: both

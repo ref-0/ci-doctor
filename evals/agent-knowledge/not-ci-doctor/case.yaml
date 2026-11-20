@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: agent-knowledge-not-ci-doctor
+description: Belongs to ci-doctor, so should not load agent-knowledge.
+tags: [agent-knowledge, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Our CI takes 30 minutes. Make a plan to speed it up."
+graders:
+  - name: did-not-load-agent-knowledge
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?agent-knowledge"'
+    min: 0
+    max: 0
+    arm: both

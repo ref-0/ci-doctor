@@ -1,6 +1,6 @@
 ---
 name: prove-it
-description: "Is it really faster, cheaper or fixed? Review the evidence: a benchmark, a before and after, a cost, a fix that \"works now\". Decision and noise floor first, like for like, interleaved runs, a control, count, spread and limiter on every number. Not for why a CI run failed (ci-doctor) or a test's value (test-audit)."
+description: "Checks whether the evidence for a claim holds: that a change is faster, cheaper or fixed. Use when quoting a benchmark, a before and after, a speed-up or a saving, or when a fix is said to work now. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
 metadata:
   version: "0.1.0"
 ---

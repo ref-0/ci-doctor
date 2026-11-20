@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ci-doctor-not-fix-flaky-test
+description: Belongs to fix-flaky-test, so should not load ci-doctor.
+tags: [ci-doctor, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "test_checkout_flow passes on a rerun about one time in five. Find out why and fix it."
+graders:
+  - name: did-not-load-ci-doctor
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-doctor"'
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: prove-it-not-ci-doctor
+description: Belongs to ci-doctor, so should not load prove-it.
+tags: [prove-it, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Why did the lint job fail on my PR?"
+graders:
+  - name: did-not-load-prove-it
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?prove-it"'
+    min: 0
+    max: 0
+    arm: both
