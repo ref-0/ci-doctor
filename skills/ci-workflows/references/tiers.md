@@ -38,8 +38,15 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 
 How often the default branch's full sweep runs is recurring spend against how long a break can hide, so the user chooses it, from this repo's numbers. Never copy a cadence from a template or another repo.
 
-1. **Measure, read-only.** Run [`sweep-cadence.ts`](../scripts/sweep-cadence.ts) from the repo's checkout, naming the sweep's runs as ci.md does: `node <skills-dir>/ci-workflows/scripts/sweep-cadence.ts --sweep-title '<the sweep's run title start>'`, or `--sweep-event push` where every push to the default branch runs everything. It reads, from `gh`, the pull requests merged a day, a full sweep's job-minutes, what a slot with nothing new costs, a PR run's job-minutes against a sweep's, and the releases. Add `--option <merges>:<hours>` for each cadence worth pricing.
-2. **Show the user every option**, each as "after N merges or T hours, whichever comes first", with its monthly job-minutes (priced at list price where ci.md has prices), and the merges a missed break can hide behind it at the 90th percentile and at most, with the bisect steps, about log2 of that many. A slot with nothing new runs only its plan, so a short T costs little on a quiet repo.
+1. **Measure, read-only.** Run [`sweep-cadence.ts`](../scripts/sweep-cadence.ts) from the repo's checkout, naming the sweep's runs and its test jobs as ci.md does: `node <skills-dir>/ci-workflows/scripts/sweep-cadence.ts --sweep-title '<the sweep's run title start>' --test-job '<the test jobs' name start>'`, or `--sweep-event push` where every push to the default branch runs everything. It reads, from `gh`:
+   - the merges a day, counted as first-parent commits: the unit the sweep's merge count and its bisect use, so a rebase-merged PR counts once per commit;
+   - a full sweep's job-minutes, from passing runs that ran a test job;
+   - what a slot with nothing new costs, from passing runs that ran none;
+   - a PR run's job-minutes against a sweep's;
+   - the releases.
+
+   Give it at least 14 days, or twice the longest T you'll price: an option it can't observe twice is marked unavailable. With no passing sweep that ran tests in the window, it says there isn't enough evidence and prices nothing. Add `--option <merges>:<hours>` for each cadence worth pricing.
+2. **Show the user every option**, each as "after N merges or T hours, whichever comes first", with its monthly job-minutes (priced at list price where ci.md has prices), and the merges a missed break can hide behind it at the 90th percentile and at most, with the bisect steps, about log2 of that many. A slot with nothing new runs only its plan, so a short T costs little on a quiet repo. The replay runs each option as the sweep template does: fixed slots T hours apart, which an early sweep doesn't move, and an early sweep at the Nth merge since the newest sweep that ran, passed or failed.
 3. **Say what bounds it.** Where the sweep gates the release, a release waits for the next passing sweep, so a cadence longer than the release's delays it. The more PR selection skips, the more only the sweep checks, and the more a long cadence hides.
 4. **Let the user choose,** then record the choice, its date and its numbers in ci.md's Sweep cadence, and set it in the sweep's workflow: T as its schedule, N as its merge count, as the [sweep template](https://github.com/ref-0/ci-doctor/blob/next/templates/github/workflows/sweep.yml) does. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes.
 
