@@ -382,7 +382,7 @@ export function newestLargeRun(worked: readonly WorkflowRun[], jobs: ReadonlyMap
  * Where a provider's adapter is looked for, from the skills folder this skill is installed in: a skill of the
  * provider's name beside this one, then the ci-doctor hub's topic of that name.
  */
-export const ADAPTER_DIRS = (name: string): string[] => [join(name, 'scripts'), join('ci-doctor', 'references', name, 'scripts')];
+export const ADAPTER_DIRS = (name: string): string[] => [join(name, 'scripts')];
 
 /** The skills folder this script is installed in: `<skills-dir>`, two folders above it. */
 const SKILLS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');

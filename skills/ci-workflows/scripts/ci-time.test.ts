@@ -130,17 +130,18 @@ describe('the settings', () => {
 describe('the billing adapter', () => {
   const stub = 'export const billed = () => ({});\nexport const cpu = () => null;\n';
 
-  it('finds it in a skill of the provider\'s name first, then in the hub\'s topic', () => {
+  it('finds it in a skill of the provider\'s name beside this one, and not in the hub', () => {
     const skills = mkdtempSync(join(tmpdir(), 'ci-time-skills-'));
     try {
       equal(adapterFile('blacksmith', skills), undefined);
-      const [own = '', hub = ''] = ADAPTER_DIRS('blacksmith').map((d) => join(skills, d));
+      const hub = join(skills, 'ci-doctor', 'references', 'blacksmith', 'scripts');
       mkdirSync(hub, { recursive: true });
       writeFileSync(join(hub, 'blacksmith-bill.ts'), stub);
-      equal(adapterFile('blacksmith', skills), join(hub, 'blacksmith-bill.ts'));
+      equal(adapterFile('blacksmith', skills), undefined);
+      const [own = ''] = ADAPTER_DIRS('blacksmith').map((d) => join(skills, d));
       mkdirSync(own, { recursive: true });
       writeFileSync(join(own, 'blacksmith-bill.ts'), stub);
-      equal(adapterFile('blacksmith', skills), join(own, 'blacksmith-bill.ts'));
+      equal(adapterFile('blacksmith', skills), join(skills, 'blacksmith', 'scripts', 'blacksmith-bill.ts'));
     } finally {
       rmSync(skills, { recursive: true, force: true });
     }

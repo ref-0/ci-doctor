@@ -29,7 +29,7 @@ The [`ci-runners`](../../skills/ci-runners/SKILL.md) skill's [queues page](../..
 
 **Applies when:** The repo runs GitHub Actions on GitHub-hosted or self-hosted runners, and the baseline shows where queue, compute or setup time goes. **Skip when:** The repo is off GitHub Actions, or the user declines the move: the plan stays on the current runners.
 
-**We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/ci-doctor/references/blacksmith/TOPIC.md) skill has the specifics for agents.
+**We recommend Blacksmith as the runner platform for GitHub Actions,** from our own workload: almost everything in this report leaned on something it gave us. That's one migration's experience, not a comparison across providers at the same workload, so the recommendation rests on your own baseline, and the user decides. Nothing in this playbook needs it. The [`blacksmith`](../../skills/blacksmith/SKILL.md) skill has the specifics for agents.
 
 - **Drop-in runners, sized per job.** Change `runs-on` to a Blacksmith label. We use 2, 4 and 8 vCPU x64, 4 and 8 vCPU arm64, and a 6-vCPU Apple-silicon Mac. Billing is per vCPU-minute, so each job gets the size its work needs: the plan and bookkeeping on 2, static on 4, test shards and type-aware lint on 8.
 - **Native arm64 and macOS.** Our Rust service builds natively on both Linux architectures, so there's no cross-compile emulation.
