@@ -1,5 +1,5 @@
 /**
- * Tests for sweep-cadence.ts: replaying a cadence as the sweep template runs it, pricing it, telling
+ * Tests for sweep-cadence.ts: cron schedules and their slots, replaying and pricing them, telling
  * a full sweep from a quiet slot, and reading GitHub in full. No network: `main` gets a fake `gh`.
  *
  * Runs: `node --test sweep-cadence.test.ts` from this folder (Node 24).
@@ -7,37 +7,73 @@
 import { deepStrictEqual, equal, match, throws } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { bisectSteps, type Commit, commitPages, firstParents, kindOf, main, merges, named, parseOption, perDay, priced, replay, runsOf } from './sweep-cadence.ts';
+import { bisectSteps, type Commit, commitPages, firstParents, kindOf, longestGap, main, merges, parseCron, parseSlot, perDay, priced, replay, runsOf, schedules, slotIn, slotsOf } from './sweep-cadence.ts';
 
 const hour = 3600;
 const day = 24 * hour;
 const at = (s: number) => new Date(s * 1000).toISOString();
 
-describe('replay, as the sweep template runs', () => {
-  it('sweeps at fixed slots, and a slot with no merge since is quiet', () => {
-    // Two days; merges at 1h and 2h on day one only.
-    const played = replay([1 * hour, 2 * hour], 0, 2 * day, { merges: 0, hours: 24 });
-    deepStrictEqual(played, { sweeps: 2, quiet: 1, early: 0, spans: [2, 0], pending: 0 });
+describe('cron schedules', () => {
+  const at0 = Date.UTC(2026, 10, 2) / 1000; // Monday 2 November 2026, 00:00 UTC
+
+  it('places slots at the cron’s own time of day, not from the window’s start', () => {
+    // A window that starts at 10:00: the daily 02:41 slot is the next day's, not 10:00 + 24 hours.
+    deepStrictEqual(slotsOf(parseCron('41 2 * * *'), at0 + 10 * hour, at0 + 2 * day), [at0 + day + 2 * hour + 41 * 60]);
   });
 
-  it("keeps the next slot after an early sweep, as a cron does", () => {
-    // N=2: merges at 22h and 23h sweep early at 23h; the slot at 24h still runs, quiet, then 48h.
-    const played = replay([22 * hour, 23 * hour, 30 * hour], 0, 2 * day, { merges: 2, hours: 24 });
-    deepStrictEqual(played, { sweeps: 3, quiet: 1, early: 1, spans: [2, 0, 1], pending: 0 });
+  it('builds the default schedules at the slot’s time of day', () => {
+    deepStrictEqual(
+      schedules({ hour: 14, minute: 5, from: 'x' }).map((s) => s.cron),
+      ['5 2,8,14,20 * * *', '5 2,14 * * *', '5 14 * * *', '5 14 */2 * *', '5 14 * * 1'],
+    );
   });
 
-  it('counts a merge in one sweep, none outside the window, and the ones still waiting at its end', () => {
-    const merged = [-hour, 3 * hour, 30 * hour, 47 * hour, 3 * day];
-    const played = replay(merged, 0, 2 * day, { merges: 0, hours: 36 });
-    deepStrictEqual([played.spans, played.pending], [[2], 1]);
+  it('reads every 2 days as cron does, and weekly on its weekday', () => {
+    const twoDays = slotsOf(parseCron('0 0 */2 * *'), at0, at0 + 6 * day).map((t) => new Date(t * 1000).getUTCDate());
+    deepStrictEqual(twoDays, [3, 5, 7]);
+    deepStrictEqual(slotsOf(parseCron('0 3 * * 1'), at0, at0 + 14 * day), [at0 + 3 * hour, at0 + 7 * day + 3 * hour]);
+    // A 30-day month's 29th to the next 1st is two days; a 31-day month's 31st to the 1st is one.
+    equal(longestGap(parseCron('0 0 */2 * *')), 2 * day);
+    equal(longestGap(parseCron('0 0 * * 1')), 7 * day);
+    equal(longestGap(parseCron('5 2,8,14,20 * * *')), 6 * hour);
+    throws(() => parseCron('0 0 * *'), /five fields/);
+    throws(() => parseCron('0 25 * * *'), /out of range/);
+  });
+
+  it('takes the slot from --slot, the workflow’s SWEEP_AT or its first cron, in that order', () => {
+    deepStrictEqual(parseSlot('02:41'), { hour: 2, minute: 41, from: '--slot' });
+    throws(() => parseSlot('2:61'), /HH:MM/);
+    const workflow = "on:\n  schedule:\n    - cron: '41 2 * * *'\n    - cron: '41 8,14,20 * * *'\nenv:\n  SWEEP_AT: '03:17'\n";
+    deepStrictEqual(slotIn(workflow, 'sweep.yml'), { hour: 3, minute: 17, from: "sweep.yml's SWEEP_AT" });
+    deepStrictEqual(slotIn(workflow.replace(/env:[\s\S]*/, ''), 'sweep.yml'), { hour: 2, minute: 41, from: "sweep.yml's first cron" });
+    equal(slotIn('on: push\n', 'sweep.yml'), undefined);
   });
 });
 
-describe('pricing an option', () => {
+describe('replaying a schedule', () => {
+  it('counts the merges each slot checks, a quiet slot, and those still waiting at the end', () => {
+    // Slots at 2h and 26h; merges at 1h and 1.5h, none by 26h, then one at 30h.
+    deepStrictEqual(replay([1 * hour, 1.5 * hour, 30 * hour], [2 * hour, 26 * hour], 0, 36 * hour), { sweeps: 2, quiet: 1, spans: [2, 0], pending: 1 });
+  });
+
+  it('counts the merges since the slot before the window in its first slot, so it isn’t quiet by the window’s edge', () => {
+    // Weekly slots at day 7 and 14; the window starts at day 5, after a merge at day 3.
+    deepStrictEqual(replay([3 * day, 10 * day], [7 * day, 14 * day], 5 * day, 15 * day, 0).spans, [1, 1]);
+    deepStrictEqual(replay([3 * day, 10 * day], [7 * day, 14 * day], 5 * day, 15 * day).spans, [0, 1]);
+  });
+
+  it('counts each merge once, a push of several as several, and none outside the window', () => {
+    // Three first-parent commits pushed at once are three merges a bisect walks.
+    deepStrictEqual(replay([-hour, 3 * hour, 3 * hour, 3 * hour, 3 * day], [12 * hour], 0, day).spans, [3]);
+  });
+});
+
+describe('pricing a schedule', () => {
   const cost = { full: 100, fullVcpu: 600, quiet: 2, quietVcpu: 4 };
+  const daily = { cron: '0 0 * * *', name: 'daily' };
 
   it('scales a window to 30 days and charges a quiet slot only its plan', () => {
-    const row = priced({ merges: 0, hours: 24 }, { sweeps: 10, quiet: 4, early: 0, spans: [3, 0, 0, 5, 0, 0, 1, 2, 8, 4], pending: 0 }, 10, cost);
+    const row = priced(daily, { sweeps: 10, quiet: 4, spans: [3, 0, 0, 5, 0, 0, 1, 2, 8, 4], pending: 0 }, day, 10, cost);
     if (!row.available) throw new Error('unavailable');
     equal(row.sweepsPerMonth, 30);
     equal(row.quietPerMonth, 12);
@@ -47,36 +83,26 @@ describe('pricing an option', () => {
     equal(row.bisectMax, 3);
   });
 
-  it('marks an option unavailable when the window holds fewer than two of its slots', () => {
-    // One day, six merges: a weekly option would otherwise price at 0 minutes and 0 hidden.
-    const merged = [1, 2, 3, 4, 5, 6].map((h) => h * hour);
-    const row = priced({ merges: 50, hours: 168 }, replay(merged, 0, day, { merges: 50, hours: 168 }), 1, cost);
-    deepStrictEqual(row, { option: { merges: 50, hours: 168 }, available: false, why: 'needs a window of at least 14 days (--days)' });
+  it('marks a schedule unavailable when the window holds less than twice its longest gap', () => {
+    const weekly = { cron: '0 0 * * 1', name: 'weekly, Mondays' };
+    deepStrictEqual(priced(weekly, { sweeps: 0, quiet: 0, spans: [], pending: 6 }, 7 * day, 1, cost), {
+      schedule: weekly, available: false, why: 'needs a window of at least 14 days (--days)',
+    });
   });
 
   it('counts the merges still waiting at the window’s end as hidden', () => {
-    const row = priced({ merges: 0, hours: 24 }, { sweeps: 2, quiet: 0, early: 0, spans: [1, 2], pending: 9 }, 2, cost);
+    const row = priced(daily, { sweeps: 2, quiet: 0, spans: [1, 2], pending: 9 }, day, 2, cost);
     if (!row.available) throw new Error('unavailable');
     deepStrictEqual([row.hiddenMax, row.bisectMax], [9, 4]);
   });
 
   it('prints no vCPU-minutes when a label has none', () => {
-    const row = priced({ merges: 0, hours: 24 }, { sweeps: 2, quiet: 0, early: 0, spans: [1, 1], pending: 0 }, 30, { ...cost, fullVcpu: null });
+    const row = priced(daily, { sweeps: 2, quiet: 0, spans: [1, 1], pending: 0 }, day, 30, { ...cost, fullVcpu: null });
     equal(row.available && row.vcpuMinutesPerMonth, null);
   });
 
-  it('takes about log2 of the merges to bisect them', () => {
+  it('takes about log2 of the merges to bisect them, and counts merges a day', () => {
     deepStrictEqual([0, 1, 2, 3, 8, 9, 100].map(bisectSteps), [0, 0, 1, 2, 3, 4, 7]);
-  });
-
-  it('names an option the way the skill says it, and reads it as merges:hours', () => {
-    equal(named({ merges: 25, hours: 24 }), 'after 25 merges or 24 hours, whichever comes first');
-    equal(named({ merges: 0, hours: 168 }), 'every 168 hours');
-    deepStrictEqual(parseOption('40:12'), { merges: 40, hours: 12 });
-    throws(() => parseOption('40'), /merges:hours/);
-  });
-
-  it('counts merges a day', () => {
     deepStrictEqual(perDay([hour, 2 * hour, day + hour], 0, 3), { mean: 1, median: 1, busiest: 2 });
   });
 });
@@ -143,7 +169,11 @@ describe('listing runs', () => {
 describe('main, with a fake gh', () => {
   const now = 100 * day;
   const job = (name: string, minutes: number) => ({ name, conclusion: 'success', started_at: at(now - day), completed_at: at(now - day + minutes * 60), labels: ['ubuntu-24.04'] });
-  const fake = (sweepJobs: Record<number, object[]>) => (...args: string[]) => {
+  const fake = (sweepJobs: Record<number, object[]>, workflow?: string) => (...args: string[]) => {
+    if (args[2] === '-H') {
+      if (workflow === undefined || !(args[4] ?? '').includes('/contents/.github/workflows/sweep.yml?ref=main')) throw new Error('gh: Not Found (HTTP 404)');
+      return workflow;
+    }
     const path = args[2] ?? '';
     if (path.endsWith('/commits/main')) return JSON.stringify({ sha: 'm3' });
     if (path.includes('/commits?')) return JSON.stringify(history(now - 20 * day));
@@ -172,14 +202,27 @@ describe('main, with a fake gh', () => {
   };
   const args = ['--repo', 'o/r', '--branch', 'main', '--days', '28', '--sweep-title', 'CI on main, ', '--test-job', 'Tests'];
 
+  const sweeps = {
+    1: [job('Plan', 1), job('Tests 1/2', 30), job('Tests 2/2', 30), job('CI result', 1)],
+    2: [job('Plan', 1), job('CI result', 1)],
+  };
+
   it('prices full sweeps by the runs that ran tests, and quiet slots by those that ran none', () => {
-    const out = printed([...args, '--option', '0:24'], fake({
-      1: [job('Plan', 1), job('Tests 1/2', 30), job('Tests 2/2', 30), job('CI result', 1)],
-      2: [job('Plan', 1), job('CI result', 1)],
-    }));
+    const out = printed(args, fake(sweeps, "env:\n  SWEEP_AT: '02:41'\n"));
     match(out, /4 merges \(first-parent commits\)/);
     match(out, /A full sweep: 62 job-minutes, 124 vCPU-minutes, the median of 1 passing runs that ran tests. A slot with nothing new: 2 job-minutes, the median of 1 passing runs that ran none/);
-    match(out, /\| every 24 hours \| 30 \(/);
+    match(out, /Slots at 02:41 UTC, from \.github\/workflows\/sweep\.yml's SWEEP_AT\./);
+    // 28 slots in 28 days, scaled to a 30-day month.
+    match(out, /\| daily \| `41 2 \* \* \*` \| 30 \(/);
+    match(out, /\| weekly, Mondays \| `41 2 \* \* 1` \| 4 \(/);
+  });
+
+  it('takes --slot over the workflow, says when it assumed one, and prices a cron given', () => {
+    match(printed([...args, '--slot', '14:05'], fake(sweeps, "env:\n  SWEEP_AT: '02:41'\n")), /Slots at 14:05 UTC, from --slot\.[\s\S]*\| every 6 hours \| `5 2,8,14,20 \* \* \*`/);
+    match(printed(args, fake(sweeps)), /Slots at 00:00 UTC, from an assumption: no SWEEP_AT or cron/);
+    const out = printed([...args, '--option', '0 6 * * 1,4'], fake(sweeps));
+    match(out, /\| 0 6 \* \* 1,4 \| `0 6 \* \* 1,4` \| 9 \(/);
+    equal(out.includes('every 6 hours'), false);
   });
 
   it('says there is not enough evidence when no sweep in the window ran a test job', () => {
