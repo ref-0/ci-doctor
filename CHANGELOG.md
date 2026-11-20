@@ -8,6 +8,12 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
+## Unreleased
+
+### Shards
+
+- **`ci-runners` owns shard splitting.** The shard scripts moved from `scripts/shards/` into `skills/ci-runners/scripts/`, with their tests, so they install with that skill alone: the plan (`test-shards.ts`), `test-groups.ts`, the lanes runner (`test-lanes.ts`), the claims (`test-claims.ts`), the Actions cache client (`ci-cache.ts`), `test-tasks.ts` and `container-pack.ts`. `scripts/shards/README.md` is now the skill's `references/shards.md`, which the hub's Phase 3 excerpt, `ci-workflows`, `speed-up-tests` and the guide point to. **Action:** the templates still call the scripts at `scripts/shards/` in your repo; refresh that copy from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link of yours to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md`.
+
 ## v0.2.0
 
 Released 19 November 2026. Nine new skills, the hub's topics moved into them, the phases hand each step to a skill, and every description is rewritten.

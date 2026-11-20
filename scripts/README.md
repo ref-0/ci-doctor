@@ -16,7 +16,7 @@ Usable during the survey, before the plan is approved ([ci-doctor's read-only ru
 | [`docs/docs-budget.ts`](docs/README.md), [`docs/type-coverage.ts`](docs/README.md) | Tracked files | Static reads. `type-coverage.ts` calls the repo's installed `tsc`; skip it if nothing is installed |
 | [`graph/graph.ts`](graph/README.md) | Committed trees and history, through `git` | The package, export-path, layer and task graphs, and what the last 200 merges reached through them. Runs nothing in the repo |
 
-The baseline itself comes from GitHub's API: the guide's [read-only collection recipe](../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says how. The `ci-time.ts` spot-check lives with the [`ci-workflows`](../skills/ci-workflows/SKILL.md) skill.
+The baseline itself comes from GitHub's API: the guide's [read-only collection recipe](../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says how. The `ci-time.ts` spot-check lives with the [`ci-workflows`](../skills/ci-workflows/SKILL.md) skill. Time-based shards, work stealing, lanes and container packing live with the [`ci-runners`](../skills/ci-runners/references/shards.md) skill, in its `scripts/`.
 
 ## Opt-in pieces, after approval
 
@@ -30,7 +30,6 @@ Each changes the repo, CI, a schedule or a machine. Install one only when the pl
 | [`local/`](local/README.md) | Tests near a local change, a machine-wide test-slot pool, the task-cache wrapper, and housekeeping timers |
 | [`records/`](records/README.md) | A Vitest reporter for per-file records, the nightly collector, and the rankings. Python's own reports are covered there too |
 | [`reuse/`](reuse/README.md) | Content keys and merge promotion that let a compiled component's checks be skipped when its inputs didn't change |
-| [`shards/`](shards/README.md) | Time-based shards, work stealing over Actions cache claims, independent lanes, container packing |
 | [`sweeps/`](sweeps/README.md) | The sweep's bisect within a budget, the release gate on what a sweep checked, and the snapshot-pin guard |
 
 The `*.test.ts` files are each script's own `node --test` tests.
