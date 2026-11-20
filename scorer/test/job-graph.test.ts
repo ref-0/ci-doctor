@@ -277,7 +277,7 @@ describe('across the sample', () => {
 
   it('gives the fixes and the report lines', () => {
     const fixes = graphFixes(g);
-    assert.deepEqual(fixes.map((f) => f.page), ['07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores', '03-workflow-anatomy.md']);
+    assert.deepEqual(fixes.map((f) => f.page), ['07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores', '21-optimize-all-of-your-graphs.md#ci-jobs']);
     assert.match(fixes[1]!.text, /"build" holds up 5 of 6 jobs/);
     const [chain, blocker] = promptLines(g);
     assert.match(chain!, /^Chain that sets the wait: "build" 6\.2 min \(\d+%\) → "test \(4\)"/);
