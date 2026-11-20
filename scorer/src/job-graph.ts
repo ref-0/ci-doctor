@@ -254,6 +254,8 @@ export interface GraphJob {
   after?: string[];
   /** Matches the names of the API's jobs that are this job. */
   pattern: RegExp;
+  /** The same, with any value in a matrix slot: for a run whose matrix values differ from today's YAML. */
+  loose: RegExp;
   /** How much of the name is fixed text, so the most specific pattern wins. */
   fixed: number;
 }
@@ -311,7 +313,9 @@ const namePattern = (label: string, matrix: boolean, values = new Map<string, Se
     return vs?.size ? `(?:${[...vs].sort((a, b) => b.length - a.length).map(escape).join('|')})` : '.*?';
   });
   const body = parts.map((p, i) => p + (slots[i] ?? '')).join('');
-  return { source: matrix && !slots.length ? `${body}(?: \\(.*\\))?` : body, fixed: parts.join('').length };
+  const any = parts.join('.*?');
+  const suffix = matrix && !slots.length ? '(?: \\(.*\\))?' : '';
+  return { source: body + suffix, loose: any + suffix, fixed: parts.join('').length };
 };
 
 /** One workflow file's jobs and their `needs`, with local reusable workflows read through `read` and expanded. */
@@ -319,7 +323,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
   const unknown: string[] = [];
   const jobs: GraphJob[] = [];
 
-  const add = (doc: Yaml, prefix: { key: string; label: string; source: string; fixed: number; needs: string[] } | undefined, depth: number, file: string) => {
+  const add = (doc: Yaml, prefix: { key: string; label: string; source: string; loose: string; fixed: number; needs: string[] } | undefined, depth: number, file: string) => {
     const defs = isMap(doc) && isMap(doc.jobs) ? doc.jobs : undefined;
     if (!defs) {
       unknown.push(`${file} has no jobs this reader could find`);
@@ -335,6 +339,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
       const key = prefix ? `${prefix.key}/${id}` : id;
       const needs = asList(def.needs).map((n) => (prefix ? `${prefix.key}/${n}` : n));
       const source = prefix ? `${prefix.source} / ${own.source}` : own.source;
+      const loose = prefix ? `${prefix.loose} / ${own.loose}` : own.loose;
       const fixed = (prefix?.fixed ?? 0) + own.fixed;
       const uses = typeof def.uses === 'string' ? def.uses : undefined;
       const job: GraphJob = {
@@ -347,6 +352,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
         virtual: false,
         opaque: false,
         pattern: new RegExp(`^${source}$`),
+        loose: new RegExp(`^${loose}$`),
         fixed,
       };
       keys.push(key);
@@ -369,11 +375,12 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
         else unknown.push(`"${label}" calls ${local}, which couldn't be read${failed}`);
         // GitHub shows a skipped caller under its own name, and the called jobs as `caller / inner`.
         job.pattern = new RegExp(`^${source}(?: / .+)?$`);
+        job.loose = new RegExp(`^${loose}(?: / .+)?$`);
         job.matrix = true;
         job.opaque = true;
         continue;
       }
-      const inner = add(parseYaml(called), { key, label: job.label, source, fixed, needs: job.needs }, depth + 1, local!);
+      const inner = add(parseYaml(called), { key, label: job.label, source, loose, fixed, needs: job.needs }, depth + 1, local!);
       // The caller finishes when every job of its workflow has; jobs that need it wait for all of them.
       job.virtual = true;
       job.after = job.needs;
@@ -455,10 +462,17 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
   const candidates = [...nodes.values()];
   const keyOf = new Map<number, string | undefined>();
   const ambiguous: string[] = [];
-  for (const j of all) {
-    const hits = candidates.filter((n) => n.pattern.test(j.name));
+  // GitHub trims a name, so an empty matrix value at either end leaves no space there.
+  const takes = (re: RegExp, name: string) => re.test(name) || re.test(`${name} `) || re.test(` ${name}`);
+  const pick = (hits: GraphJob[]) => {
     const best = Math.max(...hits.map((n) => n.fixed));
-    const top = hits.filter((n) => n.fixed === best);
+    return hits.filter((n) => n.fixed === best);
+  };
+  for (const j of all) {
+    let top = pick(candidates.filter((n) => takes(n.pattern, j.name)));
+    // No job takes it with today's matrix values, as when a value was renamed since: one job that takes it with any
+    // values is still that job. Two never are.
+    if (!top.length) top = pick(candidates.filter((n) => takes(n.loose, j.name)));
     if (top.length > 1) ambiguous.push(j.name);
     keyOf.set(j.id, top.length === 1 ? top[0]!.key : undefined);
   }
@@ -747,7 +761,9 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
 
   // The chain by its graph jobs, so matrix instances that differ by run count as one chain. A list, never a joined
   // string: a job's name can hold any text, so one named "build → test" mustn't read as a chain of two.
-  const chainSig = (r: (typeof runs)[number]) => JSON.stringify(r.path.map((l) => (l.key === undefined ? ['name', l.name] : ['job', l.key])));
+  // A caller instance, such as `@test (3/10)`, groups with the others, as a matrix job's instances do.
+  const jobOf = (key: string) => key.split('@')[0]!;
+  const chainSig = (r: (typeof runs)[number]) => JSON.stringify(r.path.map((l) => (l.key === undefined ? ['name', l.name] : ['job', jobOf(l.key)])));
   const [topChain, chainRuns] = tally(runs.map(chainSig))[0] ?? ['', 0];
   const withChain = runs.filter((r) => chainSig(r) === topChain);
   const chain = (withChain[0]?.path ?? []).map((l, i) => ({
@@ -761,13 +777,13 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
     setupMin: r1(median(withChain.map((r) => r.path[i]!.setupMin))),
   }));
 
-  const blockers = tally(runs.flatMap((r) => (r.topBlocker && r.topBlocker.heldJobs > 0 ? [r.topBlocker.key] : []))).slice(0, 3).map(([key, n]) => {
-    const bs = runs.map((r) => r.topBlocker).filter((b) => b?.key === key);
+  const blockers = tally(runs.flatMap((r) => (r.topBlocker && r.topBlocker.heldJobs > 0 ? [jobOf(r.topBlocker.key)] : []))).slice(0, 3).map(([key, n]) => {
+    const bs = runs.map((r) => r.topBlocker).filter((b) => b && jobOf(b.key) === key);
     return {
       name: bs[0]!.name,
       runs: n,
       heldJobs: Math.round(median(bs.map((b) => b!.heldJobs))),
-      jobs: Math.round(median(runs.filter((r) => r.topBlocker?.key === key).map((r) => r.jobs.length))),
+      jobs: Math.round(median(runs.filter((r) => r.topBlocker && jobOf(r.topBlocker.key) === key).map((r) => r.jobs.length))),
       tookMin: r1(median(bs.map((b) => b!.tookMin))),
       heldJobMin: r1(median(bs.map((b) => b!.heldJobMin))),
     };
