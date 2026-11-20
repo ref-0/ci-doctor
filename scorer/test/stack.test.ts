@@ -249,16 +249,105 @@ describe('stack: the package graph', () => {
     // The workspace roots, package.json and Cargo.toml, are packages too, as the profile counts them.
     assert.equal(g.count, 9);
     assert.equal(g.edges, 9);
-    assert.deepEqual(g.cycles, [['@pip/core', '@pip/util']]);
+    assert.deepEqual(g.cycles, [{ ecosystem: 'npm', packages: ['@pip/core', '@pip/util'] }]);
     // package.json → cli → ui → core ⇄ util: the cycle counts as one step.
     assert.equal(g.maxDepth, 3);
-    assert.deepEqual(g.topFanIn, [['@pip/core', 3], ['c', 2], ['@pip/cli', 1], ['@pip/ui', 1], ['@pip/util', 1]]);
+    assert.deepEqual(g.topFanIn.map((p) => [p.name, p.ecosystem, p.dependents]), [['@pip/core', 'npm', 3], ['c', 'cargo', 2], ['@pip/cli', 'npm', 1], ['@pip/ui', 'npm', 1], ['@pip/util', 'npm', 1]]);
   });
 
   it("leaves the repo's numbers unknown when a manifest couldn't be read, and lists what was", () => {
     const partial = stack({ 'packages/a/package.json': pkg({ name: 'a', dependencies: { b: '*' } }), 'packages/b/package.json': pkg({ name: 'b' }) }, { unreadable: ['packages/b/package.json'] }).graph;
     assert.deepEqual(partial.packages.map((p) => p.name), ['a']);
     assert.deepEqual([partial.count, partial.edges, partial.cycles, partial.maxDepth, partial.topFanIn], [null, null, null, null, null]);
+  });
+
+  it('keys packages by ecosystem and name, so an npm package and a crate of one name make no cycle', () => {
+    const g = stack({
+      'package.json': pkg({ name: 'pip', dependencies: { mo: '1' } }),
+      'web/package.json': pkg({ name: 'mo' }),
+      'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\n',
+      'crates/mo/Cargo.toml': '[package]\nname = "mo"\n\n[dependencies]\npip = { path = "../pip" }\n',
+      'crates/pip/Cargo.toml': '[package]\nname = "pip"\n',
+    }).graph;
+
+    assert.deepEqual(g.cycles, []);
+    assert.equal(g.edges, 2);
+    assert.deepEqual(g.packages.find((p) => p.path === 'package.json')!.internal, ['mo']);
+    assert.deepEqual(g.topFanIn!.map((p) => `${p.ecosystem}:${p.name}`), ['npm:mo', 'cargo:pip']);
+  });
+
+  it('follows npm aliases and paths to the package they name', () => {
+    const s = stack({
+      'package.json': pkg({ name: 'root', private: true, workspaces: ['packages/*'] }),
+      'packages/a/package.json': pkg({ name: 'a', dependencies: { ui: 'workspace:@pip/ui@*', util: 'npm:@pip/util@^1', lodash4: 'npm:lodash@4' } }),
+      'packages/b/package.json': pkg({ name: 'b', dependencies: { core: 'file:../core', cli: 'link:../cli', web: 'workspace:../web' } }),
+      'packages/ui/package.json': pkg({ name: '@pip/ui' }),
+      'packages/util/package.json': pkg({ name: '@pip/util' }),
+      'packages/core/package.json': pkg({ name: '@pip/core' }),
+      'packages/cli/package.json': pkg({ name: '@pip/cli' }),
+      'packages/web/package.json': pkg({ name: '@pip/web' }),
+    });
+    const of = (n: string) => s.graph.packages.find((p) => p.name === n)!;
+
+    assert.deepEqual(of('a').internal, ['@pip/ui', '@pip/util']);
+    assert.deepEqual(of('b').internal, ['@pip/cli', '@pip/core', '@pip/web']);
+    // Libraries go by the real package's name, not the alias.
+    assert.deepEqual(s.libraries!.map((l) => l.name), ['lodash']);
+  });
+
+  it("follows Cargo's renames, inherited workspace dependencies and paths to the crate they name", () => {
+    const g = stack({
+      'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\n\n[workspace.dependencies]\nmo-core = { package = "core", path = "crates/core-impl" }\nutil = { path = "crates/util" }\nserde = "1"\n',
+      'crates/app/Cargo.toml': '[package]\nname = "app"\n\n[dependencies]\nmo-core.workspace = true\nutil = { workspace = true }\nserde.workspace = true\n\n[dependencies.fmt]\npackage = "pip-fmt"\nversion = "1"\n',
+      'crates/core-impl/Cargo.toml': '[package]\nname = "core"\n',
+      'crates/util/Cargo.toml': '[package]\nname = "util-crate"\n',
+      'crates/fmt/Cargo.toml': '[package]\nname = "pip-fmt"\n',
+    });
+    // util's package is util-crate: the edge goes by path, not by the key.
+    assert.deepEqual(g.graph.packages.find((p) => p.name === 'app')!.internal, ['core', 'pip-fmt', 'util-crate']);
+    assert.deepEqual(g.libraries!.map((l) => l.name), ['serde']);
+  });
+
+  it("keeps out manifests the workspace doesn't declare: npm's and pnpm's globs with exclusions, Cargo's members and exclude", () => {
+    const g = stack({
+      'package.json': pkg({ name: 'root', private: true }),
+      'pnpm-workspace.yaml': "packages:\n  - 'packages/*'\n  - apps/**\n  - '!**/test/**'\n",
+      'packages/a/package.json': pkg({ name: 'a' }),
+      'apps/web/site/package.json': pkg({ name: 'site' }),
+      'apps/web/test/e2e/package.json': pkg({ name: 'e2e' }),
+      'docs/package.json': pkg({ name: 'docs' }),
+      'Cargo.toml': '[workspace]\nmembers = ["crates/*"]\nexclude = ["crates/old"]\n',
+      'crates/x/Cargo.toml': '[package]\nname = "x"\n\n[dependencies]\nshared = { path = "../../shared" }\n',
+      'crates/old/Cargo.toml': '[package]\nname = "old"\n',
+      'shared/Cargo.toml': '[package]\nname = "shared"\n',
+      'tools/gen/Cargo.toml': '[package]\nname = "gen"\n',
+    }).graph;
+
+    // A path dependency inside the workspace is a member too, as Cargo makes it one.
+    assert.deepEqual(g.packages.map((p) => p.path).sort(), ['Cargo.toml', 'apps/web/site/package.json', 'crates/x/Cargo.toml', 'package.json', 'packages/a/package.json', 'shared/Cargo.toml']);
+    assert.equal(g.count, 6);
+  });
+
+  it("reads npm's and Yarn's workspaces, go.work and uv's members; with none declared, a manifest is its own package", () => {
+    const g = stack({
+      'package.json': pkg({ name: 'root', workspaces: { packages: ['libs/*'] } }),
+      'libs/a/package.json': pkg({ name: 'a' }),
+      'site/package.json': pkg({ name: 'site' }),
+      'go.work': 'go 1.24\n\nuse (\n  ./svc\n)\n',
+      'svc/go.mod': 'module example.com/svc\n',
+      'scratch/go.mod': 'module example.com/scratch\n',
+      'py/pyproject.toml': '[project]\nname = "py"\n\n[tool.uv.workspace]\nmembers = ["pkgs/*"]\n',
+      'py/pkgs/one/pyproject.toml': '[project]\nname = "one"\n',
+      'py/bench/pyproject.toml': '[project]\nname = "bench"\n',
+      'other/pyproject.toml': '[project]\nname = "other"\n',
+    }).graph;
+
+    assert.deepEqual(g.packages.map((p) => p.name).sort(), ['a', 'example.com/svc', 'one', 'other', 'py', 'root']);
+  });
+
+  it("leaves the numbers unknown when a file that declares the workspace couldn't be read", () => {
+    const g = stack({ 'package.json': pkg({ name: 'root' }), 'pnpm-workspace.yaml': 'packages: [a]\n', 'a/package.json': pkg({ name: 'a' }) }, { unreadable: ['pnpm-workspace.yaml'] }).graph;
+    assert.equal(g.count, null);
   });
 
   it('with no packages, is empty, not unknown', () => {
