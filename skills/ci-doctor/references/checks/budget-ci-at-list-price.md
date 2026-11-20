@@ -36,6 +36,6 @@ In the source repo:
 
 ## Pointed at from
 
-- [`ci-runners`](../../../ci-runners/references/billing.md#the-spend-cap), the spend cap, and [`blacksmith`](../blacksmith/references/billing.md) if you run on Blacksmith.
+- [`ci-runners`](../../../ci-runners/references/billing.md#the-spend-cap), the spend cap, and [`blacksmith`](../../../blacksmith/references/billing.md) if you run on Blacksmith.
 - The repo's `.agents/repo/ci.md`, its Spend watcher section.
 - [Measure CI before changing it](ci-measure-before-changing-it.md).
