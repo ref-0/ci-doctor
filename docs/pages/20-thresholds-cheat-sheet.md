@@ -2,6 +2,8 @@
 
 # 20. Thresholds cheat sheet
 
+Look up the starting values we used for slow files, shards, budgets and flakes, as examples to derive your own from.
+
 Our starting values, as examples from one repo. Don't adopt them as targets: derive yours from your own bottlenecks and comparable runs.
 
 | Setting | Value |

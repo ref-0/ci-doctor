@@ -76,6 +76,8 @@ Our checks below come from Vite+, which tracks what each task reads. A runner wi
 
 From [docs/pages/16-standing-automations.md](../../../../docs/pages/16-standing-automations.md). The automations table, for the plan's automations step.
 
+Choose which repeated follow-ups run on a schedule, whether CI, an agent or a machine runs each, and what each may do.
+
 **Applies when:** A repeated, read-only or deterministic follow-up would otherwise be done by hand, and the user says yes to its schedule. **Skip when:** The user hasn't said yes: a manual, read-only follow-up is the default.
 
 Each row says how it runs, because these are four different things: *CI* is a script-only GitHub Actions cron or dispatch, with no model; *agent* is a scheduled agent task in a harness, a cloud job or a session loop, which spends model usage as well as any runner minutes; *machine* is a timer or service on a host. Prefer a script for anything deterministic. Every schedule is opt-in and needs the user's yes; until then, a manual read-only follow-up is the default. For each one, name who checks its first eligible result and what happens if no run starts.

@@ -2,6 +2,8 @@
 
 # 9. Workspace tooling
 
+Make type checks, lint and generated files fast on every machine and in CI, by running each once and reusing it wherever it can be.
+
 The workspace checks run on every agent's machine many times an hour, and in every CI run. So the unit of optimization became one project, one lint pass or one parsed file, and each is reused independently. Our stack is TypeScript 7 (native), [tsrs](https://www.npmjs.com/package/tsrs) (a Rust port of the native checker), Oxlint, Vite+ and pnpm. We also use Effect: what was specific to it is in [If you use Effect](#if-you-use-effect), at the end of this section, and the rest reads without it. Take the ideas, not necessarily the tools. Most timings in this section are **local** measurements.
 
 **Start from what the repo has.** On a plain TypeScript repo, keep the existing `tsc`, project graph and task-runner ordering, and its compiler, lint and generation steps as they are. Change one only when a named duplicate pass or a measured bottleneck justifies it, and adopt the commands below one at a time. The Oxlint, tsrs and Vite+ material is conditional: it applies only if you use those tools.
