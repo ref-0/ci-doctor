@@ -1,7 +1,7 @@
 <!--
 What: the review session comment, line by line, as the gate's checker reads it, with examples and the local check.
 Where: read by an agent when a review session ends, before it marks the PR ready.
-Configure: the accepted types, considered types, thresholds and effort in `.agents/repo/review-record.json`, from the hub's references/agent-knowledge/repo-facts/review-record.json; your gate's call to it.
+Configure: the accepted types, considered types, thresholds and effort in `.agents/repo/review-record.json`, from the agent-knowledge skill's templates/repo-facts/review-record.json; your gate's call to it.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
