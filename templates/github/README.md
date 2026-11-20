@@ -44,6 +44,7 @@ Every script a workflow calls ships in this playbook, and each workflow calls it
 | `scripts/records/` | `scripts/records/` | your test config, as the Vitest reporter (`test-record.ts`) |
 | `scripts/flakes/` | `scripts/flakes/` | `ci.yml` result |
 | `scripts/sweeps/` | `scripts/sweeps/` | `ci.yml` plan (`snapshot-pins.ts`), `sweep-bisect.yml` |
+| `skills/ci-workflows/scripts/cron.ts` | `scripts/sweeps/cron.ts` | `sweep.yml`, both jobs. The skill owns it, as `sweep-cadence.ts` prices schedules with it; your repo runs its own copy |
 | `scripts/budgets/` | `scripts/budgets/` | `ci-health.yml`; `sweep-bisect.ts` imports two of its files |
 | `scripts/reuse/` | `scripts/reuse/` | `ci.yml` plan (`pass-key.ts`), only once you turn Rust pass reuse on |
 | `skills/review-gate/` | `<skills-dir>/review-gate/`, as [the skills' install](../../skills/README.md#install) lays it out | `ci.yml` result, which runs `<review-checker>` (that copy's `scripts/review-record.ts`) from the repo root of a base-branch checkout |
@@ -110,6 +111,7 @@ Each exists in this playbook at the path in the first column, with the CLI and e
 | `<review-checker>` | `ci.yml` result, run from the repo root of the base branch's checkout | No arguments; env `PR`, `GH_TOKEN`, `BASE`, and Actions' `GITHUB_REPOSITORY`, `GITHUB_SHA`. Exits 0 when a member's review is on record, as the skill's `references/record.md` defines it; 1 with each `::error::`. Optional: delete the step, its checkout and `review-recheck.yml` if you don't gate on review |
 | `scripts/records/test-record.ts` | your test config | The Vitest reporter that writes `TEST_FLAKES_FILE` lines and the `ci-record` lines `test-lanes.ts` and the collectors read |
 | `scripts/sweeps/sweep-bisect.ts` | `sweep-bisect.yml` | `<run id>`. Its `checks` name `ci.yml`'s jobs and inputs; keep them in step |
+| `scripts/sweeps/cron.ts` | `sweep.yml`, both jobs | `newest '<cron>' [--at <ISO time>]` prints the cron's newest slot at or before now, UTC, as `2026-11-16T02:41:00Z`. Node 24, nothing installed |
 | `scripts/budgets/ci-health.ts` | `ci-health.yml` | `[--times <file>] [--scale <k>] [--report]`; contract in its header |
 | `tools/workspace/src/bin.ts` | `ci.yml` static, two optional steps | `package-exports` (the export guard) and, on a pull request, `symbols check HEAD^1 HEAD` (no new exact copy), from [`../../tools/workspace/`](../../tools/workspace/README.md). The static job's checkout is depth 2 for the second. Delete either step if you don't port it |
 
@@ -166,7 +168,7 @@ The plan job picks the test runner's size (`test_runner`): change both labels it
 | `TASK_CACHE_READ_TOKEN` | jobs calling `actions/task-cache` | The repository secret holding the cache's read token. A generic name; rename it everywhere if you like |
 | `WORKSPACE_TYPES_CACHE` | `ci.yml` lint, types | Not a placeholder to fill: the environment name the ported type driver reads for its cache folder. Rename it in both if your checker reads another |
 
-Also adjust: the job list in `plannedJobs` (planner) and `SELECTABLE_JOBS` (`ci.yml`'s `env`, with `result`'s `needs` and the plan's `selected`) to match your jobs, the cron slots in `sweep.yml`, which are illustrative and coupled in four places (the crons, the server cron string in both `if:`s, and `SWEEP_AT` / `SERVER_AT` under `env`): change them together, or keep one cron for one daily suite, the runner labels to your measured sizes, the `timeout-minutes` and budgets to your measurements (p95 + 15%, guide section 12), and `bisectBudget` in `sweep-bisect.ts` (0 starts no bisect).
+Also adjust: the job list in `plannedJobs` (planner) and `SELECTABLE_JOBS` (`ci.yml`'s `env`, with `result`'s `needs` and the plan's `selected`) to match your jobs, the cron slots in `sweep.yml`, which are illustrative and coupled in three places (the crons, the server cron string in both `if:`s, and `SWEEP_CRON` / `SERVER_CRON` under `env`): change them together, or keep one cron for one daily suite, the runner labels to your measured sizes, the `timeout-minutes` and budgets to your measurements (p95 + 15%, guide section 12), and `bisectBudget` in `sweep-bisect.ts` (0 starts no bisect).
 
 ## Manual inputs and run names
 

@@ -18,7 +18,7 @@
  *   node sweep-cadence.ts --test-job 'Tests '              the jobs that run tests, by their name's
  *                                                          start (default: ci-time.json's first shard)
  *   node sweep-cadence.ts --slot 02:41                     the slots' time of day, UTC (default: the
- *                                                          repo's sweep workflow's SWEEP_AT or cron)
+ *                                                          repo's sweep workflow's SWEEP_CRON or cron)
  *   node sweep-cadence.ts --days 28 --repo <org>/<repo> --workflow ci.yml --branch main
  *   node sweep-cadence.ts --option '41 2 * * 1,4'          a cron to price, beside or instead of the
  *                                                          defaults
@@ -35,15 +35,17 @@
  *   API read to its end, and back to the slot before the window's first, which the first slot
  *   checks. A merged pull request is one, as are each commit of a rebase-merge and of a direct push:
  *   the commits a bisect of the branch walks. A window of more than `commitPages` pages is refused.
- * - The slots' time of day: `--slot`, else the `SWEEP_AT` or first single-time cron in the repo's
- *   `--sweep-file` (default `.github/workflows/sweep.yml`), else midnight UTC, and the output says
- *   which.
+ * - The slots' time of day: `--slot`, else the first time of the `SWEEP_CRON`, or of the first
+ *   cron, in the repo's `--sweep-file` (default `.github/workflows/sweep.yml`), else midnight UTC,
+ *   and the output says which.
  * - A sweep's cost: the median over the window's successful sweep runs (newest 10) that ran a test
  *   job, of each run's jobs' started minutes, each job rounded up to a whole minute, as ci-time.ts
  *   counts them, and vCPU-minutes from runner labels. A successful run that ran no test job is "a
  *   slot with nothing new", its plan having found nothing to check; with none in the window, it's
- *   `--quiet-minutes` on 2 vCPU. A failed or cancelled run counts as neither. With no full run in the
- *   window it prices nothing and says so.
+ *   `--quiet-minutes` on 2 vCPU. A failed or cancelled run counts as neither. It reads the sweep's
+ *   runs newest first until 10 full ones, the window's end, or GitHub's limit of 1,000 for a filtered
+ *   listing. With no full run it prices nothing, and says whether the window held none or the limit
+ *   stopped it first.
  * - What PR selection skips: one minus a PR run's median job-minutes over a full sweep's. A proxy:
  *   job-minutes, not test files, and a PR run also replays from caches.
  * - Releases: GitHub releases published in the window. Where the sweep gates the release, a release
@@ -53,8 +55,8 @@
  * since the last is a quiet one. "Hidden" is the merges a break can sit behind: those since the last
  * slot, at the slot that finds it, and the merges still waiting at the window's end. Bisecting them
  * takes about log2 of that many steps, each merge a step whichever push brought it, as a bisect
- * walks commits. A schedule whose longest gap between slots is more than half the window is marked
- * unavailable: too few slots to price.
+ * walks commits. A schedule whose longest gap between slots, over the calendar's whole cycle
+ * (`cron.ts`), is more than half the window is marked unavailable: too few slots to price.
  *
  * The check that runs this is the ci-workflows skill's references/tiers.md, "Choosing the sweep's
  * cadence". The user picks the schedule: it's recurring spend.
@@ -64,6 +66,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { billedMinutes, quantile, run as sh, type Run, SHARDS, vcpus, WORKFLOW, when } from './ci-time.ts';
+import { type Cron, longestGap, parseCron, slotsOf } from './cron.ts';
 
 /** A schedule: a five-field cron, UTC, and its name in words. */
 export type Schedule = { readonly cron: string; readonly name: string };
@@ -90,76 +93,14 @@ export const commitPages = 100;
 /** The most pages of 100 workflow runs it reads, GitHub's limit for a filtered listing. */
 export const runPages = 10;
 
-/** One cron field's values, from `*`, `*` + `/n`, `a`, `a-b` and lists of them; null for a bare `*`. */
-function field(text: string, low: number, high: number): Set<number> | null {
-  if (text === '*') return null;
-  const values = new Set<number>();
-  for (const part of text.split(',')) {
-    const match = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part);
-    if (!match) throw new Error(`a cron field of ${JSON.stringify(text)} isn't one this reads: use numbers, ranges, lists, * and */n`);
-    const from = match[1] === '*' ? low : Number(match[2]);
-    const to = match[1] === '*' ? high : match[3] === undefined ? (match[4] === undefined ? from : high) : Number(match[3]);
-    const step = match[4] === undefined ? 1 : Number(match[4]);
-    if (from < low || to > high || from > to || step < 1) throw new Error(`a cron field of ${JSON.stringify(text)} is out of range`);
-    for (let v = from; v <= to; v += step) values.add(v);
-  }
-  return values;
-}
-
-/** A parsed cron, UTC: each field's values, null where it's `*`. */
-export type Cron = { minute: Set<number>; hour: Set<number>; dom: Set<number> | null; month: Set<number> | null; dow: Set<number> | null };
-
-/** Parses a five-field cron, as GitHub's `on.schedule` takes it. */
-export function parseCron(text: string): Cron {
-  const parts = text.trim().split(/\s+/);
-  if (parts.length !== 5) throw new Error(`a cron has five fields, not ${JSON.stringify(text)}`);
-  const [minute = '', hour = '', dom = '', month = '', dow = ''] = parts;
-  const all = (set: Set<number> | null, low: number, high: number) => set ?? new Set(Array.from({ length: high - low + 1 }, (_, i) => low + i));
-  return {
-    minute: all(field(minute, 0, 59), 0, 59),
-    hour: all(field(hour, 0, 23), 0, 23),
-    dom: field(dom, 1, 31),
-    month: field(month, 1, 12),
-    dow: field(dow.replace(/\b7\b/g, '0'), 0, 6),
-  };
-}
-
-/** Each slot of `cron` after `start` and at most `end`, in seconds since the epoch, in order. */
-export function slotsOf(cron: Cron, start: number, end: number): number[] {
-  const slots: number[] = [];
-  const hours = [...cron.hour].toSorted((a, b) => a - b);
-  const minutes = [...cron.minute].toSorted((a, b) => a - b);
-  for (let day = Math.floor(start / 86_400) * 86_400; day <= end; day += 86_400) {
-    const date = new Date(day * 1000);
-    if (cron.month && !cron.month.has(date.getUTCMonth() + 1)) continue;
-    // Cron's rule: with both days restricted, either matches.
-    const dom = cron.dom?.has(date.getUTCDate());
-    const dow = cron.dow?.has(date.getUTCDay());
-    if (dom === undefined ? dow === false : dow === undefined ? !dom : !dom && !dow) continue;
-    for (const h of hours) for (const m of minutes) {
-      const t = day + h * 3600 + m * 60;
-      if (t > start && t <= end) slots.push(t);
-    }
-  }
-  return slots;
-}
-
-/** The longest gap between a cron's slots, in seconds, over a year from 2026, which has every month's length. */
-export function longestGap(cron: Cron): number {
-  const from = Date.UTC(2026, 0, 1) / 1000;
-  const slots = slotsOf(cron, from - 1, from + 366 * 86_400);
-  let most = 0;
-  for (let i = 1; i < slots.length; i++) most = Math.max(most, (slots[i] ?? 0) - (slots[i - 1] ?? 0));
-  return slots.length < 2 ? Infinity : most;
-}
-
-/** The slots' time of day from a sweep workflow's text: its `SWEEP_AT`, else its first cron with one time a day. */
+/** The slots' time of day from a sweep workflow's text: its `SWEEP_CRON`'s first time, else its first cron's. */
 export function slotIn(text: string, from: string): Slot | undefined {
-  const at = /^\s*SWEEP_AT:\s*['"]?(\d{1,2}):(\d{2})['"]?/m.exec(text);
-  if (at) return { hour: Number(at[1]), minute: Number(at[2]), from: `${from}'s SWEEP_AT` };
-  const cron = /^\s*-\s*cron:\s*['"](\d{1,2}) (\d{1,2}) [^'"]*['"]/m.exec(text);
-  if (cron) return { hour: Number(cron[2]), minute: Number(cron[1]), from: `${from}'s first cron` };
-  return undefined;
+  const named = /^\s*SWEEP_CRON:\s*['"]([^'"]+)['"]/m.exec(text);
+  const first = /^\s*-\s*cron:\s*['"]([^'"]+)['"]/m.exec(text);
+  const found = named ? { cron: named[1] ?? '', where: `${from}'s SWEEP_CRON` } : first ? { cron: first[1] ?? '', where: `${from}'s first cron` } : undefined;
+  if (!found) return undefined;
+  const cron = parseCron(found.cron);
+  return { hour: Math.min(...cron.hour), minute: Math.min(...cron.minute), from: found.where };
 }
 
 /** Parses `HH:MM`, UTC. */
@@ -218,8 +159,9 @@ export type Cost = { readonly full: number; readonly fullVcpu: number | null; re
 
 /** The row for a schedule, scaled from the window's days to 30, or why it can't be priced. */
 export function priced(schedule: Schedule, played: Replay, gap: number, days: number, cost: Cost): Row {
+  if (!Number.isFinite(gap)) return { schedule, available: false, why: 'its cron never runs' };
   if (!observable(gap, days)) {
-    return { schedule, available: false, why: `needs a window of at least ${Math.ceil((2 * gap) / 86_400)} days (--days)` };
+    return { schedule, available: false, why: `needs a window of at least ${Math.ceil((2 * gap) / 86_400).toLocaleString('en')} days (--days)` };
   }
 
   const scale = 30 / days;
@@ -295,9 +237,9 @@ export function merges(run: Run, repo: string, branch: string, start: number, pa
 }
 
 /**
- * The workflow's completed runs created after `start`, newest first, matching `keep`, until `want`
- * match or the listing ends. GitHub lists at most `runPages` pages of a filtered listing: `truncated`
- * says the window held more than that.
+ * The workflow's completed runs created after `start`, newest first, matching `keep`, each given to
+ * `visit`, with how many were kept so far, until it says it has enough or the listing ends. GitHub lists at most `runPages` pages of a
+ * filtered listing: `truncated` says the window held more runs than that and `visit` wanted more.
  */
 export function runsOf(
   run: Run,
@@ -306,18 +248,22 @@ export function runsOf(
   query: string,
   start: number,
   keep: (r: Listed) => boolean,
-  want: number,
+  visit: (r: Listed, kept: number) => boolean,
 ): { runs: Listed[]; truncated: boolean } {
   const since = new Date(start * 1000).toISOString().slice(0, 10);
   const runs: Listed[] = [];
 
   for (let page = 1; page <= runPages; page++) {
     const listed = api(run, `repos/${repo}/actions/workflows/${workflow}/runs?status=completed&created=%3E%3D${since}&per_page=100&page=${page}${query}`) as { workflow_runs: Listed[]; total_count: number };
-    runs.push(...listed.workflow_runs.filter((r) => when(r.created_at) >= start && keep(r)));
-    if (runs.length >= want || listed.workflow_runs.length < 100) return { runs: runs.slice(0, want), truncated: false };
+    for (const r of listed.workflow_runs) {
+      if (when(r.created_at) < start || !keep(r)) continue;
+      runs.push(r);
+      if (visit(r, runs.length)) return { runs, truncated: false };
+    }
+    if (listed.workflow_runs.length < 100) return { runs, truncated: false };
   }
 
-  return { runs: runs.slice(0, want), truncated: true };
+  return { runs, truncated: true };
 }
 
 /** A run's latest attempt's jobs. */
@@ -399,35 +345,43 @@ export function main(args: readonly string[], run: Run = sh, now = Math.floor(Da
       slot = undefined;
     }
   }
-  slot ??= { hour: 0, minute: 0, from: `an assumption: no SWEEP_AT or cron in ${values['sweep-file']} on ${branch}, and no --slot` };
+  slot ??= { hour: 0, minute: 0, from: `an assumption: no SWEEP_CRON or cron in ${values['sweep-file']} on ${branch}, and no --slot` };
   const options = [...(values.option?.length ? [] : schedules(slot)), ...(values.option ?? []).map((cron) => ({ cron, name: cron }))];
   const crons = options.map((o) => parseCron(o.cron));
   const gaps = crons.map(longestGap);
 
-  // Merges from the slot before the window's first, so the first slot counts all it would check.
-  const lookback = Math.min(days * 86_400, Math.max(0, ...gaps.filter(Number.isFinite)));
+  // Merges from the slot before the window's first, so the first slot counts all it would check:
+  // back one longest gap of the schedules the window can price.
+  const lookback = Math.max(0, ...gaps.filter((gap) => observable(gap, days)));
   const read = merges(run, repo, branch, start - lookback);
   const merged = read.filter((t) => t > start);
   const day = perDay(merged, start, days);
 
 
-  // The sweep's runs, newest first, until 10 full ones or the window's end.
+  // The sweep's runs, newest first, until 10 full ones, the window's end or GitHub's limit: each
+  // passing one costs a jobs listing, to tell a full sweep from a quiet slot.
   const onBranch = `&branch=${encodeURIComponent(branch)}`;
   const title = values['sweep-title'];
-  const listed = runsOf(run, repo, values.workflow, values['sweep-event'] ? `${onBranch}&event=${values['sweep-event']}` : onBranch, start, (r) => !title || r.display_title.startsWith(title), 40);
-  // Newest first, until 10 full runs: each costs a jobs listing.
   const kinds: { kind: 'full' | 'quiet' | 'unknown'; minutes: number; vcpu: number | null }[] = [];
-  for (const r of listed.runs) {
-    if (kinds.filter((k) => k.kind === 'full').length >= 10) break;
+  const listed = runsOf(run, repo, values.workflow, values['sweep-event'] ? `${onBranch}&event=${values['sweep-event']}` : onBranch, start, (r) => !title || r.display_title.startsWith(title), (r) => {
     const jobs = r.conclusion === 'success' ? jobsOf(run, repo, r.id) : [];
     kinds.push({ kind: kindOf(r.conclusion, jobs, tests), ...costOf(jobs) });
-  }
-  const busy = kinds.filter((k) => k.kind === 'full').slice(0, 10);
+    return kinds.filter((k) => k.kind === 'full').length >= 10;
+  });
+  const busy = kinds.filter((k) => k.kind === 'full');
   const quiet = kinds.filter((k) => k.kind === 'quiet').slice(0, 10);
+  const named = tests.map((t) => JSON.stringify(`${t}…`)).join(' or ');
+  if (!busy.length && listed.truncated) {
+    throw new Error(
+      `incomplete evidence: the newest ${(runPages * 100).toLocaleString('en')} runs of ${values.workflow} on ${branch}, GitHub's limit for a filtered listing, ` +
+        `held ${listed.runs.length} sweep runs and none that passed and ran a test job (a job named ${named}); the window's older runs weren't listed. ` +
+        'Narrow the listing with --sweep-event, the event that starts the sweep, so GitHub filters it.',
+    );
+  }
   if (!busy.length) {
     throw new Error(
-      `not enough evidence: no successful sweep run of ${values.workflow} on ${branch} in ${days} days ran a test job (a job named ${tests.map((t) => JSON.stringify(`${t}…`)).join(' or ')}), ` +
-        `of ${listed.runs.length} sweep runs read${listed.truncated ? `, the first ${runPages * 100} runs of the window` : ''}. Name the test jobs with --test-job, or give a longer --days.`,
+      `no full sweep: none of the ${listed.runs.length} sweep runs of ${values.workflow} on ${branch} in ${days} days passed and ran a test job (a job named ${named}). ` +
+        'Name the test jobs with --test-job, or give a longer --days.',
     );
   }
   const median = (xs: readonly number[]) => quantile(xs, 0.5);
@@ -439,7 +393,7 @@ export function main(args: readonly string[], run: Run = sh, now = Math.floor(Da
     quietVcpu: quiet.length ? known(quiet.map((c) => c.vcpu)) : Number(values['quiet-minutes']) * 2,
   };
 
-  const prRuns = runsOf(run, repo, values.workflow, '&event=pull_request', start, (r) => r.conclusion === 'success', 20).runs;
+  const prRuns = runsOf(run, repo, values.workflow, '&event=pull_request', start, (r) => r.conclusion === 'success', (_, kept) => kept >= 20).runs;
   const pr = prRuns.length ? median(prRuns.map((r) => costOf(jobsOf(run, repo, r.id)).minutes)) : null;
 
   const releases = (api(run, `repos/${repo}/releases?per_page=100`) as { published_at: string | null; draft: boolean }[])
