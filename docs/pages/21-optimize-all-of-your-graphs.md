@@ -126,7 +126,7 @@ The job graph is `needs:`, waits on another job's step, and the queue each job w
 
 - **the chain that sets the wait,** each job with its minutes and share, and how many sampled runs it set;
 - **blocked, queued and work time** on that chain, and each job's in every sampled run, to scale, for a replay;
-- **the top blocker:** the job whose time holds up the most downstream job-minutes;
+- **the top blocker:** the job that holds up the most downstream job-minutes, each dependent counted only for how long it waited on this job past its other needs;
 - **setup in the path:** setup minutes in path jobs that first waited on others, which overlapping with upstream work could hide;
 - **a wait on one step, as a guess:** a job that needs a whole job whose last step that makes something ended minutes before it did;
 - **waits the YAML can't show:** runs with a job created over 2 minutes after its known needs finished, and steps named for waiting or polling.

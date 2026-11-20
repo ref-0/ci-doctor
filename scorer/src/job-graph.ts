@@ -592,19 +592,29 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
     return link;
   });
 
-  // Who holds up whom: each job is held up by every job on its own chain, for as long as that job took.
-  const holds = new Map<string, Set<number>>();
-  for (const j of jobs)
-    for (const up of chainBefore(j.key)) {
-      const k = rkOf.get(up.id)!;
-      holds.set(k, (holds.get(k) ?? new Set()).add(j.id));
+  // Who holds up whom, and by how much. A need holds its dependent up only past the dependent's other needs: by the
+  // last need's finish less the next-latest's, or less the run's start when it's the only one. Up a chain, a job
+  // ahead gains a job behind only what every link between them passes on, and never more than its own time.
+  const margin = (rk: string) => {
+    const needs = runNodes.get(rk)?.needs ?? [];
+    const last = releasedBy(rk);
+    const others = needs.filter((n) => n !== last).map((n) => finish(n));
+    return last ? finish(last) - Math.max(runStart, ...others) : 0;
+  };
+  const tookMs = (rk: string) => (instances.get(rk)?.length ? finish(rk) - ready(rk) : 0);
+  const held = new Map<string, { jobs: number; ms: number }>();
+  for (const j of jobs) {
+    let passed = Infinity;
+    for (let below = j.key, up = below && releasedBy(below), guard = 0; below && up && guard < 200; below = up, up = releasedBy(up), guard++) {
+      passed = Math.min(passed, margin(below));
+      const credit = Math.min(passed, tookMs(up));
+      if (credit <= 0) continue;
+      const h = held.get(up) ?? { jobs: 0, ms: 0 };
+      held.set(up, { jobs: h.jobs + 1, ms: h.ms + credit });
     }
-  const blockers = [...holds]
-    .map(([key, held]) => {
-      // From when it could start to when its last instance ended: what the jobs behind it would gain were it instant.
-      const tookMin = mins(ready(key), finish(key));
-      return { key, name: labelOf(key), heldJobs: held.size, tookMin, heldJobMin: held.size * tookMin };
-    })
+  }
+  const blockers = [...held]
+    .map(([key, h]) => ({ key, name: labelOf(key), heldJobs: h.jobs, tookMin: tookMs(key) / 60e3, heldJobMin: h.ms / 60e3 }))
     .sort((a, b) => b.heldJobMin - a.heldJobMin);
 
   // Setup that waits on nothing can't move earlier; setup in a job on the path that waited on another could overlap it.
@@ -808,7 +818,9 @@ const pc = (x: number | null) => (x === null ? '–' : `${Math.round(x * 100)}%`
 export const chainText = (g: JobGraph) => g.chain.map((l) => `"${l.name}" ${m(l.minutes)} min (${pc(l.share)})`).join(' → ');
 export const blockerText = (g: JobGraph) => {
   const b = g.topBlockers[0];
-  return b ? `"${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs for ${m(b.tookMin)} min, ${m(b.heldJobMin)} job-min (${b.runs} of ${g.runsSampled} runs)` : 'none: no job waits on another';
+  return b
+    ? `"${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; it takes ${m(b.tookMin)} min (${b.runs} of ${g.runsSampled} runs)`
+    : 'none: no job waits on another';
 };
 
 /** The two `<ci-report>` lines. */
@@ -826,7 +838,7 @@ export const graphBlock = (g: JobGraph) => {
     `  Ends the gate       ${g.gateEnd.map((e) => `"${e.name}" ×${e.runs}`).join(', ')}`,
     `  Critical path p50   ${g.pathJobsP50} job${g.pathJobsP50 === 1 ? '' : 's'}, ${m(g.pathMinP50)} min: work ${m(g.workMinP50)}, queue ${m(g.queueMinP50)}; the last job blocked ${m(g.blockedMinP50)}`,
     `  Top blocker         ${blockerText(g)}`,
-    ...g.topBlockers.slice(1).map((b) => `                      then "${b.name}", ${b.heldJobs} jobs for ${m(b.tookMin)} min (${runs(b.runs)})`),
+    ...g.topBlockers.slice(1).map((b) => `                      then "${b.name}", ${b.heldJobs} jobs, ${m(b.heldJobMin)} job-min (${runs(b.runs)})`),
     `  Setup in the path   ${m(g.setupInPathMinP50)} min p50 in jobs that first waited on others, which overlapping with upstream work could hide`,
     ...g.stepWaits.slice(0, 2).map((w) => `  One step, a guess   "${w.job}" waits on all of "${w.waitsOn}", whose "${w.step}" ended ${m(w.earlyMin)} min before it did (${runs(w.runs)})`),
     g.hidden.runs
@@ -853,9 +865,10 @@ export const graphFixes = (g: JobGraph | undefined) => {
       weight: 6,
     });
   const b = g.topBlockers[0];
-  if (b && b.runs * 2 >= g.runsSampled && b.heldJobs * 2 >= b.jobs && (b.tookMin ?? 0) >= 3)
+  // Most jobs wait on it, in most runs, and each of them a minute or more past its other needs.
+  if (b && b.runs * 2 >= g.runsSampled && b.heldJobs * 2 >= b.jobs && (b.heldJobMin ?? 0) >= b.heldJobs)
     fixes.push({
-      text: `A blocker most jobs wait on: "${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs for ${m(b.tookMin)} min; shorten it, or let them start setup and wait only for what they need`,
+      text: `A blocker most jobs wait on: "${b.name}" holds up ${b.heldJobs} of ${b.jobs} jobs, ${m(b.heldJobMin)} job-min past their other needs; shorten it, or let them start setup and wait only for what they need`,
       page: '21-optimize-all-of-your-graphs.md#ci-jobs',
       weight: 6,
     });

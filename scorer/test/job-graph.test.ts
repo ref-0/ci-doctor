@@ -108,6 +108,18 @@ describe('a diamond graph', () => {
   });
 
   it('counts setup only in path jobs that first waited', () => close(run.setupInPathMin, 1.5));
+
+  it('credits a need only for how long it held its dependent past the next-latest need', () => {
+    // slow takes 8 minutes but ends only half a minute after quick, so it held gate up half a minute.
+    const g = graphOf('jobs:\n  slow: {}\n  quick: {}\n  gate: { needs: [slow, quick] }\n  after: { needs: gate }\n');
+    const r = runGraph(g, [job('slow', 0, 0, 8), job('quick', 0, 7, 7.5), job('gate', 8, 8, 8.8), job('after', 8.8, 8.8, 10)])!;
+    const slow = r.topBlocker!.key === 'slow' ? r.topBlocker! : undefined;
+    // gate holds after up for its 0.8 minutes; slow holds gate and after up half a minute each, 1 job-minute.
+    assert.equal(r.topBlocker!.name, 'slow');
+    close(slow!.heldJobMin, 1);
+    assert.equal(slow!.heldJobs, 2);
+    close(slow!.tookMin, 8);
+  });
 });
 
 describe('a matrix', () => {
