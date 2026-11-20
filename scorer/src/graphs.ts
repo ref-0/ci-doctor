@@ -228,19 +228,20 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
   }
 
   // What a re-export names: a file of this package by a relative path or `#` import, or another package's entry.
-  const resolveSpec = (from: string, spec: string): string[] => {
+  // Undefined when it names a workspace file or entry that resolves to nothing; none for a package outside it.
+  const resolveSpec = (from: string, spec: string): string[] | undefined => {
     if (spec.startsWith('.') || spec.startsWith('/')) {
       const base = spec.startsWith('/') ? owner(from).dir + spec.slice(1) : posix.join(posix.dirname(from), spec);
       const f = fileFor(posix.normalize(base.split('?')[0]!), tracked);
-      return f ? [f] : [];
+      return f ? [f] : undefined;
     }
     if (spec.startsWith('#')) {
       const pkg = owner(from);
       const match = matchKey(importsOf(pkg), spec);
-      if (!match || excludes(match.target)) return [];
+      if (!match || excludes(match.target)) return undefined;
       if (targetsOf(match.target).some((t) => t.path.startsWith('.'))) {
         const p = pickBoth(pkg.dir, match.target, match.star, tracked, [], 'esm');
-        return p ? [p.file, ...(p.also ?? [])] : [];
+        return p ? [p.file, ...(p.also ?? [])] : undefined;
       }
       const bare = targetsOf(match.target)[0]!.path;
       return resolveSpec(from, match.star === undefined ? bare : bare.replaceAll('*', match.star));
@@ -249,7 +250,7 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
     const pkg = byName.get(name);
     if (!pkg) return [];
     const r = entryOf(pkg, mapOf(pkg), sub, 'esm', tracked, []);
-    return r.unresolved === undefined ? [r.file, ...(r.also ?? [])] : [];
+    return r.unresolved === undefined ? [r.file, ...(r.also ?? [])] : undefined;
   };
 
   // Level 0 reads the entry files and the task configs in one batch; each next level, the modules the last re-exported.
@@ -257,6 +258,8 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
   const failed = new Map<string, string>();
   const cut = new Map<string, string>();
   const next = new Map<string, string[]>();
+  /** A module's first re-export that names a workspace file or entry resolving to nothing. */
+  const missed = new Map<string, string>();
   const configs = taskFiles(tracked, packages);
   const configsRead = configs.slice(0, limits.taskFiles);
   if (configs.length > limits.taskFiles) unknown.push(`Read the first ${limits.taskFiles} of ${configs.length} task config files`);
@@ -287,7 +290,12 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
       }
       const mod = parseModule(text);
       parsed.set(f, mod);
-      const targets = mod.specs.filter((s) => REEXPORTS.has(s.kind)).flatMap((s) => resolveSpec(f, s.spec));
+      const targets: string[] = [];
+      for (const s of mod.specs.filter((s) => REEXPORTS.has(s.kind))) {
+        const to = resolveSpec(f, s.spec);
+        if (to !== undefined) targets.push(...to);
+        else if (!missed.has(f)) missed.set(f, s.spec);
+      }
       next.set(f, targets);
       for (const t of targets) if (MODULE.test(t) && !parsed.has(t) && !failed.has(t) && !cut.has(t)) found.add(t);
     }
@@ -317,6 +325,9 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
         say(f, reason);
         continue;
       }
+      // What it re-exports from there is unknown, so what's found is a lower bound.
+      const miss = missed.get(f);
+      if (miss !== undefined) say(f, `it re-exports \`${miss}\`, which resolves to no tracked file`);
       // A cycle back to the entry doesn't count the entry itself.
       for (const t of next.get(f) ?? []) if (!depth.has(t)) (depth.set(t, d + 1), queue.push(t), reexports.add(t));
     }
