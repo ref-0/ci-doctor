@@ -22,20 +22,21 @@ From the CI provider's API and logs, with no new runs.
 - **Per-file test time,** if the runner reports it. Vitest needs a reporter ([the reporter](../excerpts/phase-2.md#1-the-reporter)); pytest can write JUnit XML and per-phase durations ([Python tests](../excerpts/phase-2.md#python-tests)). Label case durations as durations, not file wall time. If there are no file timings, the plan's first step proposes recording them (guide section 13), and the slow-file inventory is marked pending.
 - **Flake history:** tests that failed then passed on the same commit. Keep test-level retries, failed-job reruns and infrastructure failures apart.
 - **Selection waste:** how many PR runs ran everything, and why.
-- **What a change triggers,** for a JavaScript or TypeScript workspace: [`scripts/graph/`](../../../../scripts/graph/README.md#what-a-change-triggers) replays the last 200 merges through the import graph, read-only. Paste its headline: the p50 and p90 share of tests a commit reaches, beside what package-level selection would run, the share that reaches everything, and the widest triggers. It's the graph's reach, not what ran; label it so.
+- **What a change triggers,** for a JavaScript or TypeScript workspace: [`scripts/graph/`](../../../../scripts/graph/README.md#what-a-change-triggers) replays the last 200 merges through the import graph, reading committed trees only, as [`optimize-graphs`' measure](../../../optimize-graphs/references/measure.md#the-graph-tool) runs it. Paste its headline, read as [its headline](../../../optimize-graphs/references/measure.md#read-the-headline) says: the p50 and p90 share of tests a commit reaches, beside what package-level selection would run, the share that reaches everything, and the widest triggers. It's the graph's reach, not what ran; label it so.
 - **Local contention,** if agents share a machine: slot waits logged apart from test time, with the denominator named ([guide section 14](../excerpts/phase-2.md#sharing-one-machine)).
 
 **How to collect it.** Follow the guide's [read-only collection recipe](../excerpts/phase-2.md#collecting-from-the-api-without-losing-runs) and [`ci-history-data.md`](../../../speed-up-tests/references/ci-history-data.md): page everything, split date windows below the API's caps, keep every attempt, cover every workflow in the current gate, include non-PR events for spend, and count what you couldn't read. The `ci-time.ts` script in the [`ci-workflows`](../../../ci-workflows/SKILL.md#measuring-a-run) skill is a spot-check of recent runs, not this baseline.
 
-**Hand each measurement to its skill,** read-only, and take back the number with its count, spread, window and label:
+**Skills here only read.** Each measurement below follows its skill's reading rules, and takes back the number with its count, spread, window and label. In this phase a skill reads records you can already reach and classifies attempts that already happened. It reruns nothing, files nothing, edits no doc, clones or installs nothing and runs no test, whatever its page goes on to say. Evidence the records don't hold is marked unavailable, not gathered.
 
-| Measuring | Skill |
+| Measuring | Read as |
 | --- | --- |
-| Before any number counts: the decision it serves and the noise floor from comparable runs | [`prove-it`](../../../prove-it/SKILL.md#1-before-you-measure) |
-| Queue to start, and spend and the bill | [`ci-runners`](../../../ci-runners/SKILL.md#what-to-read)' queues and billing; on Blacksmith, [`blacksmith`](../../../blacksmith/SKILL.md)'s billing adapter |
-| Per-file test time from CI's records | [`speed-up-tests`](../../../speed-up-tests/SKILL.md#1-find-them-from-cis-records) |
+| Before any number counts: the decision it serves, and the noise floor from comparable runs that already exist | [`prove-it`](../../../prove-it/SKILL.md#1-before-you-measure) |
+| Queue to start | [`ci-runners`' queues](../../../ci-runners/references/queues.md#measure-it-apart-from-the-jobs) |
+| Spend and the bill | [`ci-runners`' audit](../../../ci-runners/references/billing.md#auditing-spend), reporting a doc that disagrees rather than fixing it; on Blacksmith, [how its bill rounds](../../../blacksmith/references/billing.md) |
+| Per-file test time | [`speed-up-tests`' reading of CI's records](../../../speed-up-tests/references/measuring.md#reading-cis-records) |
 | Setup and cache restores | [`cache-ci`](../../../cache-ci/SKILL.md#1-measure-where-setup-goes) |
-| Flake history: retries, reruns and infrastructure kept apart | [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md#retries-reruns-and-infrastructure) |
+| Flake history: each past failure classed as a retry, a rerun or infrastructure | [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md#retries-reruns-and-infrastructure), classifying only |
 
 This is a bounded, one-time read of metadata and log samples. It isn't a backfill or a standing collector: those need the user's yes (guide section 13). Keep an API-call reserve for other users of the quota.
 

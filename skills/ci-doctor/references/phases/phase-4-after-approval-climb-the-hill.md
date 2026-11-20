@@ -9,7 +9,7 @@
 - `gh` rights to set repo secrets (on stdin, as with `gh secret set`, never on a command line), to write Actions on watched repos, and to write issues and dispatch workflows on an alerts repo;
 - the provider and cache accounts the plan selected ([the logins table](logins.md#logins-and-rights) lists each check).
 
-Then work in rounds until the target is reached or the levers run out. **Each change goes to its skill,** the one the plan's Skill column names, and only skills the authorization record lists. This phase says which change comes next and when it counts; the skill says how to make it, and hands back the PR with its before and after:
+Then work in rounds until the target is reached or the levers run out. **Each change goes to its skills,** the ones the plan's Skills column names. Before each handoff, here or below, check the skill is in the authorization record's Skills row, as required or with its condition met; if it isn't, stop and ask. This phase says which change comes next and when it counts; the skill says how to make it, and hands back the PR with its before and after:
 
 | The change | Skill |
 | --- | --- |
@@ -28,7 +28,7 @@ Then work in rounds until the target is reached or the levers run out. **Each ch
 3. **Make one change** per pull request, one cause per PR.
    - For a change to CI, follow [check a change to CI against real output](../checks/ci-check-a-workflow-change.md): its modelled effect on a full and a small run, its cost a month, and which of those numbers the PR's own run observes.
    - For test speedups, the PR body has the CI times before (from history) and after (from the PR's normal CI run), the mutation that still fails, and a local repeat of the whole file with retries off.
-   - **Mutations:** only in a disposable checkout, with remote cache writes off and test execution uncached. Check the test fails for the intended reason, restore the source, and confirm the clean whole file passes with retries off. Use the repo's real runner command, and keep both sides of a deadline where it has them. Keep the mutation out of commits and CI.
+   - **Mutations:** as [`speed-up-tests`](../../../speed-up-tests/SKILL.md#3-keep-what-each-test-proves) says, only in a disposable checkout and within the authorization record. Keep the mutation out of commits and CI.
 4. **Use the repo's existing PR and merge path,** or [`review-gate`](../../../review-gate/SKILL.md) and [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md) where the repo adopted them. Record the base branch, the required check identity, the allowed merge method and the human approvals before touching a PR. Test the current required ref, including the merge-queue SHA when the repo uses one. If the repo runs drafts, keep doing so unless the plan approved a draft-skip change.
 5. **Read the run's logs before merging:** the changed files were selected, actually ran, and their times match. A green check can hide a file that never ran.
 6. **Re-measure on real runs,** following [`prove-it`](../../../prove-it/SKILL.md) for every before and after: the decision and noise floor written first, then runs at like hours, enough to beat the noise. Use the noise you measured on this repo; ours swung about ±40% on single comparisons, as an example. Compare a file with its own history and its shard. One after-run can't show a p90: label early results provisional, and read matched later runs, with a control cohort where you can. If you sample CPU, start and stop the sampler inside the measured step and keep its summary.
