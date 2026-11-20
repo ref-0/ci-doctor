@@ -53,9 +53,18 @@ const keyOf = (full) => {
 
 const routes = JSON.parse(readFileSync(process.env.GH_STUB_FIXTURES, 'utf8'));
 
+// A GraphQL answer holding errors is printed, and gh exits 1 with the first error's message, as gh does.
+const answerGraphql = (answer) => {
+  process.stdout.write(JSON.stringify(answer));
+  if (!answer.errors?.length) process.exit(0);
+  process.stderr.write(`gh: ${answer.errors[0].message}\n`);
+  process.exit(1);
+};
+if (path === 'graphql' && routes.graphql) answerGraphql(routes.graphql.json);
+
 // A GraphQL query of aliased blobs, `f0: object(expression: "main:path")`, is answered from the same files' raw
 // answers, null where there's none, unless the fixtures hold a `graphql` answer of their own.
-if (path === 'graphql' && !routes.graphql) {
+if (path === 'graphql') {
   if (!body) {
     process.stderr.write('stub gh: a GraphQL query must come on stdin with --input -\n');
     process.exit(2);
@@ -67,8 +76,7 @@ if (path === 'graphql' && !routes.graphql) {
     const raw = routes[`repos/${owner}/${name}/contents/${file}?ref=${ref}`]?.raw;
     repository[alias] = raw === undefined ? null : { isTruncated: false, text: raw };
   }
-  process.stdout.write(JSON.stringify({ data: { repository } }));
-  process.exit(0);
+  answerGraphql({ data: { repository } });
 }
 
 const key = keyOf(path);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { RateLimitError } from '../src/errors.ts';
 import { ApiCache, Gh } from '../src/gh.ts';
 import { scratch, withStub } from './helpers.ts';
 
@@ -49,6 +50,30 @@ describe('GraphQL', () => {
       assert.equal(Object.keys(answer.data.repository).length, 100);
       assert.ok(log()[0]!.includes('--input'));
       assert.ok(log()[0]!.every((a) => a.length < 1000));
+    });
+  });
+});
+
+describe('a rate limit', () => {
+  const limited = {
+    graphql: { status: 200, json: { data: null, errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for installation ID 1.' }] } },
+    rate_limit: { status: 200, json: { resources: { core: { reset: 1795100000 }, graphql: { reset: 1795133700 } } } },
+  };
+
+  it("on GraphQL, which answers 200, stops at once with the limit's reset time, without asking again", () => {
+    withStub(limited, {}, (log) => {
+      assert.throws(() => new Gh().graphql('query { viewer { login } }'), (e: Error) => {
+        assert.ok(e instanceof RateLimitError);
+        assert.equal(e.message, "Couldn't read graphql: API rate limit exceeded for installation ID 1. GitHub's rate limit for this account ran out; it resets at 2026-11-20 00:15 UTC.");
+        return true;
+      });
+      assert.deepEqual(log().map((c) => c.find((a) => a === 'graphql' || a === 'rate_limit')), ['graphql', 'rate_limit']);
+    });
+  });
+
+  it('without a reset time to read, still stops and says to try again once it resets', () => {
+    withStub({ graphql: limited.graphql }, {}, () => {
+      assert.throws(() => new Gh().graphql('query { viewer { login } }'), /ran out; try again once it resets/);
     });
   });
 });
