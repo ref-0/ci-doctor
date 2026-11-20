@@ -861,11 +861,15 @@ jobs:
           KEY: test-times-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}.json
         run: node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/times/results.json"
 
-  # Each test file's newest time, from every shard of a sweep or server slot, merged into the times
-  # kept before, so a run of only some files keeps the others'. Seconds of work, one billed minute on
-  # 2 vCPU. Only main's run saves the result, which the next plans read; a branch's sweep runs the
-  # merge to try a change to this job. Not in `result`: a run whose times aren't kept fails no
-  # check, and the next plans by the times before.
+  # Each test file's planned time, from every shard of a sweep or server slot, merged into the times
+  # kept before, so a run of only some files keeps the others'. Each file keeps its newest samples
+  # (test-shards.ts' keptSamples) and plans from their median, so one slow runner doesn't move the
+  # split. The sweep is the only writer of these times and their full refresh, at whatever cadence
+  # sweep.yml gives it; a new file runs on its estimate until then (the ci-runners skill's shards,
+  # "Keeping the times current"). It drops a test the checkout no longer tracks. Seconds of work,
+  # one billed minute on 2 vCPU. Only main's run saves the result, which the next plans read; a
+  # branch's sweep runs the merge to try a change to this job. Not in `result`: a run whose times
+  # aren't kept fails no check, and the next plans by the times before.
   test-times:
     name: Main's test times
     needs: [plan, tests]
@@ -887,7 +891,7 @@ jobs:
           restore-keys: test-times-all-
       - id: cache
         uses: ./.github/actions/ci-cache
-      - name: Each file's newest time
+      - name: Each file's planned time, the median of its newest samples
         env:
           CI_CACHE_URL: ${{ steps.cache.outputs.url }}
           CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}

@@ -17,14 +17,14 @@ Every script below is in this skill's [`scripts/`](../scripts/), with its `node 
 
 - **Before approval, read-only:** `test-shards.ts` models a split from the repo's own checkout without copying anything. From the repo's root, `node <skills-dir>/ci-runners/scripts/test-shards.ts <most> <file list> [<times.json>...]` prints the plan; it reads `git ls-files` and the files you pass, and writes nothing.
 - **Once the user approves wiring it in:** copy the folder into the repo at `scripts/shards/`, less its `*.test.ts` files, as the [workflow templates' install layout](https://ci-doctor.ref0.dev/guide/templates/github/README.md#install-layout) says. The templates call each script there, and `test-lanes.ts` and `test-tasks.ts` take the repo's root as the folder two above their own. The repo then owns its copy and its values: updating this skill never touches them.
-- **Their tests:** `node --test *.test.ts`, from this skill's `scripts/`.
+- **Their tests:** `node --test '*.test.ts'`, from this skill's `scripts/`. A bare `node --test` also runs the scripts themselves, as CLIs with no arguments.
 
 ## Files
 
 | File | What it does | Where it runs |
 | --- | --- | --- |
 | [`test-groups.ts`](../scripts/test-groups.ts) | Which test files may be replayed from a task cache, and the groups they run in. CI puts one heavy-harness file in a group, or 8 other files, with 1 worker. Local runs put 4 files in a group, with 2 workers. Groups are formed from every test file in the checkout, so task names are stable. Each covered-only file (`COVERED_ONLY`, equal to the planner's `coveredOnly` keys) is a group alone, so a run that leaves it out can't run it in another file's group. | Imported by the others |
-| [`test-groups.test.ts`](../scripts/test-groups.test.ts) | That a covered-only file never shares a group. `node --test` | Locally or CI |
+| [`test-groups.test.ts`](../scripts/test-groups.test.ts) | That a covered-only file never shares a group. `node --test test-groups.test.ts` | Locally or CI |
 | [`test-shards.ts`](../scripts/test-shards.ts) | The plan. The shard count is set so each shard holds `shardSeconds` per worker across `shardWorkers` workers (example values you measure for your runners), with at most the `<most>` the plan passes. It reserves roughly half the estimated work in fixed assignments, greedily onto the least-loaded shard. Each shard's first group, untimed groups and explicitly pinned groups stay fixed even when that passes the target. Queued batches are formed by adding whole groups until their summed estimated work (file times plus modelled startup, across lanes) reaches about `batchSeconds`: a target for summed work, not a promise of a batch's wall time. A one-shard run uses no queue. `--merge` combines the times of several runs. | CI plan job, and a merge-times job |
 | [`test-shards.test.ts`](../scripts/test-shards.test.ts) | `node --test test-shards.test.ts` | Anywhere |
 | [`test-claims.ts`](../scripts/test-claims.ts) | Claims one queue batch by reserving `<prefix>-<batch>` in the Actions cache: 200 means won, 409 means lost. It retries after 250 and 1000 ms, with a 10 s timeout. A claim that never gets an answer counts as `unsure` and runs anyway. In a test, 20 jobs raced for 540 keys and exactly one job won each key. | Each test shard |
@@ -84,7 +84,7 @@ The template wires this whole; the snippets below are a cutout of it. Use one pr
     git ls-files | grep -E "$ORDINARY_TESTS" | grep -vE '\.(sandbox|proof)\.test\.tsx?$' > "$RUNNER_TEMP/ordinary"
     files=$(wc -l < "$RUNNER_TEMP/ordinary")
     server=$(grep -c '^<server-dir>/' "$RUNNER_TEMP/ordinary" || true)
-    # test-times.json: the merged times of the default branch's last full run (see step 5).
+    # test-times.json: the default branch's stored times, from its sweeps (see step 5).
     node scripts/shards/test-shards.ts 16 "$RUNNER_TEMP/ordinary" test-times.json > "$RUNNER_TEMP/plan.json"
     echo "plan_attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
     echo "shard_files=$(jq -c .shards "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
@@ -186,7 +186,14 @@ Which container files a PR runs is the planner's job, not this script's: see [`t
 
 ### 5. Keeping the times current
 
-On the default branch's full runs, save each shard's `--times` file. A small job then runs `node scripts/shards/test-shards.ts --merge <each results.json> > test-times.json` and commits the file or caches it, wherever the plan job reads it from. A file with no recorded time is estimated: heavy-harness files at the 90th percentile of the recorded ones, other files at the median. Such files run in a shard's own share and never go into the queue.
+The sweep keeps the times. On each sweep's or server slot's run on the default branch, save each shard's `--times` file. A small job then runs `node scripts/shards/test-shards.ts --merge <each results.json> test-times.json > new.json` and caches the result where the plan job reads it. That job is the times' only writer. Each file keeps its newest `keptSamples` times (3) and the plan reads their median, so one shard on a slow machine doesn't move a file. A file the checkout no longer tracks is dropped. A file with no recorded time is estimated cautiously: heavy-harness files at the 90th percentile of the recorded ones, other files at the median. Such files run in a shard's own share and never go into the queue.
+
+How fresh the times are decides only how even the split is, and that's a separate decision from how often the sweep runs. The sweep's cadence decides how soon a break that PR selection skipped shows, and what a release waits for ([`ci-workflows`' tiers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/references/tiers.md#sweep-cadence-and-shard-times-are-separate-decisions)). The sweep, at whatever cadence the user picks, is enough to keep the times fresh. In the source repo's CI, 17 to 20 November 2026, 1,193 files were measured. A fixed split by stored times put its busiest shard at 1.001 times the best split's with fresh times. With times a week old it was 1.014 at the median and 1.072 at the 90th percentile; that's modelled from measured drift and the repo's rate of new files. An equal count of files a shard was 1.146. New files run on the cautious estimate until the next sweep; that's in the week-old figure, and it's the known, measured cost.
+
+Why a median of 3, from the same runs (254 shards that replayed no task, 17,042 fresh times):
+
+- **One run's time is noisy.** Against its file's median, a sample fell between 0.70 and 1.58 times it at the 10th and 90th percentiles. Most of that is the machine: a shard's files ran at 0.76 to 1.50 times their own medians at those percentiles, and 2.19 at the most.
+- **More samples didn't help past two or three.** The error measured: at each point in a file's runs, the median of its k runs before, divided by the median of its next 3, minus one, as an absolute value. The middle of that over every point of every file was 0.36 for k = 5, 0.25 for 2 or 3, and 0.31 for 1: a quarter off, from 2 or 3. The files were getting faster over those days, so the newest 5 lagged. Three is the fewest whose median drops one slow machine.
 
 The times are Vitest's module duration of files that ran and passed, with collection reported separately; `--times` leaves out failed, skipped and replayed files. That's the right input for ordinary shards, whose per-file process and group startup the shard model adds on its own (`test-shards.ts`' overheads). It isn't a file's wall time: container packing needs that, measured separately (section 4).
 
