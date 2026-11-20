@@ -16,7 +16,7 @@ How far a change reaches, and how long CI waits for it, are set by five graphs. 
 
 The first three are one graph seen at three sizes, packages, entry points and folders, and the fourth and fifth are built on them. An edge that's wider than the code needs costs on every run, and nothing flags it, so each graph below has a check that fails on a new edge and a measurement that shows the width of the old ones.
 
-[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand.
+[`scripts/graph/`](../../scripts/graph/README.md) measures graphs 1–4, locally and read-only, and replays recent merges through them ([what it measures](../../scripts/graph/README.md#measure-the-graphs)). Graph 5 is read from CI's own records, and the scorer reads it from a repo's recent runs ([CI jobs](#ci-jobs)). [Measure the graphs](#measure-the-graphs) says what to count, with the tool or by hand. The [`optimize-graphs`](../../skills/optimize-graphs/SKILL.md) skill carries this section for a coding agent: what to measure, what to propose and in what order, and how to verify it.
 
 ## Package dependencies, declared and checked
 

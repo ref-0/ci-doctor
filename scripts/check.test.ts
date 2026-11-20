@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { FALLBACK, OLD_NAMES, site, skillsOnly, tests } from './check.ts';
+import { FALLBACK, OLD_NAMES, site, skillsOnly, standalone, tests } from './check.ts';
 import { build } from './site/build.ts';
 
 const flagged = (line: string) => OLD_NAMES.some(([pattern]) => pattern.test(line));
@@ -23,7 +23,7 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+    for (const line of ['see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
       equal(flagged(line), true, line);
     }
   });
@@ -46,6 +46,33 @@ describe('the skills-only link check', () => {
     const problems = skillsOnly(root);
     equal(problems.length, 1);
     match(problems[0] ?? '', /page\.md:5: .*leaves skills\/ for elsewhere\/notes\.md/);
+  });
+});
+
+describe('the each-skill-alone link check', () => {
+  const root = mkdtempSync(join(tmpdir(), 'check-alone-'));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  write(root, 'README.md', '# R\n\nSee [the skills](skills/README.md).\n');
+  write(root, 'skills/README.md', '# Skills\n');
+  write(root, 'skills/hub/SKILL.md', '---\nname: hub\ndescription: "The hub."\n---\n\n# Hub\n\n## Rules\n\nSee [the guide](../../docs/a.md#one) and [the leaf](../leaf/SKILL.md#steps).\n');
+  write(root, 'skills/leaf/SKILL.md', '---\nname: leaf\ndescription: "A leaf."\n---\n\n# Leaf\n\n## Steps\n\nRead [the detail](references/detail.md#gone), [the guide](../../docs/a.md#two), [the hub](../hub/SKILL.md#rules) and [a secret][s].\n\n[s]: ../../private/notes.md\n');
+  write(root, 'skills/leaf/references/detail.md', '# Detail\n');
+  write(root, 'docs/a.md', '# A\n\n## One\n');
+  write(root, 'private/notes.md', '# Notes\n');
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  spawnSync('git', ['add', '.'], { cwd: root });
+  write(root, '.gitignore', 'private/\n');
+  spawnSync('git', ['rm', '-q', '--cached', 'private/notes.md'], { cwd: root });
+
+  it('passes links that resolve in the copy or on the site, and fails a missing anchor in either, and a link the site does not serve', () => {
+    const results = standalone(root);
+    deepStrictEqual(results.map((r) => r.name), ['hub', 'leaf']);
+    deepStrictEqual(results[0]?.problems, []);
+    const leaf = results[1]?.problems ?? [];
+    equal(leaf.length, 3, leaf.join('\n'));
+    match(leaf.join('\n'), /SKILL\.md:\d+: references\/detail\.md#gone: .*with leaf installed alone/);
+    match(leaf.join('\n'), /\.\.\/\.\.\/docs\/a\.md#two: no heading makes #two in docs\/a\.md/);
+    match(leaf.join('\n'), /\.\.\/\.\.\/private\/notes\.md: leaves leaf\/ for private\/notes\.md, which .* doesn't serve/);
   });
 });
 
