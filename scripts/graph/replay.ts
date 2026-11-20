@@ -5,12 +5,13 @@
  * it touched.
  *
  * A commit is diffed against its first parent, so a merge commit counts its whole pull request.
- * Each commit's graph is read at that commit, sharing parsed modules by blob id.
+ * Each commit's graph is read at that commit, sharing parsed modules by blob id, and resolutions
+ * with its parent when the commit adds, removes and renames no path and edits no JSON.
  *
  * Reference implementation from a production monorepo; adapt to your repo.
  */
 import { readGraph, treeAt } from './read.ts';
-import type { FileGraph, Git, Parsed, ReadOptions } from './read.ts';
+import type { FileGraph, Git, Parsed, ReadOptions, Resolver } from './read.ts';
 import { entriesOf, nodesOf, reach } from './shape.ts';
 import { readTasks } from './tasks.ts';
 import type { TaskGraph } from './tasks.ts';
@@ -173,10 +174,11 @@ export const defaultBranch = (git: Git) => {
 export const replay = (git: Git, branch: string, count: number, options: ReadOptions, progress: (done: number, of: number) => void = () => {}): Replay => {
   const shas = git.run('rev-list', '--first-parent', `--max-count=${count}`, branch).split('\n').filter(Boolean).reverse();
   const parsed = new Map<string, Parsed>();
+  const resolvers = new Map<string, Resolver>();
   const parentOf = (sha: string) => git.run('rev-list', '--parents', '-n', '1', sha).trim().split(' ')[1];
   const graphs = new Map<string, FileGraph>();
   const graphAt = (sha: string) => {
-    const found = graphs.get(sha) ?? readGraph(git, sha, options, parsed, treeAt(git, sha));
+    const found = graphs.get(sha) ?? readGraph(git, sha, options, parsed, treeAt(git, sha), resolvers);
     graphs.set(sha, found);
     return found;
   };
