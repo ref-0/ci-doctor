@@ -237,6 +237,34 @@ describe('graph 4: tasks', () => {
   });
 });
 
+/** A Turborepo workspace of packages `app`, `ui` and `core`, with these scripts and this turbo.json. */
+const turboRepo = (turbo: object, scripts: Record<string, Record<string, string>>, more: Record<string, string> = {}) => {
+  const deps: Record<string, string[]> = { app: ['ui'], ui: ['core'], core: [] };
+  const files: Record<string, string> = {
+    'package.json': json({ name: 'root', private: true, workspaces: ['packages/*'], scripts: scripts.root ?? {} }),
+    'turbo.json': json(turbo),
+    ...more,
+  };
+  for (const name of ['app', 'ui', 'core'])
+    files[`packages/${name}/package.json`] = json({ name, private: true, dependencies: Object.fromEntries(deps[name]!.map((d) => [d, 'workspace:*'])), scripts: scripts[name] ?? {} });
+  for (const name of ['app', 'ui', 'core']) files[`packages/${name}/src/index.ts`] = 'export {};\n';
+  return graphs(files).g;
+};
+const task = (g: ReturnType<typeof graphs>['g'], id: string) => g.tasks.nodes.find((n) => n.id === id);
+const edgesFrom = (g: ReturnType<typeof graphs>['g'], id: string) => g.tasks.edges.filter((e) => e.from === id).map((e) => e.to).sort();
+
+describe('graph 4: tasks, as each runner reads its config', () => {
+  it("lets Turborepo's `pkg#task` replace the generic task, its dependsOn and inputs with it", () => {
+    const g = turboRepo(
+      { tasks: { build: { dependsOn: ['^build'], inputs: ['src/**'] }, 'app#build': { dependsOn: ['//#prep'], inputs: ['lib/**'] }, '//#prep': {} } },
+      { root: { prep: 'node prep.js' }, app: { build: 'tsc' }, ui: { build: 'tsc' }, core: { build: 'tsc' } },
+    );
+    assert.deepEqual(edgesFrom(g, 'app#build'), ['root#prep']);
+    assert.deepEqual(task(g, 'app#build')!.inputs.globs, ['packages/app/lib/**']);
+    assert.deepEqual(edgesFrom(g, 'ui#build'), ['core#build']);
+  });
+});
+
 describe('the graphs in the report', () => {
   const { g } = graphs(barrelRepo());
 
