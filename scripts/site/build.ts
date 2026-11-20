@@ -15,7 +15,7 @@
  *   implementations' READMEs and the README and CHANGELOG, each described from its own frontmatter
  *   or first sentence. **`/guide/llms-full.txt`:** the guide's pages in that order, whole.
  * - **`_headers`:** serves every file as UTF-8 text, Markdown as `text/markdown`, so a `.ts` script
- *   isn't taken for video.
+ *   isn't taken for video, one `Content-Type` rule a file (`headers` below).
  *
  * Deterministic: the same commit builds the same bytes (files are read from the working tree, so
  * build from a clean one). `node scripts/check.ts` builds it and checks every link and `llms.txt`
@@ -169,26 +169,27 @@ export const listing = (folder: string, entries: readonly string[]) => {
   return `<!doctype html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${escape(name)}</title>\n<h1>${escape(name)}</h1>\n<ul>\n${folder === '' ? '' : '<li><a href="../">../</a></li>\n'}${items}\n</ul>\n`;
 };
 
-/** Content types: Markdown as Markdown, a folder's listing as HTML, every other served file as plain text. */
-export const HEADERS = `# Written by scripts/site/build.ts.
-/${BASE}/*
-  Content-Type: text/plain; charset=utf-8
-  X-Content-Type-Options: nosniff
-/${BASE}/*.md
-  ! Content-Type
-  Content-Type: text/markdown; charset=utf-8
-/${BASE}/
-  ! Content-Type
-  Content-Type: text/html; charset=utf-8
-/${BASE}/*/
-  ! Content-Type
-  Content-Type: text/html; charset=utf-8
-/${BASE}/*.svg
-  ! Content-Type
-  Content-Type: image/svg+xml
-/llms.txt
-  Content-Type: text/plain; charset=utf-8
-`;
+/**
+ * Content types, one rule a file: Markdown as Markdown, SVG as an image, every other served file as
+ * plain UTF-8 text, so a `.ts` script isn't taken for video. A folder's listing keeps its `index.html`'s
+ * own `text/html`. No two rules set `Content-Type` on one path, and none detaches it: Cloudflare applies a
+ * path's exact rule before its splats, whatever their order in the file, so `/guide/`'s detach once ran
+ * before `/guide/*` added plain text, and the root's listing went out as `text/html, text/plain`.
+ */
+export const headers = (files: readonly string[]) => {
+  const typeOf = (file: string) => (file.endsWith('.md') ? 'text/markdown; charset=utf-8' : file.endsWith('.svg') ? 'image/svg+xml' : 'text/plain; charset=utf-8');
+  const extension = (file: string) => /\.([^./]+)$/.exec(file)?.[1];
+  const byExtension = new Map(files.flatMap((f) => (extension(f) === undefined ? [] : [[extension(f), typeOf(f)] as const])));
+  const exact = files.filter((f) => extension(f) === undefined);
+  const rule = (path: string, type: string) => `${path}\n  Content-Type: ${type}\n`;
+
+  return [
+    `# Written by scripts/site/build.ts.\n/${BASE}/*\n  X-Content-Type-Options: nosniff\n`,
+    ...[...byExtension].sort(([a], [b]) => (a ?? '').localeCompare(b ?? '')).map(([ext, type]) => rule(`/${BASE}/*.${ext}`, type)),
+    ...exact.map((f) => rule(`/${BASE}/${f}`, typeOf(f))),
+    rule('/llms.txt', 'text/plain; charset=utf-8'),
+  ].join('');
+};
 
 /** Writes the site into `out`, which must be absent, empty or an earlier build. */
 export const build = (root: string, out: string): { files: number; bytes: number } => {
@@ -219,7 +220,7 @@ export const build = (root: string, out: string): { files: number; bytes: number
 
   write('llms.txt', llms(root, set));
   write(`${BASE}/llms-full.txt`, llmsFull(root, set));
-  write('_headers', HEADERS);
+  write('_headers', headers([...files, 'llms-full.txt']));
 
   const all = walk(out);
   return { files: all.length, bytes: all.reduce((n, f) => n + statSync(f).size, 0) };
