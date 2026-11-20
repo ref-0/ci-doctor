@@ -39,4 +39,4 @@ In the source repo:
 
 - [`test-audit`](../../../test-audit/SKILL.md).
 - [The tests reviewer](../../../review-gate/references/tests-reviewer.md), on evidence.
-- [Flakes](../triage/flakes.md), on proving a flake's fix.
+- [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md), on proving a flake's fix.

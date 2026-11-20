@@ -65,11 +65,11 @@ After merging, read [after a merge](references/after-merge.md): the sweep, your 
 
 ## Property tests in CI
 
-A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper from a new seed. Replay a failure's exact inputs and environment to tell a counterexample in the code from a nondeterministic harness. [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/references/properties.md#how-ci-runs-them), if the repo adopted it, owns seeds and replay; [flakes](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/triage/flakes.md) owns intermittent failures.
+A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper from a new seed. Replay a failure's exact inputs and environment to tell a counterexample in the code from a nondeterministic harness. [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/references/properties.md#how-ci-runs-them), if the repo adopted it, owns seeds and replay; [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md) owns intermittent failures.
 
 ## Related
 
 - [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md), if the repo adopted it: the review and its record, before marking ready. Otherwise, the repo's own review process.
 - [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/TOPIC.md): change the workflow, selection, tiers or caches; [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md) for runners and cost.
-- [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md): slow tests. Flakes: the hub's [flakes](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/triage/flakes.md).
+- [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md): slow tests; [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md): flaky ones.
 - [`test-audit`](https://github.com/ref-0/ci-doctor/blob/next/skills/test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping.

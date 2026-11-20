@@ -14,7 +14,7 @@ Each brief has one finish line. These rules hold for all of them.
 - **One finish line.** What you find outside it goes in a new issue, not your PR.
 - **A production bug is in scope** when the test you're speeding up exposes it. Fix it, or file it and say why not.
 - **Build it yourself.** Wide reading, such as sweeping logs or estimating many files, goes to a second, cheaper model; you measure and build.
-- **Read first:** `<skills-dir>/ci-doctor/references/triage/flakes.md` and, where the repo uses `review-gate`, `<skills-dir>/review-gate/references/tests-reviewer.md`. Fill in `<skills-dir>` when you copy this file.
+- **Read first:** `<skills-dir>/fix-flaky-test/SKILL.md` and, where the repo uses `review-gate`, `<skills-dir>/review-gate/references/tests-reviewer.md`. Fill in `<skills-dir>` when you copy this file.
 
 ## Starting
 

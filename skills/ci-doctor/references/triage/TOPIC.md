@@ -23,7 +23,7 @@ Wait with `--interval 60`, or your harness's PR watcher: every run on one login 
 1. **Did the run test the PR's current head, against its target?** If not, it doesn't decide anything: [does this run count](ci-result.md#does-this-run-count).
 2. **Which job failed, and on what line?** Read the failed log, not the summary. A failure in setup, install or a cache step is the workflow's, not the tests'.
 3. **Is the failure the PR's?** Check the base's latest run before blaming the PR. A failure outside the PR's files goes by [CI exceptions](ci-result.md#exceptions).
-4. **Which of three is it?** A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure (a lost runner, a full disk, a network or quota error) are three different things; [flakes](flakes.md#retries-reruns-and-infrastructure) says what each gets.
+4. **Which of three is it?** A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure (a lost runner, a full disk, a network or quota error) are three different things; [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md#retries-reruns-and-infrastructure) says what each gets.
 
 ## An installer that says only "see the log"
 
@@ -34,7 +34,7 @@ When setup or install fails with a summary that points at a log on the runner, t
 | It's | Go to |
 | --- | --- |
 | A real failure in the PR's code or tests | Fix it locally, by file, and push |
-| A flake | [Flakes](flakes.md) |
+| A flake | The [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md) skill |
 | The workflow: setup, install, caches, the job graph | [ci-workflows](../ci-workflows/TOPIC.md) |
 | A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../ci-runners/TOPIC.md) |
 | Green, and ready to merge | `ci-merge-workflow`, if adopted |
