@@ -28,3 +28,14 @@ describe('the API cache', () => {
     for (const f of readdirSync(dir)) assert.doesNotMatch(readFileSync(join(dir, f), 'utf8'), /token-[ab]/);
   });
 });
+
+describe('remembering answers', () => {
+  it('asks for an absent file once, however often it is read', () => {
+    withStub({}, {}, (log) => {
+      const gh = new Gh();
+      assert.equal(gh.text('repos/pip/app/contents/.github/workflows/gone.yml?ref=main', { raw: true, absentOn: [404] }), undefined);
+      assert.equal(gh.text('repos/pip/app/contents/.github/workflows/gone.yml?ref=main', { raw: true, absentOn: [404] }), undefined);
+      assert.equal(log().length, 1);
+    });
+  });
+});
