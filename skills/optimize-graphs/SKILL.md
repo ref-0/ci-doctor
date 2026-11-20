@@ -27,7 +27,8 @@ The first three are one graph at three sizes, and the last two are built on them
 
 - **Measure before you propose,** and quote every count with its denominator: "24% of 308 test files", not "24%". Label each number measured (where, when, at which commit), replayed or guessed.
 - **Measuring is read-only.** The graph tool reads committed trees with `git` and runs nothing in the repo. Run no installs, builds or tests to count a graph unless the user says so. Inside the ci-doctor plan, its [read-only rule](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md#before-approval-read-only) holds until the plan is approved.
-- **Each fix is a change to the user's code, not their CI.** Propose it as its own step and get its own yes. One package per change, by a script where imports move.
+- **A package refactor is a change to the user's code, not their CI.** Propose each as its own step and get its own yes: one package per change, by a script where imports move.
+- **A selector change is a CI change.** It gets its own pull request, follows [its own rules](references/selection.md#rules-for-a-selector-change), and keeps the current selector until a replay shows the new one keeps its coverage.
 - **Tighten only the graph that sets the limit you measured.** Don't do all five at once.
 - **A saving is a replay,** not a guess: the same recent merges through the graph before and after.
 
@@ -85,7 +86,7 @@ The bundle is the wrong measure: a bundler already drops unused modules. Measure
 
 ## Which checks a change runs
 
-The selector, the script or rule that picks a change's jobs and test files, walks these graphs. Before changing it, lockfile routing or test selection, read [selection](references/selection.md): read the selected files in a run's log, add an edge no import shows as a named edge, replay real diffs through the old and new selector, and replay past regressions to check it still picks the test that caught each. The repo's own cases are in `.agents/repo/ci.md`'s Selection and tiers.
+The selector, the script or rule that picks a change's jobs and test files, walks these graphs. Before changing it, lockfile routing or test selection, read [selection](references/selection.md): where to start, with or without `.agents/repo/ci.md`, its rules, and replaying past regressions.
 
 ## 5. Adopt the checks in a repo that has none
 
