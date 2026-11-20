@@ -1055,7 +1055,8 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
       const pkg = byDir.get(dir) ?? { name: typeof project.name === 'string' ? project.name : dir.replace(/\/$/, ''), dir, manifest: {}, deps: new Map() };
       projects.set(pkg.name, { pkg, targets: record(project.targets), named: record(project.namedInputs) });
     }
-    for (const pkg of packages) if (!projects.has(pkg.name) && pkg.manifest.scripts) projects.set(pkg.name, { pkg, targets: {}, named: record(record(pkg.manifest.nx).namedInputs) });
+    // A package is a project by its scripts, or by targets in its `nx` field alone.
+    for (const pkg of packages) if (!projects.has(pkg.name) && (pkg.manifest.scripts || Object.keys(record(record(pkg.manifest.nx).targets)).length > 0)) projects.set(pkg.name, { pkg, targets: {}, named: record(record(pkg.manifest.nx).namedInputs) });
     const roots = [...projects.values()].map((p) => p.pkg).filter((p) => p.dir !== '').sort((a, b) => b.dir.length - a.dir.length);
     const projectOf = (path: string) => roots.find((p) => path.startsWith(p.dir))?.name;
     const add = (from: string, to: string) => (inferred.get(from) ?? inferred.set(from, new Set()).get(from)!).add(to);

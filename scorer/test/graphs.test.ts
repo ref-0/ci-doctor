@@ -325,6 +325,16 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     assert.deepEqual(task(g, 'web#build')!.inputs.globs, ['apps/web/app/**', 'libs/core/src/**', '!libs/core/src/**/*.spec.ts']);
     assert.equal(task(g, 'web#build')!.inputs.files, 2);
   });
+
+  it("reads targets from a package.json's `nx` field when it has no scripts and no project.json", () => {
+    const { g } = graphs({
+      'package.json': json({ name: 'nxroot', private: true, workspaces: ['libs/*'] }),
+      'nx.json': json({ targetDefaults: { build: { cache: true } } }),
+      'libs/core/package.json': json({ name: 'core', nx: { targets: { build: { executor: '@nx/js:tsc', inputs: ['{projectRoot}/src/**'] } } } }),
+      'libs/core/src/index.ts': 'export {};\n',
+    });
+    assert.deepEqual(task(g, 'core#build'), { id: 'core#build', pkg: 'core', name: 'build', runner: 'nx', cached: true, inputs: { mode: 'declared', globs: ['libs/core/src/**'], files: 1 }, outputs: [], depth: 0 });
+  });
 });
 
 describe('the graphs in the report', () => {
