@@ -849,12 +849,11 @@ jobs:
         run: |
           [ -s "$RUNNER_TEMP/test-flakes.jsonl" ] || exit 0
           node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/test-flakes.jsonl"
-      # Each file's time, of the files this shard ran: `--times` leaves out replayed, failed and
-      # skipped files, so a replay never counts as a fresh run. A sweep's or server slot's
-      # test-times job merges them on main; a pull request's or merge queue's `report` hands them
-      # to main's fold as one artifact. A save takes about a second, as the claims' does.
+      # Each file's time, for the test-times job. Any sweep or server slot keeps them for its own
+      # run; only main's are merged into the times the next plans read. A replayed file keeps its
+      # time from the run that ran it: replays never count as fresh runs.
       - name: This shard's test times
-        if: ${{ always() && !cancelled() }}
+        if: ${{ always() && !cancelled() && (inputs.sweep || inputs.server_sweep) }}
         continue-on-error: true
         env:
           CI_CACHE_URL: ${{ steps.cache.outputs.url }}
@@ -862,27 +861,21 @@ jobs:
           KEY: test-times-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}.json
         run: node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/times/results.json"
 
-  # The full refresh of the shard times, from every shard of a sweep or server slot, merged into the
-  # times kept before, so a run of only some files keeps the others'. Each file keeps its newest
-  # samples (test-shards.ts' keptSamples) and plans from their median, so one slow runner doesn't
-  # move the split. A sweep is the one run that times every file, so it's the natural full refresh,
-  # at whatever cadence sweep.yml gives it; between sweeps, the times-fold job on main times new
-  # files, which would otherwise run on a guess. Seconds of work, one billed minute on 2 vCPU. Only
-  # main's run saves the result, which the next plans read; a branch's sweep runs the merge to try a
-  # change to this job. Not in `result`: a run whose times aren't kept fails no check, and the next
-  # plans by the times before. It shares times-fold's concurrency group, so the two never write at
-  # once, and keeps the `through` and `foldedAt` of the times it read.
+  # Each test file's planned time, from every shard of a sweep or server slot, merged into the times
+  # kept before, so a run of only some files keeps the others'. Each file keeps its newest samples
+  # (test-shards.ts' keptSamples) and plans from their median, so one slow runner doesn't move the
+  # split. The sweep is the only writer of these times and their full refresh, at whatever cadence
+  # sweep.yml gives it; a new file runs on its estimate until then (the ci-runners skill's shards,
+  # "Keeping the times current"). It drops a test the checkout no longer tracks. Seconds of work,
+  # one billed minute on 2 vCPU. Only main's run saves the result, which the next plans read; a
+  # branch's sweep runs the merge to try a change to this job. Not in `result`: a run whose times
+  # aren't kept fails no check, and the next plans by the times before.
   test-times:
     name: Main's test times
     needs: [plan, tests]
     if: ${{ always() && !cancelled() && (inputs.sweep || inputs.server_sweep) && needs.tests.result != 'skipped' }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
-    # One writer of main's times at a time, with times-fold. A sweep and a server slot each run one
-    # at a time (the workflow's concurrency), so at most one waits here and none is replaced.
-    concurrency:
-      group: test-times-${{ github.ref_name }}
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -1261,14 +1254,11 @@ jobs:
     if: ${{ !cancelled() && needs.result.result != 'skipped' }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 3
-    # actions: a sweep's bisect, and whether a sweep runs, for the fold. issues: a failed sweep's
-    # or merge's, and each flake's.
+    # actions: a sweep's bisect. issues: a failed sweep's or merge's, and each flake's.
     permissions:
       actions: write
       contents: read
       issues: write
-    outputs:
-      fold_due: ${{ steps.fold-due.outputs.due }}
     steps:
       - uses: actions/checkout@v7
         timeout-minutes: 1
@@ -1279,11 +1269,8 @@ jobs:
           sparse-checkout: |
             .github/actions/ci-cache
             scripts/shards/ci-cache.ts
-            scripts/shards/test-shards.ts
-            scripts/shards/test-groups.ts
-            scripts/shards/times-fold.ts
           sparse-checkout-cone-mode: false
-      - name: The cache, for the run's flakes and times
+      - name: The cache, for the run's flakes
         id: cache
         uses: ./ci-cache/.github/actions/ci-cache
       # Main's pass for the Rust key, which a PR's plan reads to skip the Rust checks. Only from a run
@@ -1306,65 +1293,6 @@ jobs:
           path: ${{ runner.temp }}/rust-pass.json
           retention-days: 2
           overwrite: true
-      # The files this pull request's or merge queue's run timed, as one small artifact named for the
-      # commit it ran, for main's fold (times-fold, below): the Actions cache is scoped by branch, so
-      # main can't read this run's entries, but any run in the repo can read its artifacts. The fold
-      # takes one only from this workflow's run of the commit that merged. Off the result's path, as
-      # `report` runs after it. Kept a week, past how long a ready PR's last run usually waits for
-      # its merge; a PR whose run is older, or whose upload failed, as on a full artifact quota,
-      # lands its times at the next sweep.
-      - name: This run's test times, for main's fold
-        id: run-times
-        if: >-
-          !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
-          && (needs.tests.result == 'success' || needs.tests.result == 'failure')
-        continue-on-error: true
-        timeout-minutes: 1
-        env:
-          CI_CACHE_URL: ${{ steps.cache.outputs.url }}
-          CI_CACHE_TOKEN: ${{ steps.cache.outputs.token }}
-          SHARDS: ${{ needs.plan.outputs.shards || '[]' }}
-        run: |
-          mapfile -t keys < <(jq -r --arg run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
-            'range(1; $attempt + 1) as $at | .[] | "test-times-\($run)-\($at)-\(.).json"' <<< "$SHARDS")
-          node ci-cache/scripts/shards/ci-cache.ts restore "$RUNNER_TEMP/shard-times" "${keys[@]}" || true
-          mapfile -t results < <(find "$RUNNER_TEMP/shard-times" -name '*.json' 2> /dev/null)
-          [ "${#results[@]}" -gt 0 ] || { echo "No shard timed a file."; exit 1; }
-          node ci-cache/scripts/shards/test-shards.ts --merge "${results[@]}" > "$RUNNER_TEMP/run-times.json"
-      - uses: actions/upload-artifact@v7
-        if: steps.run-times.outcome == 'success'
-        continue-on-error: true
-        with:
-          name: test-times-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/run-times.json
-          retention-days: 7
-          overwrite: true
-      # Whether main's shard times are due a fold of new files' times, in the times-fold job below:
-      # after TIMES_FOLD_MERGES merges or TIMES_FOLD_HOURS hours since the last fold, whichever comes
-      # first, and never while a sweep or server slot runs. A cache restore and two API calls, in this
-      # job, which runs on every merge anyway. Example values: the ci-runners skill's shards,
-      # "Keeping the times current", say how to pick them.
-      - name: The times kept before, for the fold
-        id: kept
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref_name == 'main' }}
-        continue-on-error: true
-        uses: actions/cache/restore@v6
-        with:
-          path: test-times.json
-          key: test-times-all-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: test-times-all-
-      - name: Is a fold of new files' times due
-        id: fold-due
-        if: steps.kept.outcome == 'success' && steps.kept.outputs.cache-matched-key != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TIMES_FOLD_MERGES: '10'
-          TIMES_FOLD_HOURS: '24'
-        run: |
-          node ci-cache/scripts/shards/times-fold.ts due test-times.json --sha "$GITHUB_SHA" \
-            --merges "$TIMES_FOLD_MERGES" --hours "$TIMES_FOLD_HOURS" >> "$GITHUB_OUTPUT"
       # Each test that passed only on its retry gets an issue, or a comment on its issue
       # ("Flaky: <file> › <test>"), subject to the per-run cap and the job roll-up in
       # scripts/flakes/flake-issues.ts. The health workflow closes it after at least 7 quiet days and
@@ -1453,58 +1381,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run sweep-bisect.yml --repo "$GITHUB_REPOSITORY" --ref main -f run="$GITHUB_RUN_ID"
-
-  # The fold: between sweeps, main's shard times take the new files its merged pull requests' runs
-  # timed, which would otherwise run on a guess. Files the times hold stay as they are until a sweep
-  # refreshes them: in the source repo, times a week old, modelled from measured drift, split
-  # shards about as evenly as fresh ones. It runs only when `report` finds a fold due, so once per
-  # TIMES_FOLD_MERGES merges or TIMES_FOLD_HOURS hours, one billed minute on 2 vCPU, and folds every
-  # merge since the stored times' `through`, so a fold that never ran is caught up by the next.
-  # times-fold.ts takes an artifact only from this workflow's pull_request or merge_group run of the
-  # commit that merged, holds its size and its times, and adds only files in this checkout.
-  #
-  # One writer at a time: this job and the sweep's test-times job share a concurrency group, so each
-  # restores, changes and saves the times before the other starts. GitHub keeps one waiting job in a
-  # group and replaces it with a newer one: a fold replaced that way is caught up by the next, and
-  # `report` finds no fold due while a sweep runs, so no fold replaces a sweep's waiting refresh.
-  times-fold:
-    name: Fold new files' times
-    needs: report
-    if: needs.report.outputs.fold_due == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 5
-    concurrency:
-      group: test-times-${{ github.ref_name }}
-      cancel-in-progress: false
-    # actions: the pull requests' runs and their artifacts. contents: the compare. pull-requests:
-    # each merge's pull request.
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    steps:
-      # Every tracked path, for the files a fold may add, and the scripts.
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          sparse-checkout: scripts/shards
-      - uses: actions/cache/restore@v6
-        with:
-          path: test-times.json
-          key: test-times-all-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: test-times-all-
-      - name: Fold merged pull requests' new files
-        id: fold
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node scripts/shards/times-fold.ts fold test-times.json --sha "$GITHUB_SHA" --out "$RUNNER_TEMP/folded.json" \
-            2> >(tee -a "$GITHUB_STEP_SUMMARY" >&2)
-          [ -s "$RUNNER_TEMP/folded.json" ] || exit 0
-          mv "$RUNNER_TEMP/folded.json" test-times.json
-          echo "save=true" >> "$GITHUB_OUTPUT"
-      - if: steps.fold.outputs.save == 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: test-times.json
-          key: test-times-all-${{ github.run_id }}-${{ github.run_attempt }}
