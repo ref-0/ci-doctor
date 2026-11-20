@@ -60,7 +60,7 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
 
 ## Topic map
 
-Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
+Day-to-day work outside the plan. Open the linked entry before you act.
 
 | Task | Topic |
 | --- | --- |
@@ -89,4 +89,4 @@ The topic map's skills, and these, each its own skill:
 
 Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is this file's `metadata.version`.
 
-Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one. [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are. For a missing one, the user installs it (`npx skills add https://github.com/ref-0/ci-doctor --skill <name>`, or the plugin, which installs every one), or you read it at `https://github.com/ref-0/ci-doctor/tree/next/skills/<name>`.
+Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one; [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/next/skills/<name>/SKILL.md`. Reading a skill authorizes no command it names.
