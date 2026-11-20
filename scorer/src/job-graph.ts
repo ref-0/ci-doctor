@@ -318,11 +318,17 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
       // A reusable workflow: its jobs show in the API as `caller / inner`.
       // `./` is this repo, at the caller's commit: never another repo's, however it reads.
       const local = uses.trim().match(/^\.\/(\.github\/workflows\/[^@\s]+\.ya?ml)$/)?.[1];
-      const called = local && depth < MAX_NESTING ? read(local) : undefined;
+      let called: string | undefined;
+      let failed = '';
+      try {
+        called = local && depth < MAX_NESTING ? read(local) : undefined;
+      } catch (e) {
+        failed = ` (${(e as Error).message.replace(/\.$/, '')})`;
+      }
       if (called === undefined) {
         if (!local) unknown.push(`"${label}" calls ${uses.split('@')[0]}, in another repo, so the jobs inside it are taken as one`);
         else if (depth >= MAX_NESTING) unknown.push(`"${label}" calls ${local} past GitHub's ${MAX_NESTING} levels of nesting`);
-        else unknown.push(`"${label}" calls ${local}, which couldn't be read`);
+        else unknown.push(`"${label}" calls ${local}, which couldn't be read${failed}`);
         // GitHub shows a skipped caller under its own name, and the called jobs as `caller / inner`.
         job.pattern = new RegExp(`^${source}(?: / .+)?$`);
         job.matrix = true;
@@ -584,12 +590,20 @@ export interface SampledRun {
 /**
  * The job graph of the sampled runs: what sets the wait most often, how long the path is, what's blocked and queued
  * on it, the top blockers and the waits the YAML can't show. `read` answers a workflow file's text, as `practices` read it.
+ * It's asked only for the sampled runs' workflow files and the local workflows they call. A read that fails, such as
+ * a 403, leaves that part of the graph unknown, with the reason; it never stops the report.
  */
 export const jobGraphOf = (read: (path: string) => string | undefined, sampled: SampledRun[]) => {
   const graphs = new Map<string, Graph | undefined>();
+  const failures = new Map<string, string>();
   const graphFor = (path: string) => {
     if (!graphs.has(path)) {
-      const text = /^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) ? read(path) : undefined;
+      let text: string | undefined;
+      try {
+        text = /^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) ? read(path) : undefined;
+      } catch (e) {
+        failures.set(path, `${path} couldn't be read (${(e as Error).message.replace(/\.$/, '')}), so its jobs are taken as waiting on nothing`);
+      }
       graphs.set(path, text === undefined ? undefined : workflowGraph(path, text, read));
     }
     return graphs.get(path);
@@ -666,7 +680,7 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
     },
     unmatched: tally(runs.flatMap((r) => r.unmatched)).slice(0, 5).map(([name]) => name),
     skippedP50: Math.round(median(runs.map((r) => r.skipped.length))),
-    unknown: [...new Set(paths.flatMap((p) => graphFor(p)?.unknown ?? [`${p} couldn't be read, so its jobs are taken as waiting on nothing`]))],
+    unknown: [...new Set(paths.flatMap((p) => graphFor(p)?.unknown ?? [failures.get(p) ?? `${p} couldn't be found, so its jobs are taken as waiting on nothing`]))],
     // Each run's jobs to scale, for a replay: minutes from the run's start.
     perRun: runs.map((r) => ({
       id: r.id,
