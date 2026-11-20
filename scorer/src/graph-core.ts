@@ -991,8 +991,10 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
     for (const pkg of packages) {
       for (const name of Object.keys(record(pkg.manifest.scripts))) {
         const key = pkg.dir === '' ? `//#${name}` : name;
-        const config = { ...record(definitions[key] ?? (pkg.dir === '' ? undefined : definitions[`${pkg.name}#${name}`])), ...record(overrides.get(pkg.name)?.[name]) };
-        if (definitions[key] === undefined && definitions[`${pkg.name}#${name}`] === undefined && overrides.get(pkg.name)?.[name] === undefined) continue;
+        // `pkg#task` replaces the generic `task` whole, as Turborepo has it; a package's own turbo.json merges over it.
+        const specific = pkg.dir === '' ? undefined : definitions[`${pkg.name}#${name}`];
+        const config = { ...record(specific ?? definitions[key]), ...record(overrides.get(pkg.name)?.[name]) };
+        if (definitions[key] === undefined && specific === undefined && overrides.get(pkg.name)?.[name] === undefined) continue;
         const declared = config.inputs !== undefined;
         const inputs = stringOrList(config.inputs);
         const withDefault = !declared || inputs.includes('$TURBO_DEFAULT$');
