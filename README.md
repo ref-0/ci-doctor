@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-Tired of waiting on CI? ci-doctor is a set of skills and tools your coding agent uses to make CI fast, and keep it that way.
+Burning time and money on CI? ci-doctor is a set of skills and tools your agents use to make CI faster and cost less, and keep it that way.
 
 It's what we learned in a 1.5M-line TypeScript and Rust monorepo where AI agents write most of the code, without letting tests prove less: across 189 successful first-attempt runs of ready PRs in one week, CI's wall time had a median of about 3.2 minutes and a p90 of about 4.5 ([how we got here](docs/pages/19-how-we-got-here.md)). It cost us a lot of time and money to learn. It's all here so it doesn't cost you the same.
 
@@ -29,7 +29,7 @@ Your agent maps your stack, measures your CI's median and p90, and writes a plan
 
 ## Installing
 
-The plugin holds eleven skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and triages a failed check, `ci-runners`, for runner size, jobs that wait for a runner and the bill, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, `speed-up-tests`, for a slow test in CI or locally, `fix-flaky-test`, for a test that fails sometimes, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, `agent-knowledge`, for where agents' instructions and a repo's facts live and how they stay true, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
+The plugin holds thirteen skills, in [`skills/`](skills/README.md): `ci-doctor`, which runs the plan and triages a failed check, `ci-workflows`, for editing a workflow without making CI slower or costlier, `cache-ci`, for setup that takes too long and caches that don't hit, `ci-runners`, for runner size, jobs that wait for a runner and the bill, `optimize-graphs`, for how far an edit reaches through a workspace's packages, exports, folders, tasks and jobs, and which checks it selects, `speed-up-tests`, for a slow test in CI or locally, `fix-flaky-test`, for a test that fails sometimes, `prove-it`, for whether a benchmark, a before and after, a cost or a fix holds up, `agent-knowledge`, for where agents' instructions and a repo's facts live and how they stay true, and `review-gate`, `ci-merge-workflow`, `test-audit` and `proof-tiers`. Every one is installed; the plan you approve decides which ones your repo adopts. Installing adds skills only: no MCP server, no hooks, and no scripts run. Choose one method.
 
 ### Claude Code
 
@@ -92,7 +92,7 @@ Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method fo
 | [`PROMPT.md`](PROMPT.md) | Points your agent at the `ci-doctor` skill |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release, and what to do about it |
 | [`docs/`](docs/) | The guide and harness notes |
-| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics and the one-rule checks, and the skills for a workspace's graphs, slow and flaky tests, evidence, agents' knowledge and its templates, review, merging, test value and proof tiers |
+| [`skills/`](skills/README.md) | The plugin's skills: the `ci-doctor` hub, with the plan's phases, its topics and the one-rule checks, and the skills for workflows, caches, a workspace's graphs, slow and flaky tests, evidence, agents' knowledge and its templates, review, merging, test value and proof tiers |
 | [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
 | [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |

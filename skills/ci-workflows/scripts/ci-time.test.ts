@@ -1,20 +1,21 @@
 /**
- * Tests for ci-time.ts, on synthetic jobs: no network, no `gh`. The Blacksmith adapter's own tests are
- * in the blacksmith topic's scripts/blacksmith-bill.test.ts; the one here that loads it needs it in
- * the hub, beside this topic.
+ * Tests for ci-time.ts, on synthetic jobs and settings: no network, no `gh`, and nothing outside this
+ * skill's folder, so they pass with the skill installed alone. The Blacksmith adapter's own tests are
+ * beside blacksmith-bill.ts; that the real adapter loads, and that the settings template holds every
+ * default, are checked from the ci-doctor repo, in scripts/skills/ci-time.test.ts.
  *
  * Runs: `node --test ci-time.test.ts` from this folder (Node 24).
  * Reference implementation from a production monorepo; adapt to your repo.
  */
 import { deepStrictEqual, equal, match, notEqual, ok } from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { billedMinutes, DEFAULTS, FILE, type Job, jobRows, loadAdapter, quantile, readSettings, report, vcpu, vcpus, wall } from './ci-time.ts';
+import { ADAPTER_DIRS, adapterFile, billedMinutes, DEFAULTS, FILE, type Job, jobRows, loadAdapter, quantile, readSettings, report, vcpu, vcpus, wall } from './ci-time.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -102,12 +103,14 @@ describe('vCPU-minutes', () => {
 });
 
 describe('the settings', () => {
-  const template = join(here, '..', '..', '..', '..', 'agent-knowledge', 'templates', 'repo-facts', 'ci-time.json');
-
-  it('has a template that holds every default', () => {
-    // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.
-    deepStrictEqual(Object.keys(JSON.parse(readFileSync(template, 'utf8'))).sort(), Object.keys(DEFAULTS).sort());
-    deepStrictEqual(readSettings(template), DEFAULTS);
+  it('reads a file that names every key, as the template does', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ci-time-'));
+    try {
+      writeFileSync(join(dir, 'full.json'), JSON.stringify({ ...DEFAULTS, gateJob: 'Gate' }));
+      deepStrictEqual(readSettings(join(dir, 'full.json')), { ...DEFAULTS, gateJob: 'Gate' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('keeps the defaults without a settings file, and refuses a key it does not know', () => {
@@ -125,13 +128,34 @@ describe('the settings', () => {
 });
 
 describe('the billing adapter', () => {
-  const sibling = join(here, '..', '..', 'blacksmith', 'scripts', 'blacksmith-bill.ts');
+  const stub = 'export const billed = () => ({});\nexport const cpu = () => null;\n';
 
-  it('loads the blacksmith topic\'s adapter from the hub', async () => {
-    ok(existsSync(sibling), `${sibling}: the blacksmith topic's adapter is missing`);
-    const adapter = await loadAdapter('blacksmith');
-    equal(typeof adapter.billed, 'function');
-    equal(typeof adapter.cpu, 'function');
+  it('finds it in a skill of the provider\'s name first, then in the hub\'s topic', () => {
+    const skills = mkdtempSync(join(tmpdir(), 'ci-time-skills-'));
+    try {
+      equal(adapterFile('blacksmith', skills), undefined);
+      const [own = '', hub = ''] = ADAPTER_DIRS('blacksmith').map((d) => join(skills, d));
+      mkdirSync(hub, { recursive: true });
+      writeFileSync(join(hub, 'blacksmith-bill.ts'), stub);
+      equal(adapterFile('blacksmith', skills), join(hub, 'blacksmith-bill.ts'));
+      mkdirSync(own, { recursive: true });
+      writeFileSync(join(own, 'blacksmith-bill.ts'), stub);
+      equal(adapterFile('blacksmith', skills), join(own, 'blacksmith-bill.ts'));
+    } finally {
+      rmSync(skills, { recursive: true, force: true });
+    }
+  });
+
+  it('loads one from --adapter-dir', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ci-time-adapter-'));
+    try {
+      writeFileSync(join(dir, 'blacksmith-bill.ts'), stub);
+      const adapter = await loadAdapter('blacksmith', dir);
+      equal(typeof adapter.billed, 'function');
+      equal(typeof adapter.cpu, 'function');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('says where it looked when the adapter is missing', () => {
