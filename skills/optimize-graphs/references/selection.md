@@ -7,7 +7,21 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # What a change selects
 
-Part of the [`optimize-graphs`](../SKILL.md) skill: how to change which checks a change runs. A selector walks the graphs this skill measures, so it can only be as narrow as they are. Read it when changing what selects checks, lockfile routing or test selection. The repo's own cases, what each kind of change reaches, are in `.agents/repo/ci.md`'s Selection and tiers: read them first. [guide section 4](https://ci-doctor.ref0.dev/guide/docs/pages/04-run-only-what-a-change-can-reach.md) explains the selector.
+Part of the [`optimize-graphs`](../SKILL.md) skill: how to change which checks a change runs. A selector walks the graphs this skill measures, so it can only be as narrow as they are. Read it when changing what selects checks, lockfile routing or test selection. [Guide section 4](https://ci-doctor.ref0.dev/guide/docs/pages/04-run-only-what-a-change-can-reach.md) explains the selector.
+
+## Start here
+
+- **The repo has `.agents/repo/ci.md`:** its Selection and tiers says what each kind of change reaches, what a path the selector doesn't know runs, the sentinel cases that must select everything, the covered-only list and the jobs by ID. Read it first.
+- **No facts file:** ask once whether the repo keeps these facts elsewhere. Otherwise find the selector in the workflows: `paths:` and `paths-ignore:` filters, a planning job and the script whose outputs later jobs' `if:` read, a path-filter action, a test runner's changed-files mode (`--changed`, `related`), or a task runner's affected mode (`turbo run --affected`, `nx affected`). Write down what each kind of change selects, what an unknown path falls back to, and which cases must select everything, and say which you read from code and which you assumed. At the end, offer to write ci.md's Selection and tiers from [the template](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/repo-facts/ci.md#selection-and-tiers).
+
+## Rules for a selector change
+
+These hold instead of the package-refactor rules in the skill's Rules: a selector change edits CI, not the user's code.
+
+- **Its own pull request,** separate from any package refactor, so a missed test traces to one change.
+- **Keep the current selector** until the new one, replayed against real diffs and past regressions, picks every test the old one did that the change can reach. Name each test it drops on purpose, and why.
+- **Keep the fallback wide.** An unknown path selects everything, or the fallback ci.md names, and the sentinel cases stay tested.
+- **Check it against real output,** as the hub's [check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md) says, and state its effect on a full and a small run and its cost a month. The rest of a workflow change is [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md)'.
 
 ## Changing selection
 

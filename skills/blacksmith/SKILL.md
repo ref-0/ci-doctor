@@ -14,7 +14,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # blacksmith
 
-[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/providers.md#choosing) says how a plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md) (workflows, tiers, caches) and [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md) (sizing, packing, queues, cost). [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
+[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/providers.md#choosing) says how a plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md) (workflows, tiers), [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md) (caches) and [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md) (sizing, packing, queues, cost). [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
 
 ## Start here
 
@@ -62,7 +62,7 @@ These are what the source repo leaned on, as [guide section 2](https://ci-doctor
 ## Not here
 
 - Runner size, packing, queues, the spend cap and choosing a provider on any runner: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md).
-- Changing a workflow, its tiers or its caches: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md).
+- Changing a workflow or its tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Caches on any runner, their keys and misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md).
 - A PR's result, runs by hand and the merge: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/SKILL.md). A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md) hub.
 - Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).
 

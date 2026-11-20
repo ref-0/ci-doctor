@@ -20,8 +20,8 @@
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
- *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md`, its
- *    `flakes.md`, `references/agent-knowledge/`,
+ *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md` and
+ *    `caches.md`, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -51,7 +51,7 @@ import { stale } from './skills/excerpts.ts';
 export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 'README.md', 'CHANGELOG.md'];
 
 /** Test files the build runs besides every one under `skills/`. */
-export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/graph/test/graph.test.ts'];
+export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci-time.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/graph/test/graph.test.ts'];
 
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
@@ -72,6 +72,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/ci-doctor\/references\/blacksmith\b|(?<![\w-])blacksmith\/TOPIC\.md|(?<![\w-])`?blacksmith`?('s)? topic\b/, 'skills/blacksmith/'],
   [/ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/, 'skills/ci-workflows/'],
   [/(?<![\w-])ci-workflows\/references\/selection\.md/, 'skills/optimize-graphs/references/selection.md'],
+  [/(?<![\w-])ci-workflows\/references\/caches\.md/, 'skills/cache-ci/references/caches.md'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],

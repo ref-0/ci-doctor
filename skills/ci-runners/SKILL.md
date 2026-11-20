@@ -50,7 +50,7 @@ node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 
 ## Not here
 
-- Changing a workflow, its tiers, caches or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md).
+- Changing a workflow, its tiers or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Setup that takes too long, and caches: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md).
 - Blacksmith's labels, CLI, sticky disks and bill: [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md), when the repo runs on Blacksmith or the user approved a move there.
 - A slow test file that sets a shard's floor: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md). How many jobs an edit starts: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/SKILL.md).
 - Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).
