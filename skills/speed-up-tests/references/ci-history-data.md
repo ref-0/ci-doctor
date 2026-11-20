@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # CI history data
 
-Part of the [`speed-up-tests`](../SKILL.md) skill, beside [measuring](measuring.md): where CI's records are and how to read them. Read it before you build a baseline, a delivery-time study or a spend audit from API history, and before the plan is approved, since it says what you may read then. How to judge the number you get is [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md). An unread outcome is never a zero wait, a zero cost or a success.
+Part of the [`speed-up-tests`](../SKILL.md) skill, beside [measuring](measuring.md): where CI's records are and how to read them. Read it before you build a baseline, a delivery-time study or a spend audit from API history, and before the plan is approved, since it says what you may read then. How to judge the number you get is [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/prove-it/SKILL.md). An unread outcome is never a zero wait, a zero cost or a success.
 
 ## Before approval: read-only samples
 

@@ -2,7 +2,7 @@
 name: blacksmith
 description: "Runs GitHub Actions on Blacksmith: its runner labels, sticky disks, cache, CLI, bill and the move there. Use when a repo's CI runs on Blacksmith or is moving there, or an ask names its labels, sticky disks or bill. Not for runner sizing and spend on any provider (ci-runners); workflow edits (ci-workflows)."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 <!--
@@ -14,13 +14,13 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # blacksmith
 
-[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/providers.md#choosing) says how a plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md) (workflows, tiers), [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md) (caches) and [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md) (sizing, packing, queues, cost). [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
+[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/references/providers.md#choosing) says how a plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md) (workflows, tiers), [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md) (caches) and [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/SKILL.md) (sizing, packing, queues, cost). [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
 
 ## Start here
 
 - **The repo runs on Blacksmith and has `.agents/repo/ci.md`:** read its Runners, budgets and records, its Caches and its Spend watcher, then pick from "What to read". [Start here](references/setup.md#with-the-repos-facts-file) says what they hold.
 - **No facts file:** ask once whether the repo keeps these facts elsewhere, and otherwise read the labels, disk actions and spend limit yourself, as [start here](references/setup.md#with-no-facts-file) says.
-- **The repo isn't on Blacksmith yet:** a move needs the user's yes first, as a plan item with a monthly projection. Until then, use [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md), and read [migrate](references/migrate.md) only once they agree.
+- **The repo isn't on Blacksmith yet:** a move needs the user's yes first, as a plan item with a monthly projection. Until then, use [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/SKILL.md), and read [migrate](references/migrate.md) only once they agree.
 
 ## What to read
 
@@ -39,12 +39,12 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 ## The billing adapter
 
-`ci-time.ts --bill blacksmith`, in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through this skill's [`scripts/blacksmith-bill.ts`](scripts/blacksmith-bill.ts). It finds the adapter when this skill is installed beside `ci-workflows`, as a plugin install has it. The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`, on Node 24 with nothing installed.
+`ci-time.ts --bill blacksmith`, in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through this skill's [`scripts/blacksmith-bill.ts`](scripts/blacksmith-bill.ts). It finds the adapter when this skill is installed beside `ci-workflows`, as a plugin install has it. The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`, on Node 24 with nothing installed.
 
-A skills-only install of this folder carries the adapter but not `ci-time.ts`: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`, and point it at this folder:
+A skills-only install of this folder carries the adapter but not `ci-time.ts`: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point it at this folder:
 
 ```sh
-git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch v0.2.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <skills-dir>/blacksmith/scripts
 ```
 
@@ -53,7 +53,7 @@ node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --bill blacksmith --adap
 These are what the source repo leaned on, as [guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith) says. Measure each on your workload before counting on it:
 
 - **A size per job,** billed per vCPU-minute, so the plan, static checks and test shards each get the size their work needs, and a small selection runs on 2 vCPU.
-- **Jobs that start in seconds,** where GitHub-hosted runners had kept jobs queued for minutes at busy times ([`ci-runners`' queues](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/queues.md)).
+- **Jobs that start in seconds,** where GitHub-hosted runners had kept jobs queued for minutes at busy times ([`ci-runners`' queues](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/references/queues.md)).
 - **Native arm64 and macOS,** so a Rust service builds on both Linux architectures with no emulation.
 - **Sticky disks,** so a job whose manifests match main's skips the install.
 - **An Actions cache beside the runners,** whose reservations also served as atomic claims for work stealing and as transport for small cross-job records.
@@ -61,11 +61,11 @@ These are what the source repo leaned on, as [guide section 2](https://ci-doctor
 
 ## Not here
 
-- Runner size, packing, queues, the spend cap and choosing a provider on any runner: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md).
-- Changing a workflow or its tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md). Caches on any runner, their keys and misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md).
-- A PR's result, runs by hand and the merge: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/SKILL.md). A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/SKILL.md) hub.
-- Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).
+- Runner size, packing, queues, the spend cap and choosing a provider on any runner: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/SKILL.md).
+- Changing a workflow or its tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md). Caches on any runner, their keys and misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md).
+- A PR's result, runs by hand and the merge: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md). A whole CI plan, or a failed check: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/SKILL.md) hub.
+- Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/prove-it/SKILL.md).
 
 ## Outside this skill
 
-Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) on `next`, the branch the skills track. To read them at a release instead, open the repo at the tag `v<version>`.
+Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`, the release this skill names in `metadata.version`.

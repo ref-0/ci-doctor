@@ -15,8 +15,10 @@
  * 5. **Links, each skill alone:** each skill's folder copied alone, as `npx skills add` with one skill
  *    chosen, or a copy of that folder, installs it. A link that stays in the folder must resolve in the
  *    copy. A skill leaves its folder only by a full link, to ci-doctor.ref0.dev/guide/<path> or to
- *    GitHub at `next`, naming a file in the repo, with its anchor: a relative link out of the folder
- *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
+ *    GitHub at the release tag (`v` and `plugin.json`'s version) or `next`, naming a file in the
+ *    working tree, with its anchor, so links to a tag not yet pushed check before the release: a
+ *    relative link out of the folder fails, since it dangles in the copy, and so does a link to
+ *    GitHub at any other tag. The hub alone may also link out relatively, to a file the
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
@@ -142,22 +144,41 @@ export const skillsOnly = (root: string): string[] => {
 /** The skill that installs with the rest of the repo beside it: its links out are held by the skills-only check, against FALLBACK. */
 export const HUB = 'ci-doctor';
 
-/** Where a skill's full links to the rest of ci-doctor point: the guide site, and the repo on GitHub at the branch the skills track. */
+/**
+ * Where a skill's full links to the rest of ci-doctor point: the guide site, and the repo on GitHub at the release
+ * tag `plugin.json` names, or at `next` for what only `next` has until the release points it at the new tag.
+ */
 export const GUIDE_URL = `${ORIGIN}/${BASE}/`;
 export const GITHUB_URL = 'https://github.com/ref-0/ci-doctor/';
-export const GITHUB_REF = 'next';
+export const GITHUB_REF = `v${String((JSON.parse(readFileSync(new URL('../plugin.json', import.meta.url), 'utf8')) as { version?: unknown }).version)}`;
+export const GITHUB_REFS: readonly string[] = [GITHUB_REF, 'next'];
 
-/** The repo path a full link to the guide site or to GitHub at GITHUB_REF names, or undefined for any other URL. */
+/** A full link to this repo on GitHub, as its ref and path, or undefined for any other URL. */
+const githubLink = (base: string): { ref: string; path: string } | undefined => {
+  const github = new RegExp(`^${GITHUB_URL.replace(/[.\/]/g, '\\$&')}(?:blob|tree)/([^/]+)(?:/(.*))?$`).exec(base);
+  return github ? { ref: github[1] ?? '', path: decodeURIComponent(github[2] ?? '') } : undefined;
+};
+
+/**
+ * The repo path a full link to the guide site or to GitHub at one of GITHUB_REFS names, or undefined for any other
+ * URL. Both resolve in the working tree, so a link to the release's tag checks before the tag exists.
+ */
 export const ownPath = (url: string): string | undefined => {
   const [base = ''] = url.split('#');
   if (base.startsWith(GUIDE_URL)) return decodeURIComponent(base.slice(GUIDE_URL.length));
-  const github = new RegExp(`^${GITHUB_URL.replace(/[.\/]/g, '\\$&')}(?:blob|tree)/${GITHUB_REF}/(.*)$`).exec(base);
-  return github ? decodeURIComponent(github[1] ?? '') : undefined;
+  const github = githubLink(base);
+  return github && GITHUB_REFS.includes(github.ref) ? github.path : undefined;
+};
+
+/** The tag a full link to this repo on GitHub names, when it's a release tag other than GITHUB_REF. */
+export const otherTag = (url: string): string | undefined => {
+  const github = githubLink(url.split('#')[0] ?? '');
+  return github && /^v\d/.test(github.ref) && github.ref !== GITHUB_REF ? github.ref : undefined;
 };
 
 /**
  * One skill's folder copied alone. A link that stays in the folder must resolve in the copy. Any other skill may
- * leave its folder only by a full link, to the guide site or to GitHub at GITHUB_REF, which must name a file or
+ * leave its folder only by a full link, to the guide site or to GitHub at one of GITHUB_REFS, which must name a file or
  * folder in the repo, with its anchor; the guide site's must be served. The hub may also leave it by a relative
  * link to a file the site serves.
  */
@@ -180,6 +201,11 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
         for (const target of linkTargets(line)) {
           const at = `${shown}:${index + 1}: ${target}`;
           const [path = '', anchor = ''] = target.split('#');
+          const tag = otherTag(target);
+          if (tag !== undefined) {
+            problems.push(`${at}: links ${tag}, not this release's ${GITHUB_REF}: point it at ${GITHUB_REF}`);
+            continue;
+          }
           const own = ownPath(target);
           if (own !== undefined) {
             if (own === '' && target.startsWith(GUIDE_URL)) continue;

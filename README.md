@@ -107,9 +107,11 @@ The measurements behind the score live in [ci-doctor-db](https://github.com/ref-
 
 Releases are tags, and `main` is always the newest release, which is what each harness's plugin install reads. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
 
+**From 0.1.0:** 0.2.0 has nine new skills and moves most of the hub's topics into them. Update the plugin as your harness's section above says, and it brings all fourteen skills. With `npx skills`, run `npx skills add https://github.com/ref-0/ci-doctor` again and select every skill, since an update only refreshes the ones you have. For a copy by hand, copy every folder in `skills/` again and delete the hub's old `references/` topics. Then do the short list at the top of [0.2.0 in the CHANGELOG](CHANGELOG.md#v020), and a session mid-plan rereads the phase it's on.
+
 ## Contributing
 
-Work lands on the `next` branch: branch from it and open pull requests against it. A release merges `next` into `main`, bumps `version` in `plugin.json`, the other manifests, the hub's `SKILL.md` and `scorer/package.json`, and pushes the tag, which publishes the scorer to npm (`.github/workflows/release.yml`).
+Work lands on the `next` branch: branch from it and open pull requests against it. A release merges `next` into `main`, bumps `version` in `plugin.json`, the other manifests, each skill's `SKILL.md` and `scorer/package.json`, points the skills' links to GitHub at the new tag, and pushes the tag, which publishes the scorer to npm (`.github/workflows/release.yml`).
 
 Before pushing, run the build checks from the repo's root:
 
