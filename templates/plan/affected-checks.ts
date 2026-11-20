@@ -31,6 +31,8 @@
  * "near" can't prove.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { closeSync, mkdtempSync, openSync, readSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { posix } from 'node:path';
 import { argv, env, exit } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -263,44 +265,147 @@ const decodeManifest = (text: string): Manifest => {
 const git = (...args: ReadonlyArray<string>) =>
   execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
-/** A file's text at a commit, or undefined when the commit has no such file. */
-const fileAt = (commit: string, path: string) => {
-  const shown = spawnSync('git', ['show', `${commit}:${path}`], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 256 * 1024 * 1024,
-  });
+// Each tree a run lists, by the commit it was asked for, and each file it reads, by object ID. A
+// Git process for each question added up: the same tree was listed once for each folder asked
+// about, and each manifest read with a `git show` of its own. So one listing serves every path a
+// commit has, one batch the files a question needs, and a file read once is never read again.
+const trees = new Map<string, ReadonlyMap<string, string | undefined>>();
 
-  return shown.status === 0 ? shown.stdout : undefined;
+/** Each file read, by object ID: its text, or undefined when the repo doesn't have the object. */
+const blobs = new Map<string, string | undefined>();
+
+/**
+ * Each path a commit has, in Git's order, with its file's object ID, or undefined for a submodule.
+ * Listed once a run, in one `ls-tree`.
+ */
+const treeAt = (commit: string) => {
+  const known = trees.get(commit);
+  if (known !== undefined) return known;
+
+  const tree = new Map<string, string | undefined>();
+
+  for (const entry of git('ls-tree', '-r', '-z', commit).split('\0')) {
+    if (entry === '') continue;
+
+    // `<mode> <type> <id>\t<path>`, where only the path may hold a tab.
+    const tab = entry.indexOf('\t');
+    const [, type, id] = entry.slice(0, tab).split(' ');
+
+    tree.set(entry.slice(tab + 1), type === 'blob' ? id : undefined);
+  }
+
+  trees.set(commit, tree);
+
+  return tree;
 };
 
-/** Each path's contents at `head`, read in one batch. */
-const contents = (head: string, paths: ReadonlyArray<string>) => {
-  const found = new Map<string, string>();
-  if (paths.length === 0) return found;
+/** The paths a commit has under any of `folders`, in Git's order. An empty folder is the whole tree. */
+const pathsUnder = (commit: string, ...folders: ReadonlyArray<string>) => {
+  const prefixes = folders.map((folder) => (folder === '' || folder.endsWith('/') ? folder : `${folder}/`));
 
-  const output = execFileSync('git', ['cat-file', '--batch'], {
+  return [...treeAt(commit).keys()].filter((path) => prefixes.some((prefix) => path.startsWith(prefix)));
+};
+
+/**
+ * The text of each object, from one `cat-file --batch`, or undefined for one the repo doesn't
+ * have. Its output goes to a file, not a buffer, and is read one record at a time, so no size of
+ * repo or batch reaches a buffer's limit and only the texts asked for stay in memory. Throws on a
+ * record that isn't the one asked for, or is cut short.
+ */
+const catFile = (ids: ReadonlyArray<string>) => {
+  const folder = mkdtempSync(posix.join(tmpdir(), 'affected-checks-'));
+
+  try {
+    const output = openSync(posix.join(folder, 'batch'), 'w+');
+
+    try {
+      return readBatch(ids, output);
+    } finally {
+      closeSync(output);
+    }
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+};
+
+/** Runs the batch into `output`, an open file, then reads its records back, as `catFile` says. */
+const readBatch = (ids: ReadonlyArray<string>, output: number) => {
+  const done = spawnSync('git', ['cat-file', '--batch'], {
     cwd: root,
-    input: paths.map((path) => `${head}:${path}\n`).join(''),
-    maxBuffer: 256 * 1024 * 1024,
+    input: ids.map((id) => `${id}\n`).join(''),
+    stdio: ['pipe', output, 'pipe'],
   });
+  if (done.error !== undefined) throw done.error;
+  if (done.status !== 0) throw new Error(`git cat-file failed: ${done.stderr.toString()}`);
+
+  const found = new Map<string, string | undefined>();
+  // A header is `<id> blob <size>` or `<id> missing`: well under this, with SHA-256's longer IDs.
+  const header = Buffer.alloc(256);
   let at = 0;
 
-  for (const path of paths) {
-    const end = output.indexOf(0x0a, at);
-    const header = output.subarray(at, end).toString('utf8');
-    const size = header.endsWith(' missing') ? -1 : Number(header.slice(header.lastIndexOf(' ') + 1));
+  for (const id of ids) {
+    const read = readSync(output, header, 0, header.length, at);
+    const end = header.subarray(0, read).indexOf(0x0a);
+    const line = end === -1 ? '' : header.toString('utf8', 0, end);
+    at += end + 1;
 
-    if (size < 0) {
-      at = end + 1;
+    if (line === `${id} missing`) {
+      found.set(id, undefined);
       continue;
     }
 
-    found.set(path, output.subarray(end + 1, end + 1 + size).toString('utf8'));
-    at = end + 1 + size + 1;
+    const size = /^(\S+) blob (\d+)$/.exec(line);
+    if (size === null || size[1] !== id) {
+      throw new Error(`git cat-file: expected ${id}'s record, read ${JSON.stringify(line)}`);
+    }
+
+    // The contents and the newline after them.
+    const body = Buffer.alloc(Number(size[2]) + 1);
+    for (let got = 0; got < body.length; ) {
+      const more = readSync(output, body, got, body.length - got, at + got);
+      if (more === 0) throw new Error(`git cat-file: ${id}'s record is cut short`);
+      got += more;
+    }
+    if (body[body.length - 1] !== 0x0a) throw new Error(`git cat-file: ${id}'s record doesn't end its line`);
+
+    found.set(id, body.toString('utf8', 0, body.length - 1));
+    at += body.length;
   }
 
+  if (readSync(output, header, 0, 1, at) !== 0) throw new Error('git cat-file: output past the last record');
+
   return found;
+};
+
+/**
+ * Each file's text, a commit and a path each, or undefined when the commit has no such file. Those
+ * not read before are read in one `cat-file --batch`.
+ */
+const readFiles = (files: ReadonlyArray<readonly [commit: string, path: string]>) => {
+  const ids = files.map(([commit, path]) => treeAt(commit).get(path));
+  const unread = [...new Set(ids)].filter((id): id is string => id !== undefined && !blobs.has(id));
+
+  if (unread.length > 0) {
+    for (const [id, text] of catFile(unread)) blobs.set(id, text);
+  }
+
+  return ids.map((id) => (id === undefined ? undefined : blobs.get(id)));
+};
+
+/** A file's text at a commit, or undefined when the commit has no such file. */
+const fileAt = (commit: string, path: string) => readFiles([[commit, path]])[0];
+
+/** Each path's contents at `head`, of those it has as files. */
+const contents = (head: string, paths: ReadonlyArray<string>) => {
+  const texts = readFiles(paths.map((path) => [head, path] as const));
+
+  return new Map(
+    paths.flatMap((path, index) => {
+      const text = texts[index];
+
+      return text === undefined ? [] : [[path, text] as const];
+    }),
+  );
 };
 
 // ---- Paths --------------------------------------------------------------------------------------
@@ -419,14 +524,13 @@ const workspaceGlobs = (head: string) => {
 const manifests = (head: string) => {
   const packages = new Map<string, Package>();
   const { included, excluded } = workspaceGlobs(head);
-  const listed = git('ls-tree', '-r', '--name-only', '-z', head, '--', ...config.packageRoots);
+  const paths = pathsUnder(head, ...config.packageRoots).filter(
+    (path) => included.some((glob) => glob.test(path)) && !excluded.some((glob) => glob.test(path)),
+  );
+  const texts = contents(head, paths);
 
-  for (const path of listed.split('\0')) {
-    if (!included.some((glob) => glob.test(path)) || excluded.some((glob) => glob.test(path))) {
-      continue;
-    }
-
-    const manifest = decodeManifest(git('show', `${head}:${path}`));
+  for (const path of paths) {
+    const manifest = decodeManifest(texts.get(path) ?? '');
     if (packages.has(manifest.name)) throw new Error('duplicate workspace package name');
 
     packages.set(manifest.name, { directory: path.slice(0, path.lastIndexOf('/') + 1), manifest });
@@ -536,9 +640,7 @@ const importersOf = (directory: string, head: string) =>
   importersAmong(
     contents(
       head,
-      git('ls-tree', '-r', '--name-only', '-z', head, '--', directory)
-        .split('\0')
-        .filter((path) => moduleFile.test(path)),
+      pathsUnder(head, directory).filter((path) => moduleFile.test(path)),
     ),
   );
 
@@ -773,8 +875,10 @@ const installChanges = (
   head: string,
   packages: ReadonlyMap<string, Package>,
 ) => {
-  const before = fileAt(base, path);
-  const after = fileAt(head, path);
+  const [before, after] = readFiles([
+    [base, path],
+    [head, path],
+  ]);
   if (before === undefined || after === undefined) return null;
 
   if (path === 'pnpm-workspace.yaml') {
@@ -1649,6 +1753,9 @@ const waits = (jobs: ReadonlyMap<string, Job>) => {
  * The repo's actions a change changes, by directory, with every action that uses one: an
  * `action.yml` whose parse differs, one added or deleted, and any other file of an action.
  */
+/** A composite action's own file, as `uses: ./.github/actions/<name>` finds it. */
+const actionFile = /^\.github\/actions\/[^/]+\/action\.ya?ml$/;
+
 const changedActions = (parse: Parse, paths: ReadonlyArray<string>, base: string, head: string) => {
   const found = new Set<string>();
 
@@ -1668,9 +1775,8 @@ const changedActions = (parse: Parse, paths: ReadonlyArray<string>, base: string
 
   // An action another one uses changes that one too.
   const uses = [base, head].flatMap((commit) =>
-    git('ls-tree', '-r', '--name-only', '-z', commit, '--', '.github/actions/')
-      .split('\0')
-      .filter((path) => /^\.github\/actions\/[^/]+\/action\.ya?ml$/.test(path))
+    pathsUnder(commit, '.github/actions/')
+      .filter((path) => actionFile.test(path))
       .map((path) => {
         const steps = parsedAt<Action>(parse, commit, path)?.value.runs?.steps ?? [];
 
@@ -1755,6 +1861,9 @@ const ciJobs = async (paths: ReadonlyArray<string>, base: string, head: string) 
   }
 
   try {
+    // The workflows and actions the questions below read, on both sides, in one batch.
+    const read = (path: string) => [config.ciWorkflow, ...config.calledWorkflows].includes(path) || actionFile.test(path);
+    readFiles([base, head].flatMap((commit) => [...treeAt(commit).keys()].filter(read).map((path) => [commit, path] as const)));
     const before = workflowAt(parse, base, config.ciWorkflow);
     const after = workflowAt(parse, head, config.ciWorkflow);
     if (!isDeepStrictEqual(before.top, after.top)) return null;
@@ -1848,7 +1957,7 @@ const select = async (base: string, head: string, near: boolean) => {
     .filter((path) => path !== '');
   const from = git('merge-base', base, commit).trim();
   const packages = manifests(commit);
-  const tracked = new Set(git('ls-tree', '-r', '--name-only', '-z', commit).split('\0'));
+  const tracked = new Set(treeAt(commit).keys());
 
   // With --near, a change to CI's own files runs the jobs it changes and selects nothing else.
   const ci = near && touches(edited, ciFiles) ? await ciJobs(edited, from, commit) : undefined;
