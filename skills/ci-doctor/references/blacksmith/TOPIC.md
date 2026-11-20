@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Blacksmith
 
-[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](../ci-runners/references/providers.md#choosing) says how the plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](../../../ci-workflows/SKILL.md) (workflows, selection, tiers, caches) and [`ci-runners`](../ci-runners/TOPIC.md) (sizing, packing, cost). [guide section 2](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order.
+[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](../../../ci-runners/references/providers.md#choosing) says how the plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](../../../ci-workflows/SKILL.md) (workflows, selection, tiers, caches) and [`ci-runners`](../../../ci-runners/SKILL.md) (sizing, packing, cost). [guide section 2](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order.
 
 ## What to read
 
@@ -38,6 +38,6 @@ These are what the source repo leaned on, as [guide section 2](../../../../docs/
 
 ## Related
 
-- [`ci-runners`](../ci-runners/TOPIC.md): sizing, packing, the cap and choosing a provider.
+- [`ci-runners`](../../../ci-runners/SKILL.md): sizing, packing, the cap and choosing a provider.
 - [`ci-workflows`](../../../ci-workflows/SKILL.md): changing workflows and tiers; [`cache-ci`](../../../cache-ci/SKILL.md): caches.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): a PR's result, runs by hand and the merge.
