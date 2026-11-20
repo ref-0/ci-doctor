@@ -36,6 +36,8 @@ export interface Manifest {
   exports?: { entries: number; root: boolean } | false;
   /** Text other tools are named in: package.json scripts, or the whole TOML file. */
   text: string;
+  /** Why the file says nothing, though it was read, such as a package.json that isn't JSON. */
+  unparsed?: string;
 }
 
 const pyName = (s: string) => s.toLowerCase().replace(/[-_.]+/g, '-');
@@ -53,10 +55,12 @@ export const exportsOf = (exports: unknown): Manifest['exports'] => {
 
 const npmManifest = (path: string, text: string): Manifest => {
   let pkg: any;
+  let unparsed: string | undefined;
   try {
     pkg = JSON.parse(text);
   } catch {
     pkg = {};
+    unparsed = "it isn't valid JSON";
   }
   const deps: string[] = [];
   const links: string[] = [];
@@ -66,7 +70,7 @@ const npmManifest = (path: string, text: string): Manifest => {
       if (!/^(workspace|link|file|portal):/.test(String(version))) deps.push(name);
     }
   const scripts = Object.values(pkg?.scripts ?? {}).map(String).join('\n');
-  return { path, ecosystem: 'npm', name: typeof pkg?.name === 'string' ? pkg.name : undefined, deps, links, exports: exportsOf(pkg?.exports), text: scripts };
+  return { path, ecosystem: 'npm', name: typeof pkg?.name === 'string' ? pkg.name : undefined, deps, links, exports: exportsOf(pkg?.exports), text: scripts, ...(unparsed ? { unparsed } : {}) };
 };
 
 /** Cargo.toml's dependency tables, by line: `[dependencies]`, `[dev-dependencies.x]`, `[target.'cfg(…)'.build-dependencies]`. */
@@ -367,13 +371,19 @@ export const stackOf = ({ source, manifestPaths, workflows, languages, packages,
   const toRead = manifestPaths.slice(0, MAX_MANIFESTS);
   if (manifestPaths.length > MAX_MANIFESTS) unknown.push(`Read the first ${MAX_MANIFESTS} of ${manifestPaths.length} package manifests`);
   const commandFiles = COMMAND_FILES.filter((p) => paths.includes(p));
-  const texts = source.readMany([...toRead, ...commandFiles]);
-  const unread = [...toRead, ...commandFiles].filter((p) => !texts.has(p));
-  if (unread.length) unknown.push(`${unread.length} manifest or task file${unread.length === 1 ? '' : 's'} in the tree couldn't be read, such as ${unread[0]}`);
+  const { texts, failed } = source.readMany([...toRead, ...commandFiles]);
+  // A manifest read but not understood says nothing of its package, so it counts as unread too.
+  const parsed = toRead.flatMap((p) => (texts.has(p) ? [parseManifest(p, texts.get(p)!)!] : []));
+  for (const m of parsed) if (m.unparsed) failed.set(m.path, m.unparsed);
+  const manifests = parsed.filter((m) => !m.unparsed);
+  const unread = [...toRead, ...commandFiles].filter((p) => !texts.has(p) || failed.has(p));
+  if (unread.length) {
+    const why = failed.get(unread[0]!);
+    unknown.push(`${unread.length} manifest or task file${unread.length === 1 ? '' : 's'} in the tree couldn't be read, such as ${unread[0]}${why ? ` (${why})` : ''}`);
+  }
   if (!treeComplete) unknown.push("GitHub cut the file tree short, so a file past the cut can't be checked");
   if (!workflows.complete) unknown.push('Not every workflow file was read');
 
-  const manifests = toRead.flatMap((p) => (texts.has(p) ? [parseManifest(p, texts.get(p)!)!] : []));
   const manifestsComplete = treeComplete && manifestPaths.length <= MAX_MANIFESTS && manifests.length === toRead.length;
   const allComplete = manifestsComplete && workflows.complete && unread.length === 0;
 
