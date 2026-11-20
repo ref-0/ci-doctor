@@ -55,9 +55,9 @@ For another language, or to check the tool:
 | Graph | Count | From |
 |---|---|---|
 | Package dependencies | Edges; imports no edge allows; edges no import uses | `package-graph` and `package-graph --unused`, or the language's own dependency listing (`cargo metadata`, `go list -deps`) |
-| Export paths | Test files one edit selects, by package edges, by entries and by the import graph, for a few modules per shared package; names an entry exports that nothing imports | The selector's output, and `vitest list --filesOnly --changed` with one line added to the module |
+| Export paths | Test files one edit selects, by package edges, by entries and by the import graph, for a few modules per shared package; names an entry exports that nothing imports | The selector's output, and `vitest list --filesOnly --changed` with one line added to the module; from outside, the scorer's `graphs.exports` gives each entry's re-exports and importers |
 | Layers | Imports against the layers, and folder cycles, largest first | `package-graph` with `layers` set, or the order search in [fixes](fixes.md#3-layers) |
-| Workspace tasks | Keys one edit moves | The runner's dry run |
+| Workspace tasks | Keys one edit moves | The runner's dry run; from outside, the scorer's `graphs.tasks` gives each task's inputs and the files they cover |
 | CI jobs | Blocked and queued time, and the critical path | The jobs API, or the scorer's "Job graph" block |
 
 `vitest list` runs the repo's config, so it isn't read-only: ask before you run it.

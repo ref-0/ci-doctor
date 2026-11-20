@@ -48,6 +48,8 @@ git clone --depth 1 --branch v<version> https://github.com/ref-0/ci-doctor.git <
 
 Graph 5 comes from CI's records. On GitHub Actions, the scorer reads it from the workflow files and recent PR runs, through `gh` with the user's own sign-in: `npx @ref0/ci-doctor`, then its "Job graph" block, or `jobGraph` in `--json`. Elsewhere, the provider's jobs API, as guide section 13's [collection recipe](../../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says.
 
+Without a checkout, the scorer's "Graphs" block, or `graphs` in `--json`, has graphs 2 and 4 from outside too. For export paths, it lists each entry's re-exported modules, its importing packages and its overload. The importer count is exact for a package with one entry; otherwise it's a range, from the packages seen in the files read up to the package's importers by manifest, and only the seen ones flag `overloaded-entry`. For tasks, it reads each runner's config by that runner's rules and flags `no-inputs`, `wide-inputs` and `deep-chain`. Graph 3 still needs the tool. An entry the scorer couldn't follow is marked unknown, with why.
+
 Another language, or no tool: count by hand, as [measure](references/measure.md#by-hand) says.
 
 ## 2. Read the five
