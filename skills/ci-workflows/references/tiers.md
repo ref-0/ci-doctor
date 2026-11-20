@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Which tier runs a test
 
-Part of the [`ci-workflows`](../TOPIC.md) topic. Read it before moving a test off pull requests, adding a scheduled run, or asking whether a test should wait for the sweep or a release. [guide section 5](../../../../../docs/pages/05-tiers-what-runs-where.md) explains the tiers.
+Part of the [`ci-workflows`](../SKILL.md) skill. Read it before moving a test off pull requests, adding a scheduled run, or asking whether a test should wait for the sweep or a release. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) explains the tiers.
 
 ## The tiers
 
@@ -22,11 +22,11 @@ Read each from its source, as `.agents/repo/ci.md`'s Selection and tiers names t
 5. **Check every selector.** Where CI and a local run select through different modes, as ci.md says, each has to apply the covered-only list. A covered path missing from one ran no proof there until a test failed without it.
 6. **Check a run that selects everything.** Where the plan drops a covered-only file from it, the move takes it out of full pull request runs too. Say so when that widens what the change does.
 7. **State the cost and the delay** in the pull request: the test-seconds a run saves, the minutes a month, and how long a fault it would catch can now sit on main.
-8. **Keep a deep proof honest in its new tier.** A model or property test keeps its cheap PR run and its breaks, as [`proof-tiers`](../../../../proof-tiers/SKILL.md) says.
+8. **Keep a deep proof honest in its new tier.** A model or property test keeps its cheap PR run and its breaks, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/next/skills/proof-tiers/SKILL.md) says.
 
 ## Replaying recorded sessions
 
-To test a path that depends on an outside tool that is slow, paid or nondeterministic, such as an agent harness calling a model, replay what it sent instead of running it. [guide section 5](../../../../../docs/pages/05-tiers-what-runs-where.md#replaying-recorded-sessions) has the why.
+To test a path that depends on an outside tool that is slow, paid or nondeterministic, such as an agent harness calling a model, replay what it sent instead of running it. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md#replaying-recorded-sessions) has the why.
 
 1. **Choose the boundary** where your code first reads the tool's output: its hook payloads, the commands it runs. Record there, and replay through every layer of yours behind it: client, local service, CLI and server.
 2. **Sanitize by contract.** A schema says, per field, what a recording may keep; everything else becomes synthetic text, and names a person chose become stable placeholders within the recording. A fixture check that fails any recording keeping more runs locally and on each PR.
@@ -36,7 +36,7 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 
 ## Adding a scheduled run
 
-- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](../../ci-runners/references/billing.md) says.
+- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/references/billing.md) says.
 - **Select from the newest passing ancestor,** run nothing when that is the head or no change reaches what it checks, and run everything when no ancestor passed.
 - **Give it a run name of its own.** Where only the daily sweep may close main's failure issue, a narrower run's name mustn't start like the sweep's. A narrower run names the merges since its base when it fails.
 - **Don't trust the cron.** GitHub starts scheduled runs late or skips them. A merge after a slot starts the run when nothing has since, choosing the newest slot and taking turns, so a late cron can't start it twice.
