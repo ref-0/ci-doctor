@@ -1126,14 +1126,21 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
   const byTaskName = new Map<string, string[]>();
   for (const t of tasks.values()) (byTaskName.get(t.name) ?? byTaskName.set(t.name, []).get(t.name)!).push(t.id);
   for (const task of tasks.values()) {
-    const pkg = byName.get(task.pkg);
     for (const dep of task.deps) {
       if ('task' in dep) {
         const kinds = dep.kinds.length > 0 ? dep.kinds : [...DEPENDENCY_KINDS];
-        const names = task.runner === 'nx' && dep.kinds.length === 0 ? [...(inferred.get(task.pkg) ?? [])] : kinds.flatMap((k) => [...(pkg?.deps.get(k) ?? [])]);
-        for (const name of new Set(names)) {
+        const nx = task.runner === 'nx' && dep.kinds.length === 0;
+        const depsOf = (name: string) => (nx ? [...(inferred.get(name) ?? [])] : kinds.flatMap((k) => [...(byName.get(name)?.deps.get(k) ?? [])]));
+        // Turborepo and Nx pass `^task` on through a dependency without that task, to its own dependencies.
+        const transit = task.runner === 'turbo' || task.runner === 'nx';
+        const seen = new Set([task.pkg]);
+        const waiting = depsOf(task.pkg);
+        for (let name = waiting.shift(); name !== undefined; name = waiting.shift()) {
+          if (seen.has(name)) continue;
+          seen.add(name);
           const to = `${name}#${dep.task}`;
           if (tasks.has(to)) edges.push({ from: task.id, to, how: 'dependencies' });
+          else if (transit) waiting.push(...depsOf(name));
         }
         continue;
       }
