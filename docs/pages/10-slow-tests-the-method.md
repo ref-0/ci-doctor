@@ -2,6 +2,8 @@
 
 # 10. Slow tests: the method
 
+The [`speed-up-tests`](../../skills/speed-up-tests/SKILL.md) skill carries this section for a coding agent: finding the slow files, naming the wait, the fixes and fakes that keep each test's proof, and measuring before and after.
+
 ## Find them from CI's own records, not intuition
 
 **Applies when:** Test time bears on the measured limiter, and CI's records give per-file durations. **Skip when:** There are no per-file records yet: recording them comes first (section 13).

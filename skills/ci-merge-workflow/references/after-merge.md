@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # After a merge
 
-Part of the [`ci-merge-workflow`](../SKILL.md) skill. The repo's facts are in `.agents/repo/ci.md`'s Merge, releases and deploy. [guide section 5](../../../docs/pages/05-tiers-what-runs-where.md) explains the sweep.
+Part of the [`ci-merge-workflow`](../SKILL.md) skill. The repo's facts are in `.agents/repo/ci.md`'s Merge, releases and deploy. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) explains the sweep.
 
 **The sweep, and your merge's own run.** Read what the repo's merges and scheduled runs check, such as a daily sweep at `<sweep-time>`, and what a failure on `main` files, such as a "CI on main failed" issue and a bisect. If a failure names your merge, read the failed jobs. When it's your change, fix `main` in a new PR at once; when it's another's, tell its owner. ci.md's Merge, releases and deploy gives the commands to check `main` sooner and to close the failure's issue once a fix merges.
 

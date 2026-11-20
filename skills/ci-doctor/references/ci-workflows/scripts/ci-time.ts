@@ -30,7 +30,7 @@
  * It is a diagnostic, not a baseline or a spend audit. It reads the newest runs `gh run list` returns,
  * and each run's latest attempt only; an earlier attempt, a run older than the sample and a job
  * missing from the latest attempt aren't here. A baseline or an audit pages a closed window and reads
- * every attempt, as the speed-up-tests topic's references/ci-history-data.md says.
+ * every attempt, as the speed-up-tests skill's references/ci-history-data.md says.
  *
  * What it prints, exactly:
  * - "checks" is the first job's start to the last non-gate job's end. It leaves out queueing before

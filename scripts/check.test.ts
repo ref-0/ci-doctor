@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { FALLBACK, OLD_NAMES, site, skillsOnly, standalone, tests } from './check.ts';
+import { FALLBACK, GITHUB_REF, GITHUB_URL, GUIDE_URL, HUB, OLD_NAMES, PENDING, site, skillsOnly, standalone, tests } from './check.ts';
 import { build } from './site/build.ts';
 
 const flagged = (line: string) => OLD_NAMES.some(([pattern]) => pattern.test(line));
@@ -23,13 +23,13 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill', 'skills/ci-doctor/references/speed-up-tests/', '[it](../speed-up-tests/TOPIC.md)', '../speed-up-tests/references/flakes.md', 'skills/ci-doctor/references/triage/flakes.md', 'the hub\'s speed-up-tests topic', 'the `speed-up-tests` topic']) {
       equal(flagged(line), true, line);
     }
   });
 
   it('leaves the new paths alone', () => {
-    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'the hub\'s ci-runners topic']) {
+    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'skills/speed-up-tests/SKILL.md', '../speed-up-tests/references/fixes.md', 'the `speed-up-tests` skill', 'skills/fix-flaky-test/SKILL.md', '../fix-flaky-test/references/symptoms.md']) {
       equal(flagged(line), false, line);
     }
   });
@@ -52,10 +52,21 @@ describe('the skills-only link check', () => {
 describe('the each-skill-alone link check', () => {
   const root = mkdtempSync(join(tmpdir(), 'check-alone-'));
   after(() => rmSync(root, { recursive: true, force: true }));
+  const gh = `${GITHUB_URL}blob/${GITHUB_REF}/`;
   write(root, 'README.md', '# R\n\nSee [the skills](skills/README.md).\n');
   write(root, 'skills/README.md', '# Skills\n');
-  write(root, 'skills/hub/SKILL.md', '---\nname: hub\ndescription: "The hub."\n---\n\n# Hub\n\n## Rules\n\nSee [the guide](../../docs/a.md#one) and [the leaf](../leaf/SKILL.md#steps).\n');
-  write(root, 'skills/leaf/SKILL.md', '---\nname: leaf\ndescription: "A leaf."\n---\n\n# Leaf\n\n## Steps\n\nRead [the detail](references/detail.md#gone), [the guide](../../docs/a.md#two), [the hub](../hub/SKILL.md#rules) and [a secret][s].\n\n[s]: ../../private/notes.md\n');
+  write(root, `skills/${HUB}/SKILL.md`, `---\nname: ${HUB}\ndescription: "The hub."\n---\n\n# Hub\n\n## Rules\n\nSee [the guide](../../docs/a.md#one), [the leaf](../leaf/SKILL.md#steps) and [a secret](../../private/notes.md).\n`);
+  write(
+    root,
+    'skills/leaf/SKILL.md',
+    [
+      '---\nname: leaf\ndescription: "A leaf."\n---\n\n# Leaf\n\n## Steps\n',
+      'Read [the detail](references/detail.md#gone), [the guide](../../docs/a.md#one) and [the hub](../hub/SKILL.md#rules).',
+      `In full: [the guide](${GUIDE_URL}docs/a.md#one), [no heading](${GUIDE_URL}docs/a.md#two), [the hub](${gh}skills/${HUB}/SKILL.md#rules), [a folder](${GITHUB_URL}tree/${GITHUB_REF}/docs), [gone](${gh}docs/gone.md), [unserved](${GUIDE_URL}private/notes.md) and [to come](${gh}${PENDING[0]}templates/x.md).`,
+      'Elsewhere: [another branch](https://github.com/ref-0/ci-doctor/blob/main/docs/gone.md) and [a site](https://example.com/x).',
+      '',
+    ].join('\n\n'),
+  );
   write(root, 'skills/leaf/references/detail.md', '# Detail\n');
   write(root, 'docs/a.md', '# A\n\n## One\n');
   write(root, 'private/notes.md', '# Notes\n');
@@ -64,15 +75,26 @@ describe('the each-skill-alone link check', () => {
   write(root, '.gitignore', 'private/\n');
   spawnSync('git', ['rm', '-q', '--cached', 'private/notes.md'], { cwd: root });
 
-  it('passes links that resolve in the copy or on the site, and fails a missing anchor in either, and a link the site does not serve', () => {
-    const results = standalone(root);
-    deepStrictEqual(results.map((r) => r.name), ['hub', 'leaf']);
-    deepStrictEqual(results[0]?.problems, []);
-    const leaf = results[1]?.problems ?? [];
-    equal(leaf.length, 3, leaf.join('\n'));
-    match(leaf.join('\n'), /SKILL\.md:\d+: references\/detail\.md#gone: .*with leaf installed alone/);
-    match(leaf.join('\n'), /\.\.\/\.\.\/docs\/a\.md#two: no heading makes #two in docs\/a\.md/);
-    match(leaf.join('\n'), /\.\.\/\.\.\/private\/notes\.md: leaves leaf\/ for private\/notes\.md, which .* doesn't serve/);
+  const results = standalone(root);
+  const of = (name: string) => (results.find((r) => r.name === name)?.problems ?? []).join('\n');
+
+  it('lets the hub link out relatively, to what the site serves only', () => {
+    equal(of(HUB).split('\n').length, 1, of(HUB));
+    match(of(HUB), /\.\.\/\.\.\/private\/notes\.md: leaves ci-doctor\/ for private\/notes\.md, which .* doesn't serve/);
+  });
+
+  it('fails any other skill\'s relative link out of its folder, even to a file the site serves', () => {
+    match(of('leaf'), /SKILL\.md:\d+: \.\.\/\.\.\/docs\/a\.md#one: leaves leaf\/ by a relative path/);
+    match(of('leaf'), /SKILL\.md:\d+: \.\.\/hub\/SKILL\.md#rules: leaves leaf\/ by a relative path/);
+    match(of('leaf'), /references\/detail\.md#gone: .*with leaf installed alone/);
+  });
+
+  it('checks full links to the guide and to GitHub on the branch against the repo, and leaves pending paths and other URLs alone', () => {
+    const leaf = of('leaf');
+    match(leaf, /docs\/a\.md#two: no heading makes #two in docs\/a\.md/);
+    match(leaf, /docs\/gone\.md: no docs\/gone\.md in the repo/);
+    match(leaf, /private\/notes\.md: .* doesn't serve private\/notes\.md/);
+    equal(leaf.split('\n').length, 6, leaf);
   });
 });
 

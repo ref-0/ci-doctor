@@ -15,7 +15,7 @@ Read [`docs/README.md`](../../../docs/README.md) first: it explains every techni
 
 **Any CI works; the templates are GitHub Actions.** Every workflow template here is for GitHub Actions. On GitLab CI, Buildkite or CircleCI, the principles, the selection planner and the scripts still apply, but the workflows and runner labels don't: map each to your CI's equivalent, as the stack map below says.
 
-**Our stack is an example.** The guide's details come from one TypeScript + Rust monorepo using Effect, Cloudflare Workers, Vite+ and Blacksmith. Decide what's relevant to *this* repo, and adapt or skip the rest. Stack-specific material is on its own pages, read only if the stack matches: [Rust](ci-workflows/references/rust.md), [Cloudflare Workers](speed-up-tests/references/workers.md), [Effect](speed-up-tests/references/effect.md) and [Blacksmith](blacksmith/TOPIC.md). Never add a library, framework or provider just because we used it.
+**Our stack is an example.** The guide's details come from one TypeScript + Rust monorepo using Effect, Cloudflare Workers, Vite+ and Blacksmith. Decide what's relevant to *this* repo, and adapt or skip the rest. Stack-specific material is on its own pages, read only if the stack matches: [Rust](ci-workflows/references/rust.md), [Cloudflare Workers](../../speed-up-tests/references/workers.md), [Effect](../../speed-up-tests/references/effect.md) and [Blacksmith](blacksmith/TOPIC.md). Never add a library, framework or provider just because we used it.
 
 ### A common route: GitHub-hosted, Turborepo, Python
 
