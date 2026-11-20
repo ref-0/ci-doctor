@@ -10,10 +10,10 @@ import { blobSha, type Routes } from './fixtures.ts';
 import { withStub } from './helpers.ts';
 
 /** A tree of files, read from memory; `unreadable` paths are listed but fail, as a failed read does. Counts each batch. */
-const tree = (files: Record<string, string>, { unreadable = [] as string[] } = {}) => {
+const tree = (files: Record<string, string>, { unreadable = [] as string[], truncated = false } = {}) => {
   const batches: string[][] = [];
   const source: Source = {
-    tree: { truncated: false, blobs: Object.keys(files).map((path) => ({ path, size: files[path]!.length })) },
+    tree: { truncated, blobs: Object.keys(files).map((path) => ({ path, size: files[path]!.length })) },
     read: (p) => files[p],
     readMany: (paths) => {
       batches.push(paths);
@@ -29,7 +29,7 @@ const tree = (files: Record<string, string>, { unreadable = [] as string[] } = {
   return { source, batches };
 };
 
-const graphs = (files: Record<string, string>, o: { unreadable?: string[]; limits?: Partial<Limits> } = {}) => {
+const graphs = (files: Record<string, string>, o: { unreadable?: string[]; truncated?: boolean; limits?: Partial<Limits> } = {}) => {
   const { source: raw, batches } = tree(files, o);
   const source = remembered(raw);
   const stack = stackOf({ source, manifestPaths: manifestPaths(source.tree), workflows: { texts: [], complete: true }, languages: undefined, packages: { npm: 0 }, runners: undefined });
@@ -334,6 +334,19 @@ describe('graph 4: tasks, as each runner reads its config', () => {
       'libs/core/src/index.ts': 'export {};\n',
     });
     assert.deepEqual(task(g, 'core#build'), { id: 'core#build', pkg: 'core', name: 'build', runner: 'nx', cached: true, inputs: { mode: 'declared', globs: ['libs/core/src/**'], files: 1 }, outputs: [], depth: 0 });
+  });
+});
+
+describe('graph 4: tasks on a cut-short tree', () => {
+  it("leaves each task's input coverage unknown when GitHub cut the tree listing short, with no wide-inputs flag or fix", () => {
+    const { g } = graphs(barrelRepo(), { truncated: true });
+    assert.ok(g.tasks.nodes.every((n) => n.inputs.files === null));
+    assert.equal(g.tasks.count.trackedFiles, null);
+    assert.deepEqual(g.tasks.flags.filter((f) => f.kind === 'wide-inputs'), []);
+    assert.ok(!graphsFixes(g).some((f) => f.text.includes('inputs cover')));
+    assert.ok(g.tasks.unknown.some((u) => u.includes('cut the file tree short')));
+    assert.match(graphsBlock(g), /input coverage unknown, as the file tree was cut short/);
+    assert.ok(g.tasks.flags.some((f) => f.kind === 'no-inputs' && Object.keys(f.numbers).length === 0));
   });
 });
 

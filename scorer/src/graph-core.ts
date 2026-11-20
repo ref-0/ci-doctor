@@ -1204,9 +1204,10 @@ export interface TaskNode {
 /**
  * The task graph measured over the repo's tracked files: each task's inputs counted, the longest chain, and the flags
  * `task-cycle`, `deep-chain`, `no-inputs` (cached with no inputs declared, or empty ones) and `wide-inputs` (cached,
- * with inputs over `THRESHOLDS.wideInputs` of the files).
+ * with inputs over `THRESHOLDS.wideInputs` of the files). With `partial`, when only some of the files are listed, no
+ * task's coverage is counted, so none is flagged wide.
  */
-export const taskShape = (tasks: TaskGraph, paths: Iterable<string>) => {
+export const taskShape = (tasks: TaskGraph, paths: Iterable<string>, { partial = false }: { partial?: boolean } = {}) => {
   const ids = [...tasks.tasks.keys()];
   const out = new Map<string, string[]>();
   for (const e of tasks.edges) (out.get(e.from) ?? out.set(e.from, []).get(e.from)!).push(e.to);
@@ -1214,7 +1215,8 @@ export const taskShape = (tasks: TaskGraph, paths: Iterable<string>) => {
   const tracked = [...paths].sort();
   const counted = new Map<string, number | null>();
   for (const t of tasks.tasks.values()) {
-    if (!t.cached || t.mode === 'unknown') {
+    // With only part of the tree listed, a count would be against a partial denominator: coverage is unknown.
+    if (!t.cached || t.mode === 'unknown' || partial) {
       counted.set(t.id, null);
       continue;
     }
@@ -1243,7 +1245,7 @@ export const taskShape = (tasks: TaskGraph, paths: Iterable<string>) => {
       .map((n) => ({
         kind: 'no-inputs',
         subject: n.id,
-        numbers: { files: n.inputs.files ?? 0, filesOf: tracked.length },
+        numbers: (n.inputs.files === null ? {} : { files: n.inputs.files, filesOf: tracked.length }) as Record<string, number>,
         threshold: null,
         detail: n.inputs.mode === 'empty' ? 'inputs are empty: only the command and env key the cache, so a source change hits it wrongly' : `no declared inputs: ${n.runner}'s default keys every file of the package, so any change there misses`,
       })),
