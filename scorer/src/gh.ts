@@ -144,14 +144,16 @@ export class Gh {
       ...(this.escapesFlag ? ['--allow-escape-sequences'] : []),
       ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
       path,
-      ...(options.query !== undefined ? ['-f', `query=${options.query}`] : []),
+      // A query goes on stdin as the request's body: 100 files' worth can pass Windows' 32,767-character command line.
+      ...(options.query !== undefined ? ['--input', '-'] : []),
     ];
     const run = () => {
       this.calls++;
       return execFileSync('gh', args(), {
         encoding: 'utf8',
         maxBuffer: 512 << 20,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: [options.query !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        ...(options.query !== undefined ? { input: JSON.stringify({ query: options.query }) } : {}),
         env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
         windowsHide: true,
       });
