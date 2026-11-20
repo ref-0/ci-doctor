@@ -314,58 +314,67 @@ const pathsUnder = (commit: string, ...folders: ReadonlyArray<string>) => {
  */
 const catFile = (ids: ReadonlyArray<string>) => {
   const folder = mkdtempSync(posix.join(tmpdir(), 'affected-checks-'));
-  const output = openSync(posix.join(folder, 'batch'), 'w+');
 
   try {
-    const done = spawnSync('git', ['cat-file', '--batch'], {
-      cwd: root,
-      input: ids.map((id) => `${id}\n`).join(''),
-      stdio: ['pipe', output, 'pipe'],
-    });
-    if (done.error !== undefined) throw done.error;
-    if (done.status !== 0) throw new Error(`git cat-file failed: ${done.stderr.toString()}`);
+    const output = openSync(posix.join(folder, 'batch'), 'w+');
 
-    const found = new Map<string, string | undefined>();
-    // A header is `<id> blob <size>` or `<id> missing`: well under this, with SHA-256's longer IDs.
-    const header = Buffer.alloc(256);
-    let at = 0;
-
-    for (const id of ids) {
-      const read = readSync(output, header, 0, header.length, at);
-      const end = header.subarray(0, read).indexOf(0x0a);
-      const line = end === -1 ? '' : header.toString('utf8', 0, end);
-      at += end + 1;
-
-      if (line === `${id} missing`) {
-        found.set(id, undefined);
-        continue;
-      }
-
-      const size = /^(\S+) blob (\d+)$/.exec(line);
-      if (size === null || size[1] !== id) {
-        throw new Error(`git cat-file: expected ${id}'s record, read ${JSON.stringify(line)}`);
-      }
-
-      // The contents and the newline after them.
-      const body = Buffer.alloc(Number(size[2]) + 1);
-      for (let got = 0; got < body.length; ) {
-        const more = readSync(output, body, got, body.length - got, at + got);
-        if (more === 0) throw new Error(`git cat-file: ${id}'s record is cut short`);
-        got += more;
-      }
-      if (body[body.length - 1] !== 0x0a) throw new Error(`git cat-file: ${id}'s record doesn't end its line`);
-
-      found.set(id, body.toString('utf8', 0, body.length - 1));
-      at += body.length;
+    try {
+      return readBatch(ids, output);
+    } finally {
+      closeSync(output);
     }
-
-    if (readSync(output, header, 0, 1, at) !== 0) throw new Error('git cat-file: output past the last record');
-
-    return found;
   } finally {
-    closeSync(output);
     rmSync(folder, { recursive: true, force: true });
   }
+};
+
+/** Runs the batch into `output`, an open file, then reads its records back, as `catFile` says. */
+const readBatch = (ids: ReadonlyArray<string>, output: number) => {
+  const done = spawnSync('git', ['cat-file', '--batch'], {
+    cwd: root,
+    input: ids.map((id) => `${id}\n`).join(''),
+    stdio: ['pipe', output, 'pipe'],
+  });
+  if (done.error !== undefined) throw done.error;
+  if (done.status !== 0) throw new Error(`git cat-file failed: ${done.stderr.toString()}`);
+
+  const found = new Map<string, string | undefined>();
+  // A header is `<id> blob <size>` or `<id> missing`: well under this, with SHA-256's longer IDs.
+  const header = Buffer.alloc(256);
+  let at = 0;
+
+  for (const id of ids) {
+    const read = readSync(output, header, 0, header.length, at);
+    const end = header.subarray(0, read).indexOf(0x0a);
+    const line = end === -1 ? '' : header.toString('utf8', 0, end);
+    at += end + 1;
+
+    if (line === `${id} missing`) {
+      found.set(id, undefined);
+      continue;
+    }
+
+    const size = /^(\S+) blob (\d+)$/.exec(line);
+    if (size === null || size[1] !== id) {
+      throw new Error(`git cat-file: expected ${id}'s record, read ${JSON.stringify(line)}`);
+    }
+
+    // The contents and the newline after them.
+    const body = Buffer.alloc(Number(size[2]) + 1);
+    for (let got = 0; got < body.length; ) {
+      const more = readSync(output, body, got, body.length - got, at + got);
+      if (more === 0) throw new Error(`git cat-file: ${id}'s record is cut short`);
+      got += more;
+    }
+    if (body[body.length - 1] !== 0x0a) throw new Error(`git cat-file: ${id}'s record doesn't end its line`);
+
+    found.set(id, body.toString('utf8', 0, body.length - 1));
+    at += body.length;
+  }
+
+  if (readSync(output, header, 0, 1, at) !== 0) throw new Error('git cat-file: output past the last record');
+
+  return found;
 };
 
 /**
