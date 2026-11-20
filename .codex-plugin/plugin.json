@@ -1,7 +1,7 @@
 {
   "name": "ci-doctor",
   "version": "0.1.0",
-  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, how far an edit reaches through a workspace's graphs, review and merge gates, test value and proof tiers.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
@@ -26,7 +26,7 @@
   "interface": {
     "displayName": "ci-doctor",
     "shortDescription": "Fast, cheap, trustworthy CI",
-    "longDescription": "Make CI faster, cheaper and more trustworthy on any provider. Your agent maps the repo, measures CI from its history and writes a plan you approve before anything changes. Day to day, it reads failed runs, changes workflows, sizes runners against the bill, fixes slow and flaky tests without losing what they prove, and, where the repo adopts them, gates review and merging.",
+    "longDescription": "Make CI faster, cheaper and more trustworthy on any provider. Your agent maps the repo, measures CI from its history and writes a plan you approve before anything changes. Day to day, it reads failed runs, changes workflows, sizes runners against the bill, fixes slow and flaky tests without losing what they prove, narrows how far an edit reaches through packages, exports, folders and tasks, and, where the repo adopts them, gates review and merging.",
     "developerName": "ref0",
     "category": "Developer Tools",
     "capabilities": [

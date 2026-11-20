@@ -1,5 +1,5 @@
 <!--
-What: the plugin's five agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for review, merging, test value and proof tiers, and how to keep them fresh.
+What: the plugin's six agent skills: the ci-doctor hub, for CI on any provider and the plan, and the skills for a workspace's graphs, review, merging, test value and proof tiers, and how to keep them fresh.
 Where: installed with the ci-doctor plugin, or copied into the skills folder your agent harness reads; see the README's Installing.
 Configure: write your repo's facts files from the hub's references/agent-knowledge/, and fill the placeholders below.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -20,6 +20,7 @@ Each topic has one home; the others link to it.
 | [`ci-merge-workflow`](ci-merge-workflow/SKILL.md) | A PR from draft to merged on one CI run: marking ready, runs by hand, merging, releases, then main and the deploy. | Adopted (`.agents/repo/ci.md`); otherwise the repo's own merge path |
 | [`test-audit`](test-audit/SKILL.md) | A test's value, weak or duplicate coverage and test-only seams. From openclaw, under its MIT licence: see [`test-audit/UPSTREAM.md`](test-audit/UPSTREAM.md). | Any repo |
 | [`proof-tiers`](proof-tiers/SKILL.md) | Bounded model checks and property tests, and how CI runs them (seeds, timeouts). | Any repo with them |
+| [`optimize-graphs`](optimize-graphs/SKILL.md) | The five graphs that set how far an edit reaches and how long CI waits: package dependencies, export paths, layers inside packages, workspace tasks and CI jobs. How to measure them, what to propose and in what order, and how to adopt the checks. The hub's Phase 1 maps them with it. | Any repo with several packages or jobs |
 
 The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL.md`, since Codex registers a `SKILL.md` at any depth as a skill of its own:
 
@@ -31,7 +32,24 @@ The hub's topics, each a `references/<topic>/TOPIC.md`. They aren't named `SKILL
 | [`blacksmith`](ci-doctor/references/blacksmith/TOPIC.md) | Blacksmith only: its CLI, labels, sticky disks, its cache, billing, the move to it, and `ci-time.ts`'s `--bill blacksmith` adapter. Skip it on other runners. | General sizing and cost: `ci-runners`. |
 | [`speed-up-tests`](ci-doctor/references/speed-up-tests/TOPIC.md) | Slow tests and flakes: CI's records and how to read them (`measuring`, `ci-history-data`), fixes, fakes, and stack pages for [Cloudflare Workers](ci-doctor/references/speed-up-tests/references/workers.md) and [Effect](ci-doctor/references/speed-up-tests/references/effect.md). | Judging a number: `verify-evidence`. A test's value: `test-audit`. |
 | [`verify-evidence`](ci-doctor/references/verify-evidence/TOPIC.md) | Substantiating a measurement or a claim about CI: like-for-like comparisons, interleaving, controls, static estimates. The other topics hand evidence to it. | Where CI's records are: `speed-up-tests`' `measuring`. |
-| [`graphs`](ci-doctor/references/graphs/TOPIC.md) | The five graphs that set how far an edit reaches and how long CI waits: package dependencies, export paths, layers inside packages, workspace tasks and CI jobs. What to map in Phase 1, and what to propose. | Cache keys: `ci-workflows`' cache rules. The critical path: `ci-workflows`' slow runs. |
+
+## When a topic becomes its own skill
+
+A harness picks a skill by its description alone, so a topic inside the hub reaches only tasks that sound like CI. A topic becomes a skill of its own when:
+
+- **its task doesn't sound like CI:** an agent asked "should this be a barrel file?" never opens a CI skill;
+- **it has a clear deliverable,** such as a measured map and an ordered list of changes;
+- **it's worth installing alone,** in a repo that never runs the plan.
+
+What moves, and what stays:
+
+- **Everything moves.** The topic's `TOPIC.md` becomes the skill's `SKILL.md`, its detail goes to the skill's `references/`, and the topic's folder goes. Each fact keeps one home.
+- **The hub keeps links only:** its topic map's row, the phases that used the topic, and its "Not here", each pointing to the skill by name and path. Nothing is copied back.
+- **The description is in the asker's words,** not CI's, under 320 characters, and names the skill's neighbours where two could claim one task.
+- **It stands alone.** The skill names its release in `metadata.version`, says how to run its tools from a skills-only install, and has its own "Outside this skill" section, as the hub's ["Outside the skills"](ci-doctor/SKILL.md#outside-the-skills) does.
+- **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](ci-doctor/references/agent-knowledge/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
+
+The build checks (`scripts/check.ts`) copy each skill's folder alone, as `npx skills add` with one skill chosen installs it, and fail on a link inside it that doesn't resolve in the copy, or a link out of it that the guide site doesn't serve at `https://ci-doctor.ref0.dev/guide/<path>`. A new skill gets that check by being a folder here.
 
 [`tools/upstream-sync/`](../tools/upstream-sync/README.md) isn't a skill: it's an opt-in weekly check that the skills you copied from upstream changed there, filed as one issue. [`docs/harnesses.md`](../docs/harnesses.md) says how to run agents in parallel and on a schedule in each harness.
 
