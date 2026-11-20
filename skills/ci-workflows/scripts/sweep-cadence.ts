@@ -253,17 +253,23 @@ export function runsOf(
   const since = new Date(start * 1000).toISOString().slice(0, 10);
   const runs: Listed[] = [];
 
+  let total: number | undefined;
+
   for (let page = 1; page <= runPages; page++) {
     const listed = api(run, `repos/${repo}/actions/workflows/${workflow}/runs?status=completed&created=%3E%3D${since}&per_page=100&page=${page}${query}`) as { workflow_runs: Listed[]; total_count: number };
+    total = listed.total_count;
     for (const r of listed.workflow_runs) {
-      if (when(r.created_at) < start || !keep(r)) continue;
+      // Newest first: a run before the window's start means every later one is too.
+      if (when(r.created_at) < start) return { runs, truncated: false };
+      if (!keep(r)) continue;
       runs.push(r);
       if (visit(r, runs.length)) return { runs, truncated: false };
     }
     if (listed.workflow_runs.length < 100) return { runs, truncated: false };
   }
 
-  return { runs, truncated: true };
+  // Truncated unless GitHub says the window held no more runs than it listed.
+  return { runs, truncated: !(total !== undefined && total <= runPages * 100) };
 }
 
 /** A run's latest attempt's jobs. */

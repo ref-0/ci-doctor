@@ -46,6 +46,11 @@ function field(text: string, low: number, high: number): Set<number> | null {
   return values;
 }
 
+/** A day-of-week field read over 0 to 7, as cron reads it, with 7 as Sunday's 0. */
+function sundays(values: Set<number> | null): Set<number> | null {
+  return values && new Set([...values].map((v) => (v === 7 ? 0 : v)));
+}
+
 /** Parses a five-field cron, as GitHub's `on.schedule` takes it. */
 export function parseCron(text: string): Cron {
   const parts = text.trim().split(/\s+/);
@@ -57,7 +62,7 @@ export function parseCron(text: string): Cron {
     hour: all(field(hour, 0, 23), 0, 23),
     dom: field(dom, 1, 31),
     month: field(month, 1, 12),
-    dow: field(dow.replace(/\b7\b/g, '0'), 0, 6),
+    dow: sundays(field(dow, 0, 7)),
   };
 }
 
