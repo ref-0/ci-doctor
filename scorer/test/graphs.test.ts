@@ -263,6 +263,12 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     assert.deepEqual(task(g, 'app#build')!.inputs.globs, ['packages/app/lib/**']);
     assert.deepEqual(edgesFrom(g, 'ui#build'), ['core#build']);
   });
+
+  it('follows `^build` through a package with no build script to the packages behind it, as Turborepo does', () => {
+    const g = turboRepo({ tasks: { build: { dependsOn: ['^build'] } } }, { app: { build: 'tsc' }, core: { build: 'tsc' } });
+    assert.deepEqual(edgesFrom(g, 'app#build'), ['core#build']);
+    assert.equal(task(g, 'ui#build'), undefined);
+  });
 });
 
 describe('the graphs in the report', () => {
