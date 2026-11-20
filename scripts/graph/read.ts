@@ -96,8 +96,11 @@ const strings = (value: unknown): string[] =>
 
 // ---- Globs --------------------------------------------------------------------------------------
 
-/** A glob as a RegExp over `/`-separated paths: `**`, `*`, `?`, `{a,b}` and `[...]`. */
-export const globToRegExp = (glob: string) => {
+/** A glob as a RegExp over `/`-separated paths: `**`, `*`, `?`, `{a,b}` and `[...]`, compiled once per glob. */
+export const globToRegExp = (glob: string): RegExp => {
+  const known = compiledGlobs.get(glob);
+  if (known) return known;
+
   let source = '';
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i] ?? '';
@@ -119,8 +122,11 @@ export const globToRegExp = (glob: string) => {
       i = end;
     } else source += c.replace(/[.+^${}()|\\]/g, '\\$&');
   }
-  return new RegExp(`^${source}$`);
+  const re = new RegExp(`^${source}$`);
+  compiledGlobs.set(glob, re);
+  return re;
 };
+const compiledGlobs = new Map<string, RegExp>();
 
 /** A matcher for a list of globs, `!` ones taking paths back out, in order. */
 export const globList = (globs: ReadonlyArray<string>) => {
@@ -845,7 +851,8 @@ export const readGraph = (
   resolvers: Map<string, Resolver> = new Map(),
 ): FileGraph => {
   const { kind, packages } = readWorkspace(files, git);
-  const owner = (path: string) => ownerOf(path, packages);
+  const owners = new Map<string, Package>();
+  const owner = (path: string) => owners.get(path) ?? owners.set(path, ownerOf(path, packages)).get(path)!;
   const key = resolverKey(files, options.conditions);
   const resolver = resolvers.get(key) ?? makeResolver(files, git, packages, options.conditions);
   resolvers.delete(key);

@@ -26,7 +26,7 @@ node scripts/graph/graph.ts --repo <path-to-repo> --commits 0       # the shape 
 | `--layers <file.json>` | none: layers are proposed | Declared layers, `{ "<source folder>": [["bottom"], ["next", "beside"]] }`, or a `package-graph.json` that has them |
 | `--json` | off | The JSON report below, instead of the readable one |
 
-On a 206-package workspace of 2,666 files, measuring the shape and replaying 200 commits took 35 s on one core. A single package took 2 s.
+On a 206-package workspace of 2,666 files, measuring the shape and replaying 200 commits took 23 s on one core. A single package took 2 s.
 
 ## What it reads
 
@@ -44,7 +44,7 @@ Each graph is a section of the readable report, in this order, and an object of 
 - **Per package:** its files and test files, its internal dependencies and dependents by manifest, its fan-in (how many other packages, and how many of their files, import it) and its depth (the longest chain of internal dependencies below it).
 - **The longest chain** of internal dependencies, which sets how many packages one leaf edit can pass through.
 - **Flags:** `package-cycle`, between manifests or between runtime imports outside tests and the root; and `undeclared-import`, a package that imports another without naming it in its manifest, which pnpm's hoisting hides from a manifest-reading selector.
-- **Replay:** the share of packages a commit reaches.
+- **Replay:** the share of packages with files in the import graph a commit reaches.
 
 ### 2. Package export paths
 
@@ -88,11 +88,11 @@ The readable report starts with a headline of one line per graph, which the `ci-
 ```text
 Workspace: pnpm, 206 packages, 2,666 files in the import graph (308 tests), main at <sha>
 Unresolved: 61 of 8,041 (0.8%) specifiers: 57 missing, 4 computed
-1 Packages: depth 5, 0 cycles, 2 undeclared imports; a commit reaches p50 77%, p90 100% of packages
+1 Packages: depth 5, 0 cycles, 2 undeclared imports; a commit reaches p50 77%, p90 100% of the 203 packages with files
 2 Exports: 64 entries, 7 overloaded (top <pkg>#.: 38 modules × 40 packages); a commit reaches tests p50 24%, p90 100% (package-level selection: p50 32%, p90 100%)
 3 Layers: 192 sources with folders, 4 folder cycles, no layers declared
 4 Tasks: 1241 tasks (670 cached; nx), depth 6, 0 cached with no declared inputs, 7 with inputs over 50% of the repo; a commit touches p50 6.2%, p90 99% of cached tasks' inputs
-Replay: 200 of 200 commits asked on main; 79 of 200 (40%) reach everything; widest triggers: pnpm-lock.yaml (66), package.json (4), …
+Replay: 200 of 200 commits asked on main; 79 of 200 (40%) reach everything; widest triggers: pnpm-lock.yaml (67), package.json (4), …
 ```
 
 How to read it:
