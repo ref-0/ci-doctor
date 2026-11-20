@@ -7,7 +7,7 @@ metadata:
 
 # ci-doctor
 
-Make CI faster, cheaper and more trustworthy. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
+Make CI faster and more trustworthy, and make it cost less. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
 
 ## Pick up where the last session stopped
 
@@ -79,16 +79,14 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 
 ## Not here
 
-- The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
-- Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
-- Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
-- Editing a workflow, its jobs and tiers, and a slow run: `ci-workflows`. Caches and slow setup: `cache-ci`.
-- How far an edit reaches through packages, `exports`, folders, task inputs and jobs, and which checks a change selects: `optimize-graphs`.
-- A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
-- Runner size, queues, the bill, the spend cap and choosing a provider: `ci-runners`. Blacksmith's labels, sticky disks, CLI and bill: `blacksmith`.
-- Whether a number, a before/after, a cost or a fix holds up: `prove-it`.
-- Where agents' instructions and a repo's facts live, and keeping them fresh: `agent-knowledge`.
+The topic map's skills, and these, each its own skill:
+
+- The review gate before a PR's CI run: [`review-gate`](../review-gate/SKILL.md), if the repo adopted it; otherwise the repo's own review process.
+- Readying, running by hand, merging and releasing a PR: [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if adopted.
+- Whether a test is worth keeping: [`test-audit`](../test-audit/SKILL.md). Model checks and property tests: [`proof-tiers`](../proof-tiers/SKILL.md).
 
 ## Outside the skills
 
 Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is this file's `metadata.version`.
+
+Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one. [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are. For a missing one, the user installs it (`npx skills add https://github.com/ref-0/ci-doctor --skill <name>`, or the plugin, which installs every one), or you read it at `https://github.com/ref-0/ci-doctor/tree/next/skills/<name>`.
