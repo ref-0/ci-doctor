@@ -1,0 +1,1 @@
+{ "packages/core/src": [["a"], ["b"], ["index", "util", "util-node"]] }

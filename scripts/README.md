@@ -14,6 +14,7 @@ Usable during the survey, before the plan is approved ([ci-doctor's read-only ru
 | [`records/ci-records.ts`](records/README.md) `--run <id>` | One run's logs, through `gh` | A one-run spot check. A backfill or the nightly timer is an install, below |
 | [`budgets/ci-health.ts`](budgets/README.md#2-the-daily-report) `--report` | The last day's runs, through `gh` | Prints a report and touches no issue. Configure its job names first |
 | [`docs/docs-budget.ts`](docs/README.md), [`docs/type-coverage.ts`](docs/README.md) | Tracked files | Static reads. `type-coverage.ts` calls the repo's installed `tsc`; skip it if nothing is installed |
+| [`graph/graph.ts`](graph/README.md) | Committed trees and history, through `git` | The package, export-path, layer and task graphs, and what the last 200 merges reached through them. Runs nothing in the repo |
 
 The baseline itself comes from GitHub's API: the guide's [read-only collection recipe](../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says how. The `ci-time.ts` spot-check lives with the [`ci-workflows`](../skills/ci-doctor/references/ci-workflows/TOPIC.md) skill.
 

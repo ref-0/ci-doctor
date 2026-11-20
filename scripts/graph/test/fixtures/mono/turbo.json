@@ -1,0 +1,8 @@
+{
+  // Comments are allowed, as turbo.json allows them.
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "inputs": ["src/**", "!src/**/*.test.ts"], "outputs": ["dist/**"] },
+    "test": { "dependsOn": ["build"] },
+    "lint": { "inputs": [] },
+  },
+}

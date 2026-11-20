@@ -1,0 +1,10 @@
+{
+  "name": "@pip/core",
+  "private": true,
+  "exports": {
+    ".": { "source": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./util": { "node": "./src/util-node.ts", "import": "./src/util.ts" },
+    "./unused": "./src/b/three.ts"
+  },
+  "scripts": { "build": "tsc", "test": "vitest run", "lint": "oxlint" }
+}

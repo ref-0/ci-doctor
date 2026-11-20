@@ -21,7 +21,7 @@ For each graph, record in the stack map where it's declared, whether a check hol
 | Workspace tasks | The task runner's config | Each cached task's inputs and outputs declared or tracked (guide section 6) | Keys a one-line edit moves |
 | CI jobs | Workflow `needs:` and waits | A plan job gates the others (guide section 3) | The critical path; blocked and queued time per job |
 
-Counting the first three takes the repo's imports, read without running anything: a parser over tracked files, or the test runner's own listing where it lists without running (`vitest list --filesOnly --changed` builds the import graph but runs no test; ask before you run it if the plan isn't approved). The measuring tool for graphs 1–4 is coming to `scripts/graph/` (its README will be `scripts/graph/README.md`); use it once it's there. Graph 5 comes from CI's jobs API, as Phase 2 collects it.
+Counting the first three takes the repo's imports, read without running anything: a parser over tracked files, or the test runner's own listing where it lists without running (`vitest list --filesOnly --changed` builds the import graph but runs no test; ask before you run it if the plan isn't approved). [`scripts/graph/`](../../../../scripts/graph/README.md#measure-the-graphs) measures graphs 1–4 from committed trees, with nothing installed or run, and replays recent merges through them; paste its headline into the stack map. Graph 5 comes from CI's jobs API, as Phase 2 collects it.
 
 ## What to propose
 
