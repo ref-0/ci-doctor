@@ -355,7 +355,8 @@ describe('what a change triggers', () => {
     deepStrictEqual(util!.reached, { files: 6, packages: 3, entries: 3, tests: 3 });
     strictEqual(util!.packageLevelTests, 4);
     deepStrictEqual(util!.through, ['@pip/core#./util', '@pip/app#.']);
-    deepStrictEqual(util!.tasks, { touched: 2, withDependents: 6 });
+    // core#lint's `inputs: []` is Turborepo's default, the package's files, so util.ts is one of them.
+    deepStrictEqual(util!.tasks, { touched: 3, withDependents: 7 });
   });
 
   it('counts commits whose reach went through each entry', () => {

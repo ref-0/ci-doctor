@@ -62,7 +62,7 @@ Each graph is a section of the readable report, in this order, and an object of 
 
 ### 4. Workspace tasks
 
-- **Per task** (`<package>#<task>`): its runner, whether a cache keys it, its declared inputs and outputs, and how many tracked files its inputs cover. Input modes are `declared`, `package-default` (no inputs declared, so the runner keys every file of the package), `auto` (Vite+'s automatic tracking, approximated by the package's files), `empty` (`inputs: []`, so only the command and environment key it) and `unknown` (uncached).
+- **Per task** (`<package>#<task>`): its runner, whether a cache keys it, its declared inputs and outputs, and how many tracked files its inputs cover. Input modes are `declared`, `package-default` (no inputs declared, so the runner keys every file of the package), `auto` (Vite+'s automatic tracking, approximated by the package's files), `empty` (Nx's or Vite+'s `inputs: []`, so only the command and environment key it; Turborepo's `inputs: []` is its default, so `package-default`) and `unknown` (uncached).
 - **Edges:** `dependsOn` and `dependencies` (`^task`, `from:`), `calls` (a script runs another), `fan-out` (a recursive run) and `lifecycle` (`pre` and `post`). Nx's project dependencies come from manifests and from imports, as Nx infers them.
 - **The longest chain** of tasks, which no cache shortens on a miss.
 - **Flags:** `no-inputs` (a cached task with no declared inputs, so any change in the package misses, or with empty inputs, so a source change hits the cache wrongly), `wide-inputs` (a cached task whose inputs cover more than half the repo's tracked files), `task-cycle` and `deep-chain` (6 tasks or more).

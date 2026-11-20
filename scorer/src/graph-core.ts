@@ -995,8 +995,9 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
         const specific = pkg.dir === '' ? undefined : definitions[`${pkg.name}#${name}`];
         const config = { ...record(specific ?? definitions[key]), ...record(overrides.get(pkg.name)?.[name]) };
         if (definitions[key] === undefined && specific === undefined && overrides.get(pkg.name)?.[name] === undefined) continue;
-        const declared = config.inputs !== undefined;
+        // `inputs: []` is Turborepo's default, every file of the package, as if none were declared.
         const inputs = stringOrList(config.inputs);
+        const declared = inputs.length > 0;
         const withDefault = !declared || inputs.includes('$TURBO_DEFAULT$');
         const globs = inputs
           .filter((g) => g !== '$TURBO_DEFAULT$')
@@ -1010,7 +1011,7 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
         const task = make(pkg, name, 'turbo', {
           ...(previous?.command !== undefined ? { command: previous.command } : {}),
           cached: config.cache !== false,
-          mode: declared && inputs.length === 0 ? 'empty' : withDefault ? (declared ? 'declared' : 'package-default') : 'declared',
+          mode: declared ? 'declared' : 'package-default',
           inputs: globs,
           outputs: stringOrList(config.outputs).map((o) => (o.startsWith('!') ? `!${posix.join(pkg.dir, o.slice(1))}` : posix.join(pkg.dir, o))),
           global,

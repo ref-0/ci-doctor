@@ -290,6 +290,15 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     assert.deepEqual(task(g, 'core#e2e-ci-web')!.inputs.globs, ['libs/core/ci/**']);
     assert.deepEqual(task(g, 'core#e2e-local')!.inputs.globs, ['libs/core/e2e/**']);
   });
+
+  it("reads Turborepo's `inputs: []` as its default, every file of the package, not as no inputs", () => {
+    const g = turboRepo({ tasks: { lint: { inputs: [] } } }, { core: { lint: 'oxlint' } }, { 'packages/core/src/more.ts': 'export {};\n' });
+    const lint = task(g, 'core#lint')!;
+    assert.deepEqual(lint.inputs, { mode: 'package-default', globs: [], files: 3 });
+    const flag = g.tasks.flags.find((f) => f.subject === 'core#lint')!;
+    assert.match(flag.detail!, /^no declared inputs/);
+    assert.doesNotMatch(graphsBlock(g), /empty inputs/);
+  });
 });
 
 describe('the graphs in the report', () => {
@@ -299,7 +308,7 @@ describe('the graphs in the report', () => {
     const lines = graphsBlock(g).split('\n');
     assert.equal(lines[0], 'Graphs (guide section 21; flags first):');
     assert.match(lines[1]!, /^ {2}⚠ Export paths +@pip\/core#\. re-exports 25 modules to 3 packages \(overload 75\); 4 of 9 packages depend on it, directly or not$/);
-    assert.match(lines[2]!, /^ {2}⚠ Tasks +2 cached tasks with no declared inputs, such as @pip\/app#test, @pip\/core#test: the runner keys every file of the package, so any change there misses; 1 cached task with empty inputs, @pip\/core#lint: /);
+    assert.match(lines[2]!, /^ {2}⚠ Tasks +3 cached tasks with no declared inputs, such as @pip\/app#test, @pip\/core#lint, @pip\/core#test: the runner keys every file of the package, so any change there misses$/);
     assert.ok(lines.some((l) => /^ {2}3 Layers +run `scripts\/graph\/` for layers and what triggers what$/.test(l)));
     assert.ok(lines.some((l) => /^ {2}2 Export paths +7 entries in 5 of 9 npm packages: 2 shared root barrels, 3 with `export \*`, 1 overloaded/.test(l)));
   });
