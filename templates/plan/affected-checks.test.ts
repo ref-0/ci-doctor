@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -39,6 +39,28 @@ const folders: Array<string> = [];
 after(() => {
   for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
+
+// A `git` ahead of the real one on the planner's PATH, which writes a line for each process it
+// starts, and the object IDs each `cat-file` is asked for, so a test can hold the planner to a few
+// Git processes a run and each object to one read. A shell script, so not on Windows.
+const counting = process.platform !== 'win32';
+const shim = mkdtempSync(join(tmpdir(), 'affected-checks-git-'));
+folders.push(shim);
+if (counting) {
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  writeFileSync(
+    join(shim, 'git'),
+    `#!/bin/sh\necho "$1" >> "$PLAN_GIT_LOG"\n` +
+      `if [ "$1" = cat-file ]; then tee -a "$PLAN_GIT_LOG.ids" | '${realGit}' "$@"; else exec '${realGit}' "$@"; fi\n`,
+  );
+  chmodSync(join(shim, 'git'), 0o755);
+}
+
+/** The Git processes each plan started, by its subcommand, in the order of the runs. */
+const gitRuns: Array<ReadonlyArray<string>> = [];
+
+/** The object IDs each plan's `cat-file`s were asked for, in the order of the runs. */
+const gitReads: Array<ReadonlyArray<string>> = [];
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -86,8 +108,16 @@ const files: Record<string, string> = {
   'apps/server/src/runner.sandbox.test.ts': "import './runner.ts';\n",
 };
 
+/** What a test adds to the toy repo's Git beyond its files. */
+interface Extras {
+  /** Paths the base commit holds as files of zeros that size, in bytes, never in the work tree. */
+  readonly zeros?: Readonly<Record<string, number>>;
+  /** Paths whose objects at HEAD are deleted after the commits, as from a damaged or partial clone. */
+  readonly missing?: ReadonlyArray<string>;
+}
+
 /** A repo at the toy workspace, then a commit with `changes` (null deletes), and the plan's lines. */
-const plan = (changes: Record<string, string | null>, near = true, baseFiles = files) => {
+const plan = (changes: Record<string, string | null>, near = true, baseFiles = files, extras: Extras = {}) => {
   const folder = mkdtempSync(join(tmpdir(), 'affected-checks-'));
   folders.push(folder);
 
@@ -111,16 +141,39 @@ const plan = (changes: Record<string, string | null>, near = true, baseFiles = f
   run('config', 'user.name', 'test');
   write(baseFiles);
   run('add', '-A');
+  for (const [path, size] of Object.entries(extras.zeros ?? {})) {
+    // Hashed from a stream, so the test holds none of it, and Git stores it compressed to a little.
+    const id = execFileSync('sh', ['-c', 'head -c "$0" /dev/zero | git hash-object -w --stdin', String(size)], {
+      cwd: folder,
+      encoding: 'utf8',
+    }).trim();
+    run('update-index', '--add', '--cacheinfo', `100644,${id},${path}`);
+    run('update-index', '--skip-worktree', path);
+  }
   run('commit', '-qm', 'base');
   write(changes);
   run('add', '-A');
   run('commit', '-qm', 'change', '--allow-empty');
+  for (const path of extras.missing ?? []) {
+    const id = run('rev-parse', `HEAD:${path}`).trim();
+    rmSync(join(folder, '.git', 'objects', id.slice(0, 2), id.slice(2)));
+  }
 
+  const log = join(folder, '.git', 'plan-git.log');
+  writeFileSync(log, '');
+  writeFileSync(`${log}.ids`, '');
   const output = execFileSync(
     process.execPath,
     ['scripts/affected-checks.ts', ...(near ? ['--near'] : []), 'HEAD^1', 'HEAD'],
-    { cwd: folder, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    {
+      cwd: folder,
+      encoding: 'utf8',
+      env: counting ? { ...process.env, PATH: `${shim}:${process.env['PATH'] ?? ''}`, PLAN_GIT_LOG: log } : process.env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    },
   );
+  gitRuns.push(readFileSync(log, 'utf8').split('\n').filter((line) => line !== ''));
+  gitReads.push(readFileSync(`${log}.ids`, 'utf8').split('\n').filter((line) => line !== ''));
 
   return Object.fromEntries(
     output
@@ -278,6 +331,56 @@ describe('the planner', () => {
       'apps/server/src/runner.sandbox.test.ts',
     ]);
     assert.equal(plan({ 'tsconfig.json': '{}\n' }, false).own_jobs, null);
+  });
+
+  // Before each tree was listed once and each file read once a run, a run started 12.6 Git
+  // processes on average across this file's other tests, and 8.4 after.
+  it('lists each tree once, reads each file once, and asks Git a few times', { skip: !counting }, () => {
+    plan({ 'packages/lib/src/math.ts': 'export const add = (a: number, b: number) => b + a;\n' });
+    plan({ 'pnpm-lock.yaml': lockfile(2) });
+    plan({ 'apps/server/src/queue.ts': 'export const queue = 2;\n' });
+
+    for (const [index, run] of gitRuns.slice(-3).entries()) {
+      const count = (command: string) => run.filter((each) => each === command).length;
+      const reads = gitReads.at(index - 3) ?? [];
+
+      // One listing for each commit read: the change's and, for a lockfile, its base's.
+      assert.equal(count('show'), 0);
+      assert.ok(count('ls-tree') <= 2, `${count('ls-tree')} tree listings`);
+      assert.equal(new Set(reads).size, reads.length, 'an object read twice');
+      assert.ok(run.length <= 10, `${run.length} Git processes: ${run.join(', ')}`);
+    }
+  });
+
+  it('reads a file the repo lacks the object of as no file, and the rest as they are', () => {
+    // The server's modules are read in one batch, and `a.ts` comes before those that run the queue.
+    const edit = { 'apps/server/src/queue.ts': 'export const queue = 2;\n' };
+    const whole = plan(edit);
+    const missing = plan(edit, true, files, { missing: ['apps/server/src/a.ts'] });
+
+    assert.deepEqual(missing.packages, [
+      'apps/server/src/queue-searches.test.ts',
+      'apps/server/src/queue.test.ts',
+      'apps/server/src/runner.test.ts',
+    ]);
+    assert.deepEqual(missing, whole);
+  });
+
+  it('reads only the files a change needs, whatever their size', () => {
+    // 257 MiB, past the 256 MiB a read of Git's output once allowed, which a docs edit never reads.
+    const docs = plan({ 'README.md': '# demo, again\n' }, true, files, { zeros: { 'vendor/huge.js': 257 * 1024 * 1024 } });
+    // Several MiB in a batch with the server's other modules, which must read as they are after it.
+    const server = plan({ 'apps/server/src/queue.ts': 'export const queue = 2;\n' }, true, files, {
+      zeros: { 'apps/server/src/aaa.ts': 5 * 1024 * 1024 },
+    });
+
+    assert.deepEqual(docs.packages, []);
+    assert.deepEqual(docs.test_selection, {});
+    assert.deepEqual(server.packages, [
+      'apps/server/src/queue-searches.test.ts',
+      'apps/server/src/queue.test.ts',
+      'apps/server/src/runner.test.ts',
+    ]);
   });
 
   it('runs only the edited job for a CI edit, and nothing for a comment', { skip: !process.env['PLAN_YAML'] }, () => {
