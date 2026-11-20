@@ -11,6 +11,7 @@ import {
   fixedShare,
   groupsFor,
   keptSamples,
+  longestFile,
   merged,
   planOf,
   shardCount,
@@ -349,6 +350,44 @@ describe('merged', () => {
 
     // A sweep's refresh then takes the slower file's new times.
     strictEqual(timesIn([merged([...prs, fold.text]).text]).get(a), 40_000);
+  });
+
+  test('a fold keeps a stored entry from before samples were kept, as one stored sample', () => {
+    // The shape stored before this format: a planned time with no samples.
+    const legacy = results({ [a]: 100 }, 1);
+    const fold = merged([results({ [a]: 10 }, 2)], { fold: legacy });
+
+    deepStrictEqual([fold.added, timesIn([fold.text]).get(a)], [0, 100]);
+    deepStrictEqual(read(fold.text)[a].samples, [[1, 100]]);
+  });
+
+  test('drops a time past longestFile and a run dated ahead, so a bad record outranks nothing', () => {
+    const now = 1_000_000;
+    const bad = results({ [a]: 1e308 }, 1e307);
+    const ahead = results({ [b]: 5_000 }, now + 2 * 24 * 3600 * 1000);
+    const real = results({ [a]: 9_000, [b]: 4_000 }, now - 1);
+
+    deepStrictEqual(
+      timesIn([merged([bad, ahead, real], { now }).text]),
+      new Map([
+        [a, 9_000],
+        [b, 4_000],
+      ]),
+    );
+    strictEqual(read(merged([results({ [a]: longestFile + 1 }, 1)], { now }).text)[a], undefined);
+  });
+
+  test('a fold adds only files in the inventory', () => {
+    const fresh = server('src/new.test.ts');
+    const fold = merged([results({ [fresh]: 7_000, 'README.md': 1 }, 2)], { fold: stored({}), inventory: new Set([fresh]) });
+
+    deepStrictEqual(Object.keys(read(fold.text)), [fresh]);
+  });
+
+  test('records when a fold ran, and a refresh carries it', () => {
+    const fold = merged([], { fold: stored({ [a]: [1, [1]] }), through: 'abc', foldedAt: 42 }).text;
+
+    deepStrictEqual([JSON.parse(fold).foldedAt, JSON.parse(merged([fold, results({ [a]: 2 }, 3)]).text).foldedAt], [42, 42]);
   });
 
   test('counts a sample once when the same results come twice', () => {
