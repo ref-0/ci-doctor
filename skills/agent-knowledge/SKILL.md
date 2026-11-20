@@ -1,13 +1,13 @@
 ---
 name: agent-knowledge
-description: "Write or fix our AGENTS.md or CLAUDE.md, our skills or docs for agents are stale or contradict each other, or where should agents' knowledge live: what goes where, dated lessons, one register of what was tried, generalize don't append, drift sweeps, size budgets, and templates for a repo's facts."
+description: "Write or fix our AGENTS.md or CLAUDE.md, skills or agent docs gone stale or contradicting each other, or where agents' knowledge should live: what goes where, dated lessons, a tried register, generalize don't append, drift sweeps, budgets, facts templates. Not a skill's technical content: that is the skill's own."
 metadata:
   version: "0.1.0"
 ---
 
 # agent-knowledge
 
-Agents read what a repo gives them: the instruction file their harness loads, the skills it finds, and the files those point at. This skill decides where each piece of that knowledge goes, writes it in that shape, and keeps it from going stale. [Guide section 17](../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md) has why, and what it cost when we didn't; this skill is what to do.
+Agents read what a repo gives them: the instruction file their harness loads, the skills it finds, and the files those point at. This skill decides where each piece of that knowledge goes, writes it in that shape, and keeps it from going stale. [Guide section 17](https://github.com/ref-0/ci-doctor/blob/next/docs/pages/17-keeping-agent-knowledge-from-going-stale.md) has why, and what it cost when we didn't; this skill is what to do.
 
 Use it when asked to write or tidy `AGENTS.md`, `CLAUDE.md`, Cursor rules or a skills folder; when agents follow advice the code no longer matches, or two docs disagree; when a lesson needs a home; and when the ci-doctor plan's Phase 6 puts its findings where agents will find them.
 
@@ -23,7 +23,7 @@ Use it when asked to write or tidy `AGENTS.md`, `CLAUDE.md`, Cursor rules or a s
 
 Read, before you write:
 
-- which instruction file each harness the team uses loads at the start, and where it looks for skills ([harnesses](../../docs/harnesses.md) covers each);
+- which instruction file each harness the team uses loads at the start, and where it looks for skills ([harnesses](https://github.com/ref-0/ci-doctor/blob/next/docs/harnesses.md) covers each);
 - the skills, their descriptions, and which two could claim one task;
 - the docs agents are pointed at, and any facts files, registers and memories;
 - where the code already holds a value that prose repeats.
@@ -64,12 +64,16 @@ Propose the sweep, the budget and any schedule as their own steps: each is a cha
 ## Not here
 
 - What CI's skills, the slow-test topic and the evidence check should hold, for the ci-doctor plan: the `ci-doctor` hub's Phase 6, which uses this skill for the layout.
-- The register's CI template, with its columns and example rows: the hub's check [read what was tried](../ci-doctor/references/checks/ci-read-what-was-tried.md).
+- The register's CI template, with its columns and example rows: the hub's check [read what was tried](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-read-what-was-tried.md).
 
 ## Outside this skill
 
-Links that leave this folder lead to the rest of the ci-doctor repo: the guide in `docs/`, the hub, and the scripts in `scripts/` and `tools/`. After `npx skills add` or a copy of this folder alone, read each at `https://ci-doctor.ref0.dev/guide/<path>`, at the path it has in the repo: `docs/pages/17-keeping-agent-knowledge-from-going-stale.md` is [ci-doctor.ref0.dev/guide/docs/pages/17-keeping-agent-knowledge-from-going-stale.md](https://ci-doctor.ref0.dev/guide/docs/pages/17-keeping-agent-knowledge-from-going-stale.md). To run the docs budget or the link checker from a skills-only install, clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`:
+This skill owns where knowledge lives and how it stays fresh, not what it says: a skill's technical content belongs to that skill.
+
+Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/next) on its `next` branch, since this skill is newer than the latest release. To run the docs budget or the link checker from a skills-only install, clone ci-doctor once, outside the user's repo, at `next`:
 
 ```sh
-git clone --depth 1 --branch v<version> https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
 ```
+
+Once a release carries this skill, use the tag `v<version>` instead, where the version is this file's `metadata.version`.
