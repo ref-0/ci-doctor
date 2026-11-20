@@ -1,4 +1,4 @@
-# Fast, cheap, trustworthy CI with AI agents: everything we do
+# Fast, trustworthy CI that costs less, with AI agents: everything we do
 
 This is a field report from a TypeScript and Rust monorepo:
 
@@ -23,7 +23,7 @@ It's long on purpose. Each section says what we do, how it works, and why. **Abo
 5. [Tiers: what runs where](pages/05-tiers-what-runs-where.md)
 6. [Reuse work by its real inputs](pages/06-reuse-work-by-its-real-inputs.md)
 7. [Shards, runners and billing](pages/07-shards-runners-and-billing.md)
-8. [A cheaper test harness](pages/08-a-cheaper-test-harness.md)
+8. [A faster test harness](pages/08-a-faster-test-harness.md)
 9. [Workspace tooling](pages/09-workspace-tooling.md)
 10. [Slow tests: the method](pages/10-slow-tests-the-method.md)
 11. [Flakes](pages/11-flakes.md)

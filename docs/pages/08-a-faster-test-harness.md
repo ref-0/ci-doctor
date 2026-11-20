@@ -1,8 +1,8 @@
 [Guide](../README.md)
 
-# 8. A cheaper test harness
+# 8. A faster test harness
 
-Cut what a heavy test runtime, such as workerd under Vitest, costs each test file, without making any test prove less.
+Cut the time and work a heavy test runtime, such as workerd under Vitest, adds to each test file, without making any test prove less.
 
 **Applies when:** A server with a heavy runtime per test file, such as workerd under Vitest. **Skip when:** The runtime's startup and bundling are a small share of each test file's time.
 

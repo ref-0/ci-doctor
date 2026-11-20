@@ -44,7 +44,7 @@ Each case is one we hit, forced on purpose to prove its cause, then fixed in the
 - **A socket path is too long.**
   - *Symptom:* `listen EINVAL`, or a fixture that waits out its test's whole timeout, only on machines with a long `TMPDIR`.
   - *Cause:* a Unix socket path is at most 107 bytes on Linux and 103 on macOS; a home under a long temp root leaves no room. The fixture never heard the server's `error` event, so it waited instead of failing.
-  - *Fix:* socket homes under a short root, removed when the test ends; check the length before binding; fail on `error` ([section 8](08-a-cheaper-test-harness.md)).
+  - *Fix:* socket homes under a short root, removed when the test ends; check the length before binding; fail on `error` ([section 8](08-a-faster-test-harness.md)).
 - **A detached fixture server outlives its run.**
   - *Symptom:* a Git server, proxy or host still running after an interrupted test run, holding ports or files the next run wants.
   - *Cause:* it was started in a session of its own, so a kill of the run's process group never reached it, and a killed worker ran no cleanup.
