@@ -18,3 +18,12 @@ What to verify, and the measurements behind it, are in the hub's [checks](../../
 | When a run is slow | [Keep slow test files out of the shards](../../checks/ci-keep-slow-files-out-of-the-shards.md) |
 | Before it merges | [Check a change to CI against real output](../../checks/ci-check-a-workflow-change.md): its effect on a full and a small run, its cost a month and its budgets, where `.agents/repo/ci.md`'s Runners, budgets and records says. Then [check what CI ran](../../checks/check-what-ci-ran.md) |
 | All the time | [Budget CI at list price](../../checks/budget-ci-at-list-price.md), and [run only the checks that decide something](../../checks/run-only-checks-that-decide.md) |
+
+## A step that must not gate
+
+A step marked `continue-on-error`, such as one that files flakes or posts a report, can fail every run unseen. One read an empty tree unnoticed: an earlier sparse, blob-less checkout used the workspace, so its own full checkout landed on a clone already at its commit and restored nothing.
+
+- **Give every sparse checkout its own folder,** and make the last checkout before the step a full one into the workspace.
+- **Test the workflow's shape:** a test over the workflow file that each step's scripts exist after the last checkout before it, and that no sparse checkout shares the workspace.
+- **Read the step's `outcome`,** not its `conclusion`, in a step after it, and post a warning to the run's summary when the checkout, setup or the step itself failed. The run stays green.
+
