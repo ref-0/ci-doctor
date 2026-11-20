@@ -1,7 +1,7 @@
 /**
  * Tests for test-groups.ts' grouping: a covered-only file never shares a group, so a plan that
  * leaves it out can't run it through another file's group.
- * Runs: `node --test scripts/shards/test-groups.test.ts`.
+ * Runs: `node --test test-groups.test.ts`, from this folder.
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -21,7 +21,7 @@ Then add overlays one at a time, each its own approved change with before/after 
 | Overlay | Adds | Guide |
 |---|---|---|
 | Planner | The `plan` job, `scripts/affected-checks.ts`, its outputs and the `if:` on every job; the result job then checks the plan's selection, and `SELECTABLE_JOBS`, against its `needs` | 4 |
-| Shards | `scripts/shards/`, the `tests` matrix and the cache handoffs; start with [a fixed split](../../scripts/shards/README.md#start-simple-a-fixed-split) | 7 |
+| Shards | `scripts/shards/` (the [`ci-runners`](../../skills/ci-runners/references/shards.md) skill's scripts), the `tests` matrix and the cache handoffs; start with [a fixed split](../../skills/ci-runners/references/shards.md#start-simple-a-fixed-split) | 7 |
 | Records and flakes | `scripts/records/`, `scripts/flakes/`, the `report` job. The test retry stays a separate opt-in | 11, 13 |
 | Rust | The `rust` job, `actions/rust-toolchain`, the pack's binary steps; pass reuse with `scripts/reuse/` only once its key is verified | 6, 7 |
 | Snapshots and proofs | The snapshot-pin guard, `pack`, `proof`, `actions/wait-for-jobs` | 5, 7 |
@@ -40,7 +40,7 @@ Every script a workflow calls ships in this playbook, and each workflow calls it
 | `templates/github/workflows/*.yml` | `.github/workflows/` | — |
 | `templates/github/actions/*/` | `.github/actions/*/` | the workflows, as `./.github/actions/<name>` |
 | `templates/plan/affected-checks.ts`, `changed-files.ts` | `scripts/` | `ci.yml` plan. The planner resolves the repo's root as its parent folder, so it must sit directly in `scripts/` |
-| `scripts/shards/` | `scripts/shards/` | `ci.yml` plan, tests, test-times, result |
+| `skills/ci-runners/scripts/`, less its `*.test.ts` | `scripts/shards/` | `ci.yml` plan, tests, test-times, result. The skill owns the code; your repo runs its own copy, so a CI run never depends on what skills a machine has installed |
 | `scripts/records/` | `scripts/records/` | your test config, as the Vitest reporter (`test-record.ts`) |
 | `scripts/flakes/` | `scripts/flakes/` | `ci.yml` result |
 | `scripts/sweeps/` | `scripts/sweeps/` | `ci.yml` plan (`snapshot-pins.ts`), `sweep-bisect.yml` |
@@ -104,7 +104,7 @@ Each exists in this playbook at the path in the first column, with the CLI and e
 | `scripts/affected-checks.ts` | `ci.yml` plan | `[--near] <base> [<head>]`. Prints `packages=`, `uncovered=`, `ci_jobs=`, `ci_needs=`. From [`../plan/`](../plan/) |
 | `scripts/sweeps/snapshot-pins.ts` | `ci.yml` plan, first step | Env `EVENT`, `HEAVY_FILE`, `TEST_PATHS`. Fails on a `pkg.pr.new` pin unless a run by hand names exactly one file |
 | `scripts/shards/test-shards.ts` | `ci.yml` plan, test-times | `<most> <file list> [<times.json>...]` prints `{"shards": {"1": [...]}, "queue": [[...]]}`; `--merge <times.json>...` prints one merged times file. Workers, targets and overheads are constants at its top |
-| `scripts/shards/test-lanes.ts` | `ci.yml` tests | `--lanes <n> [--times <file>] [--no-cache] [--verify-hits <n>] -- <files>...`. The queue from env `TEST_CLAIMS`, `TEST_QUEUE`, `TEST_CLAIMS_FILE`, `TEST_CLAIMED`, `CI_CACHE_URL`, `CI_CACHE_TOKEN`. Records with `CI_RECORD=1`. Needs your tests wired as tasks first ([`../../scripts/shards/README.md`](../../scripts/shards/README.md), step 1) |
+| `scripts/shards/test-lanes.ts` | `ci.yml` tests | `--lanes <n> [--times <file>] [--no-cache] [--verify-hits <n>] -- <files>...`. The queue from env `TEST_CLAIMS`, `TEST_QUEUE`, `TEST_CLAIMS_FILE`, `TEST_CLAIMED`, `CI_CACHE_URL`, `CI_CACHE_TOKEN`. Records with `CI_RECORD=1`. Needs your tests wired as tasks first ([`ci-runners`' shards](../../skills/ci-runners/references/shards.md), step 1) |
 | `scripts/shards/ci-cache.ts` | `ci.yml` tests, test-times, result | `save <key> <file>` / `restore <dir> <key>...`, env `CI_CACHE_URL`, `CI_CACHE_TOKEN`. Fails when the cache didn't answer, so a reader never mistakes "no answer" for "nothing" |
 | `scripts/flakes/flake-issues.ts` | `ci.yml` result | `<folder>`, env `EVENT`, `PR`, `BRANCH`, `SHA`, `SWEEP`. Opens or comments on "Flaky: `<file>` › `<test>`" per recovery (guide section 11) |
 | `<review-checker>` | `ci.yml` result, run from the repo root of the base branch's checkout | No arguments; env `PR`, `GH_TOKEN`, `BASE`, and Actions' `GITHUB_REPOSITORY`, `GITHUB_SHA`. Exits 0 when a member's review is on record, as the skill's `references/record.md` defines it; 1 with each `::error::`. Optional: delete the step, its checkout and `review-recheck.yml` if you don't gate on review |

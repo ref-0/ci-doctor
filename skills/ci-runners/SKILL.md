@@ -1,12 +1,12 @@
 ---
 name: ci-runners
-description: "Sizes CI runners, cuts the CI bill and fixes jobs that wait for a runner, on any provider. Use when the CI bill is too high, jobs wait to start, picking a runner size or shard count, capping spend, or leaving GitHub-hosted runners. Not for workflow edits (ci-workflows); Blacksmith specifics (blacksmith)."
+description: "Sizes CI runners, splits tests into shards by measured time and cuts the CI bill. Use when the bill is too high, jobs wait to start, shards end unevenly, picking a runner size or shard count, capping spend, or leaving GitHub-hosted runners. Not for workflow edits (ci-workflows); Blacksmith specifics (blacksmith)."
 metadata:
   version: "0.2.0"
 ---
 
 <!--
-What: how to size CI's runners, pack work against per-minute billing, cap spend, fix runner queues and choose a provider.
+What: how to size CI's runners, split tests into shards by measured time, pack work against per-minute billing, cap spend, fix runner queues and choose a provider.
 Where: read by a coding agent before it changes a job's runner, shard count or packing, costs a change, reads a queue, or proposes a provider.
 Configure: your runners, their prices by label (<price-per-minute>), budgets and cap (<monthly-cap>) in `.agents/repo/ci.md`'s Runners, budgets and records.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -14,7 +14,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # ci-runners
 
-A runner's size, the way its provider rounds minutes, the number of shards a run splits into and how long a job waits for a runner decide both wall time and the bill. This skill covers those on any provider. [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md) and [section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md) say how they shaped the design. [The checks](references/checks.md) it follows are here in short: read them before you resize a runner or quote a cost.
+A runner's size, the way its provider rounds minutes, how a run's tests split into shards and how long a job waits for a runner decide both wall time and the bill. This skill covers those on any provider, and owns the shard scripts. [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md) and [section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md) say how they shaped the design. [The checks](references/checks.md) it follows are here in short: read them before you resize a runner or quote a cost.
 
 ## Start here
 
@@ -24,6 +24,7 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 ## What to read
 
 - **Choosing a job's size or architecture, the small-runner rule, or how many shards:** [sizing](references/sizing.md). The rule itself is the check [size a runner by its CPU](references/checks.md#before-you-change-a-runner).
+- **Splitting tests into shards by measured time, shards that end unevenly, the queue, lanes, container packing, or keeping file times current:** [shards](references/shards.md), with the scripts in [`scripts/`](scripts/). Start with [a fixed split](references/shards.md#start-simple-a-fixed-split).
 - **A scheduled runner review, or a job whose size may have drifted:** [sizing's review](references/sizing.md#reviewing-sizes-on-a-schedule).
 - **The bill is too high, costing a change, packing work against minute rounding, the spend cap, auditing spend, or budgeting runs CI starts itself:** [billing](references/billing.md).
 - **Jobs wait to start, or a long queue:** [queues](references/queues.md): measure queue time apart from the jobs, tell the provider's start-up from a concurrency limit, fan-out, a label or autoscaling, and fix the cause.
@@ -40,6 +41,8 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 - **Cost a change as a monthly projection,** from its measured frequency at each label's list price, and say what it changes in median and p90 wall time. Quote a money total only when every label it covers has a price.
 
 ## The tools
+
+The shard scripts are in this skill's [`scripts/`](scripts/) and install with it: the plan (`test-shards.ts`), its groups, the lanes runner, the cache-key claims, the Actions cache client and container packing. They run on Node 24 with nothing installed, and their tests with `node --test *.test.ts` from `scripts/`. `test-shards.ts` can model a split read-only from the repo's root; wiring any of them into CI copies them into the repo, as [shards](references/shards.md#where-the-scripts-live) says.
 
 `ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](references/billing.md#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run it from there:
 

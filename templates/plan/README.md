@@ -84,6 +84,6 @@ A file that boots a real container (or a proof on a packed artifact) costs minut
 - **Bundled or config-driven inputs** (a bundle the file starts, a Dockerfile, a config a harness reads): declare them in `ownJobCovers`, as `nearCovers` does for ordinary tests.
 - **On the sweep** (no `--near`), the accumulated diff reaches further: every own-job file in a reached package runs too, and all of them (`null`) when everything is selected.
 
-Feed `own_jobs` to your container job's matrix, packed by [`../../scripts/shards/container-pack.ts`](../../scripts/shards/container-pack.ts). The template `ci.yml` has no container job; add one with its output.
+Feed `own_jobs` to your container job's matrix, packed by [`container-pack.ts`](../../skills/ci-runners/scripts/container-pack.ts), the `ci-runners` skill's, copied to `scripts/shards/`. The template `ci.yml` has no container job; add one with its output.
 
 A PR that edits a job only main's runs start (the template's `test-times`) selects it through `ci_jobs`, and the job still can't run on the PR. `ci.yml`'s plan prints a notice with the dispatch that runs it; add a line there for each such job you add.
