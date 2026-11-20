@@ -60,7 +60,7 @@ describe('imports', () => {
       "const pages = import.meta.glob('./pages/*.ts');",
     ].join('\n'));
     deepStrictEqual(parsed.specs.map((s) => `${s.kind} ${s.spec}`), [
-      'static ./a.ts', 'type ./t.ts', 'type ./u.ts', 'star ./star.ts', 'reexport ./b.ts', 'dynamic ./lazy.ts', 'url ./w.wasm', 'glob ./pages/*.ts',
+      'static ./a.ts', 'type ./t.ts', 'static ./u.ts', 'star ./star.ts', 'reexport ./b.ts', 'dynamic ./lazy.ts', 'url ./w.wasm', 'glob ./pages/*.ts',
     ]);
     strictEqual(parsed.computed, 1);
     strictEqual(parseModule("export * from './a.ts';\nexport { b } from './b.ts';\n").barrel, true);

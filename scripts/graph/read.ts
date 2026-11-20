@@ -318,10 +318,9 @@ export const parseModule = (text: string): Parsed => {
 
   for (const m of source.matchAll(STATIC)) {
     const [, word, typeWord, clause = '', spec = ''] = m;
-    const braces = /\{([^}]*)\}/.exec(clause)?.[1];
-    const onlyBraces = /^\s*\{[^}]*\}\s*from\s*$/.test(clause);
-    const allTypes = braces !== undefined && onlyBraces && braces.split(',').some((s) => s.trim()) && braces.split(',').filter((s) => s.trim()).every((s) => /^\s*type\s/.test(s));
-    const kind: Kind = typeWord || allTypes ? 'type' : word === 'export' ? (/^\s*\*/.test(clause) ? 'star' : 'reexport') : 'static';
+    // Only `import type` and `export type` load nothing: `import { type X }` keeps its import under
+    // `verbatimModuleSyntax`, so it loads the module and counts as a value.
+    const kind: Kind = typeWord ? 'type' : word === 'export' ? (/^\s*\*/.test(clause) ? 'star' : 'reexport') : 'static';
     specs.push({ spec, kind });
   }
   for (const m of source.matchAll(DYNAMIC)) specs.push({ spec: m[2] ?? m[3] ?? '', kind: 'dynamic' });
