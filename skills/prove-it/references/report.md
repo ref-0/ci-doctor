@@ -30,4 +30,4 @@ Part of the [`prove-it`](../SKILL.md) skill. Fill one per claim. Leave a field e
 **Left open:** <what this doesn't show>
 ```
 
-When the number is quoted elsewhere, in a PR title, a summary or a chat message, carry its count, spread and limiter with it: "p50 fell from 41 s to 29 s over 12 interleaved runs each, spread ±2 s, bound by the test database's start", not "30% faster".
+When the number is quoted elsewhere, in a PR title, a summary or a chat message, carry its count, spread, limiter and the threshold decided first with it: "p50 fell from 41 s to 29 s over 12 interleaved runs each, spread ±2 s, against a 5 s threshold set before measuring, bound by the test database's start", not "30% faster".

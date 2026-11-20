@@ -1,6 +1,6 @@
 ---
 name: prove-it
-description: "Is it really faster, cheaper or fixed? A benchmark, a before and after, a profile, a cost or saving, a load test, or a fix that \"works now\". Write the decision and noise floor first, compare like for like, interleave runs, keep a control, and give every number its count, spread and limiter."
+description: "Is it really faster, cheaper or fixed? Review the evidence: a benchmark, a before and after, a cost, a fix that \"works now\". Decision and noise floor first, like for like, interleaved runs, a control, count, spread and limiter on every number. Not for why a CI run failed (ci-doctor) or a test's value (test-audit)."
 metadata:
   version: "0.1.0"
 ---
@@ -9,14 +9,14 @@ metadata:
 
 A claim that something got faster, cheaper, smaller or fixed is only as good as the evidence under it. This skill judges that evidence before the claim goes into a PR, a plan, a report or a decision. It works the same for a function's benchmark, a page's load time, a query, a build, a CI run, a cloud bill or a bug fix.
 
-Use it before you quote a number, call work done, accept someone else's result, or decide what to build from a spike. Whether a test is worth keeping is [`test-audit`](../test-audit/SKILL.md)'s; this skill judges whether the evidence for a claim holds.
+Use it before you quote a number, call work done, accept someone else's result, or decide what to build from a spike. This skill reviews the evidence for a claim. Diagnosing a CI run, why it failed or what made it slow, is the `ci-doctor` skill's, and whether a test is worth keeping is `test-audit`'s.
 
 ## Rules
 
 - **Decide before you measure.** Write down the result that would change what you do, and the noise floor, before the first run. A threshold chosen after seeing the result isn't one.
 - **Check the real thing,** not a proxy for it: the value, the output, the log of what ran. A green check, a modification time, a cached result or an agent's own report is a proxy.
 - **Like for like:** the same command, input, machine, field and conditions on both sides, with only the change between them.
-- **Every number carries its count, spread, limiter and label** (measured, replayed, modelled or guessed), wherever it goes.
+- **Every number carries its count, spread, limiter, threshold and label** (measured, replayed, modelled or guessed), wherever it goes.
 - **Report the honest outcome,** raw before adjusted, and what's still open beside what's done.
 
 ## 1. Before you measure
@@ -46,7 +46,7 @@ Hold everything but the change: the command, the input set, the machine and its 
 
 ## 5. Report it
 
-Give each claim in the shape [the report](references/report.md) has: the claim, the decision and threshold written first, the noise floor, the runs on each side, the raw change, the control, the limiter, what was ruled out, and the label. Keep the count, spread and limiter with the number when it's quoted elsewhere. A saving is split into observed, merged but modelled, and in flight, each labelled, and never added together.
+Give each claim in the shape [the report](references/report.md) has: the claim, the decision and threshold written first, the noise floor, the runs on each side, the raw change, the control, the limiter, what was ruled out, and the label. Keep the count, spread, limiter and threshold with the number when it's quoted elsewhere. A saving is split into observed, merged but modelled, and in flight, each labelled, and never added together.
 
 ## A claim that something works or is fixed
 
@@ -54,18 +54,18 @@ Check the artifact itself: run the feature, read the actual value, inspect the d
 
 ## Where this applies in CI
 
-With the `ci-doctor` plugin installed, CI's records and the rules particular to them are in the hub:
+CI's records and the rules particular to them are in the `ci-doctor` plugin's hub. Links go to the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/next) on `next`:
 
-- A CI baseline or a before and after: [measuring](../ci-doctor/references/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](../ci-doctor/references/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](../ci-doctor/references/checks/ci-measure-before-changing-it.md).
-- A cost: [budget CI at list price](../ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
-- A campaign's report: the hub's [report template](../ci-doctor/references/agent-knowledge/report.md) carries this skill's fields.
-- A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](../review-gate/SKILL.md) says.
+- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
+- A cost: [budget CI at list price](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
+- A slow-test campaign's report: its template carries [the report](references/report.md)'s fields for each headline number.
+- A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md) says.
 
 ## Not here
 
+- Why a CI run failed, what made it slow, or making a test or a run faster: the `ci-doctor` skill. How far an edit reaches through a workspace: `optimize-graphs`.
 - Whether a test is worth keeping, or what it covers: `test-audit`.
-- Making a slow test or CI run faster: the `ci-doctor` skill. How far an edit reaches through a workspace: `optimize-graphs`.
 
 ## Outside this skill
 
-Links that leave this folder lead to the rest of the ci-doctor repo: the other skills and the guide in `docs/`. After `npx skills add` or a copy of this folder alone, read each at `https://ci-doctor.ref0.dev/guide/<path>`, at the path it has in the repo: `skills/test-audit/SKILL.md` is [ci-doctor.ref0.dev/guide/skills/test-audit/SKILL.md](https://ci-doctor.ref0.dev/guide/skills/test-audit/SKILL.md). Or read [the repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`, where the version is this file's `metadata.version`.
+Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/next) on its `next` branch, since this skill is newer than the latest release. Once a release carries it, read the repo at the tag `v<version>`, where the version is this file's `metadata.version`.
