@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: cache-ci-trigger-2
+description: Should load cache-ci.
+tags: [cache-ci, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "The actions/cache step never hits. Look at the cache key and tell me what's wrong."
+graders:
+  - name: loaded-cache-ci
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?cache-ci"'
