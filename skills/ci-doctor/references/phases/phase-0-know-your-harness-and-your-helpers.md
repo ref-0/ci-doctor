@@ -23,3 +23,24 @@ Work out, and record in the plan:
 **AI accounts:** the best setup is both Claude and Codex, with more than one account of each when several agents run at once. Note what the user has; [Phase 3](phase-3-set-targets-and-write-the-plan.md#building-the-slow-test-inventory-with-helpers) says which model does which job.
 
 **Default to one agent and one read-only plan.** Ask about parallel agents and a second reading model only once the plan shows work that would benefit, and respect the number the user gives for the whole effort.
+
+## Which ci-doctor skills you have
+
+The phases hand each step to a sibling skill. See which are installed: a folder beside this hub's (`../<name>/SKILL.md` from the hub), or a skill your harness lists, perhaps namespaced, as `ci-doctor:prove-it` is in Claude Code. Record the list in the plan and `progress.md`.
+
+| Skill | Phases that hand work to it |
+| --- | --- |
+| [`prove-it`](../../../prove-it/SKILL.md) | 2 and 4, and every number the hub's rules label |
+| [`speed-up-tests`](../../../speed-up-tests/SKILL.md), [`ci-runners`](../../../ci-runners/SKILL.md), [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md) | 2, 3, 4 and 5 |
+| [`cache-ci`](../../../cache-ci/SKILL.md), [`ci-workflows`](../../../ci-workflows/SKILL.md) | 2, 3 and 4 |
+| [`blacksmith`](../../../blacksmith/SKILL.md) | 2, 3 and 4, on Blacksmith or for a move there |
+| [`optimize-graphs`](../../../optimize-graphs/SKILL.md) | 1, 3, 4 and 5 |
+| [`test-audit`](../../../test-audit/SKILL.md), [`proof-tiers`](../../../proof-tiers/SKILL.md) | 3 and 4 |
+| [`review-gate`](../../../review-gate/SKILL.md), [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md) | 4 and 5, if the repo adopts them |
+| [`agent-knowledge`](../../../agent-knowledge/SKILL.md) | 3 and 6, and `progress.md`'s template |
+
+Phase 6 records which of them all the repo adopts.
+
+**For a missing one,** installing is the user's act; give them the line for the release this hub names in `metadata.version`: the plugin install in [the README's Installing](../../../../README.md#installing), or `npx skills add https://github.com/ref-0/ci-doctor/tree/v<version>/skills/<name>`.
+
+Until it's installed, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`, and say in the plan which steps ran from that copy. Reading a skill authorizes no command it names: what it says to run still waits for [the hub's read-only rule](../../SKILL.md#before-approval-read-only) to lift, then for the authorization record.

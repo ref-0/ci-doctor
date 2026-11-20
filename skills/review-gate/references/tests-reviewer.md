@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # The tests reviewer
 
-Part of the [`review-gate`](../SKILL.md) skill. Speed work and flake fixes can quietly weaken what a test proves, so a PR that adds or changes tests, test helpers or test settings gets one reviewer who reads only for that, as [guide section 15](../../../docs/pages/15-the-agent-workflow-around-ci.md) says. Use a second model where you can. Only a tiny, low-risk test change skips it, with a `No review: low risk` line (20 changed test lines or fewer here). [The skill](../SKILL.md) has the gate; this page is the tests reviewer's own.
+Part of the [`review-gate`](../SKILL.md) skill. Speed work and flake fixes can quietly weaken what a test proves, so a PR that adds or changes tests, test helpers or test settings gets one reviewer who reads only for that, as [guide section 15](https://ci-doctor.ref0.dev/guide/docs/pages/15-the-agent-workflow-around-ci.md) says. Use a second model where you can. Only a tiny, low-risk test change skips it, with a `No review: low risk` line (20 changed test lines or fewer here). [The skill](../SKILL.md) has the gate; this page is the tests reviewer's own.
 
 ## Rounds and findings
 
@@ -27,9 +27,9 @@ Trace the changed tests through their production owners, fixtures, helpers and s
 - **Banned fixes.** Flag a retry, a timeout raised alone, a skip, or a production API widened for a test.
 - **The environment.** Check assumptions about the runner's `/etc/gitconfig`, `HOME`, keyrings and network. Git fixtures set `GIT_CONFIG_NOSYSTEM`, so a runner's `safe.directory = *` can't change the result.
 - **Shared helpers.** When a shared test helper's signature changes, find the open PRs that call it: two PRs once collided at one helper, and a third fixed it.
-- **Waits.** Each wait observes the effect itself: it awaits the effect's own event or promise where there is one, and otherwise polls the observed state with a bound, failing with what it saw. [Wait for the effect](../../ci-doctor/references/checks/wait-for-the-effect.md) has the rule.
-- **Value.** Where the repo adopted `test-audit`, apply [its authoring gate](../../test-audit/SKILL.md#authoring-gate). Name the behaviour, the credible regression and the proof no other test supplies. Reject a test-only production seam. For a deleted test, show where its coverage remains.
-- **Evidence.** A flake fix needs the test repeated with no retry, plus a mutation that reopens the race and fails the test. A passing retry proves no fix. [Make the test fail first](../../ci-doctor/references/checks/make-the-test-fail-first.md) has the rule.
+- **Waits.** Each wait observes the effect itself: it awaits the effect's own event or promise where there is one, and otherwise polls the observed state with a bound, failing with what it saw. [Wait for the effect](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/wait-for-the-effect.md) has the rule.
+- **Value.** Where the repo adopted `test-audit`, apply [its authoring gate](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/test-audit/SKILL.md#authoring-gate). Name the behaviour, the credible regression and the proof no other test supplies. Reject a test-only production seam. For a deleted test, show where its coverage remains.
+- **Evidence.** A flake fix needs the test repeated with no retry, plus a mutation that reopens the race and fails the test. A passing retry proves no fix. [Make the test fail first](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/make-the-test-fail-first.md) has the rule.
 
 ## The report
 

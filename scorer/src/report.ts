@@ -1,6 +1,9 @@
 // What the terminal shows: the score, the <ci-report> block an agent can start from, each practice as yes, no or
 // unknown, the fixes with their guide pages, and where the numbers came from.
+import { graphPromptLines, graphsBlock } from './graphs.ts';
+import { graphBlock, promptLines } from './job-graph.ts';
 import type { Inventory, Practices, Report } from './score.ts';
+import type { Stack } from './stack.ts';
 
 const p = (x: number) => (Number.isFinite(x) ? `${Math.round(x * 100)}%` : '–');
 const m = (x: number | undefined) => (x !== undefined && Number.isFinite(x) ? x.toFixed(1) : '–');
@@ -21,6 +24,8 @@ export const promptBlock = (r: Report) =>
     `PR wait p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (pushes that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all pushes p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
     `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr ?? NaN)} job-min across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedMinutesPerMergedPr}); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
     r.jobs && `Last to finish: "${r.wait.lastToFinish[0]?.[0]}", ${r.jobs.jobs} jobs, ${m(r.jobs.jobMinutes)} job-min; run ${m(r.jobs.spanMin)} min; longest job "${r.jobs.longest.name}" ${m(r.jobs.longest.minutes)} min; setup ${p(r.jobs.setupShare)} of job time`,
+    ...(r.jobGraph ? promptLines(r.jobGraph) : []),
+    ...graphPromptLines(r.graphs),
     r.jobs?.shard && `Shards "${r.jobs.shard.name}": ${r.jobs.shard.shards}, slowest ${r.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${p(r.jobs.shard.idleTail)} idle tail`,
     r.tests?.top.length && `Slowest test files: ${r.tests.top.slice(0, 3).map((t) => `${t.file} ${t.sec.toFixed(1)} s`).join(', ')}`,
     `Fix first: ${r.fixes.slice(0, 3).map((f, i) => `${i + 1}. ${f.text} (${f.guide.split('/').at(-1)!.slice(0, 2)})`).join('  ') || 'nothing urgent'}`,
@@ -64,6 +69,31 @@ export const practicesBlock = (pr: Practices) => {
   return [`Practices (${pr.workflows} workflow file${pr.workflows === 1 ? '' : 's'}):`, ...lines, ...why].join('\n');
 };
 
+const LIBRARIES_SHOWN = 8;
+
+const graphText = (g: Stack['graph']) =>
+  g.count === null
+    ? 'unknown'
+    : `${g.count} package${g.count === 1 ? '' : 's'}, ${g.edges} internal edge${g.edges === 1 ? '' : 's'}, depth ${g.maxDepth}, ${g.cycles.length} cycle${g.cycles.length === 1 ? '' : 's'}${g.topFanIn.length ? `; most depended on: ${g.topFanIn.map((p) => `${p.name} (${p.dependents})`).join(', ')}` : ''}`;
+
+/** What the repo is built with, each line "unknown" where its inputs couldn't be read. */
+export const stackBlock = (st: Stack) => {
+  const or = <T>(v: T | null, f: (x: T) => string) => (v === null ? 'unknown' : f(v) || 'none found');
+  const ws = st.workspace;
+  const lines: [string, string][] = [
+    ['Languages', or(st.languages, (ls) => ls.map(([l, n]) => `${l} ${n}%`).join(', '))],
+    ['Workspace', [or(ws.packageManagers, (x) => x.join(', ')), ...(ws.tools?.length ? [ws.tools.join(', ')] : []), st.packages ? pkgText(st.packages) : 'packages unknown'].join(' · ')],
+    ['Tests', or(st.testRunners, (x) => x.join(', '))],
+    ['Lint, format', or(st.lintFormat, (x) => x.join(', '))],
+    ['Libraries', or(st.libraries, (x) => x.slice(0, LIBRARIES_SHOWN).map((l) => `${l.name} (${l.packages})`).join(', '))],
+    ['CI runners', or(st.runners, (x) => x.map(([p, n]) => `${p} (${n} job${n === 1 ? '' : 's'})`).join(', '))],
+    ['Agent files', or(st.agentFiles, (x) => x.join(', '))],
+    ['Package graph', graphText(st.graph)],
+  ];
+  const width = Math.max(...lines.map(([l]) => l.length));
+  return ['Stack:', ...lines.map(([l, v]) => `  ${l.padEnd(width)}  ${v}`), ...st.unknown.map((u) => `  Unknown because: ${u}.`)].join('\n');
+};
+
 const listBlock = (title: string, items: { text: string; guide: string }[]) =>
   items.length ? [title, ...items.map((f, i) => `  ${i + 1}. ${f.text}\n     ${f.guide}`)].join('\n') : '';
 
@@ -102,7 +132,10 @@ export const scoredText = (r: Report, v: Provenance) => {
     head,
     window,
     r.score === null ? profileLine(r) : `To fix it with your agent, paste the AI Quickstart prompt from https://github.com/ref-0/ci-doctor, then "Start from this CI report:" and this block:\n\n${promptBlock(r)}`,
+    r.jobGraph && graphBlock(r.jobGraph),
     practicesBlock(r.practices),
+    stackBlock(r.stack),
+    graphsBlock(r.graphs),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),
     provenanceLine(v),
@@ -117,6 +150,8 @@ export const inventoryText = (r: Inventory) => {
     `${r.checkout}: unscored. ${r.unscored}`,
     `From the checkout's tracked files: ~${fmtK(pf.linesOfCode)} lines of source, tests ${p(pf.testShare)} of it, ${pkgText(pf.packages)}, ${pf.files} files.`,
     practicesBlock(r.practices),
+    stackBlock(r.stack),
+    graphsBlock(r.graphs),
     listBlock('Fix first:', r.fixes),
     listBlock('Notes:', r.notes),
     'Read only the checkout: no GitHub calls. Nothing was written to disk.',

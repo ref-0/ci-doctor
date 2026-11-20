@@ -1,0 +1,5 @@
+{
+  "name": "mono",
+  "private": true,
+  "scripts": { "build": "turbo run build", "test": "pnpm -r test" }
+}

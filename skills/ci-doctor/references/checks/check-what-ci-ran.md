@@ -42,4 +42,4 @@ In the source repo, over a few weeks of CI work:
 ## Pointed at from
 
 - The repo's `AGENTS.md`, through the snippet's Working here line on merging.
-- [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md) and [`ci-workflows`](../ci-workflows/references/change-checks.md).
+- [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md) and [`ci-workflows`](../../../ci-workflows/references/change-checks.md).

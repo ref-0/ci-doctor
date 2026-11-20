@@ -22,7 +22,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Use [test-audit](../../../test-audit/SKILL.md#authoring-gate)'s authoring gate. Run the one test, such as `<test-cmd> <file> -t '<name>'`, with only the intended fix removed or broken. Read the failure, restore that change and rerun. Preserve other work while doing so.
 
-Run lazy values for real: return or await a promise, and run any deferred computation a test returns, rather than returning it unrun. If your stack uses Effect, [Effect](../speed-up-tests/references/effect.md#run-the-effect) says how. Assert an exact refusal with a helper that names it. Make a guard test reach that guard, with another holder of the same kind when ownership is what it tests.
+Run lazy values for real: return or await a promise, and run any deferred computation a test returns, rather than returning it unrun. If your stack uses Effect, [Effect](../../../speed-up-tests/references/effect.md#run-the-effect) says how. Assert an exact refusal with a helper that names it. Make a guard test reach that guard, with another holder of the same kind when ownership is what it tests.
 
 For `@ts-expect-error` examples, widen the API and confirm the directive becomes unused for the intended assignment. For collation, use the production database's locale (such as ICU `en-US`) in the test database, and confirm the test fails without the explicit `COLLATE "C"` it checks.
 
@@ -39,4 +39,4 @@ In the source repo:
 
 - [`test-audit`](../../../test-audit/SKILL.md).
 - [The tests reviewer](../../../review-gate/references/tests-reviewer.md), on evidence.
-- [`speed-up-tests`](../speed-up-tests/references/flakes.md), on proving a flake's fix.
+- [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md), on proving a flake's fix.

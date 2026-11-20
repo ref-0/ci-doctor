@@ -2,6 +2,8 @@
 
 # 5. Tiers: what runs where
 
+Decide which checks run on every PR, which on merges and which in a scheduled sweep, and release only what the sweep checked.
+
 **Applies when:** Checks too slow or costly for every PR could run on merges, on main's server runs or in a sweep instead. **Skip when:** No sweep has yet been shown to run every check it would take off PRs ("Releasing what the sweep checked", below).
 
 | Tier | When | What |
@@ -27,6 +29,17 @@
   - In the daily sweep, deeper runs (2,000 TS / 1,000 Rust cases) are seeded from the run ID, so each sweep explores new cases and a rerun repeats the same ones. The seed is logged.
   - Running the deep job on every broad PR had made it the last job to finish, after every shard, while it repeated cases the PR run already covered.
 - **End-to-end proofs and session replays** run on PRs only when their own implementation or inputs change. Broad "select everything" fallbacks no longer drag them in: 49 of 78 proof-running PRs in one sample were there only because of the fallback.
+
+## Replaying recorded sessions
+
+**Applies when:** An end-to-end path depends on an outside tool whose live runs are slow, paid or nondeterministic, such as an agent harness calling a model. **Skip when:** Every outside dependency already has a fast local fake at the boundary you test.
+
+- **Record at the boundary your code reads.** We captured each session's hooks and commands as the outside tool sent them, then replayed the inputs through the real hook client, local service, CLI and server, with no harness and no model. A change that breaks that path fails before it merges, and the replay makes no paid calls.
+- **Keep a string only where a rule names it.** A recording is checked in, so the contract says, per field, what it may keep; everything else becomes synthetic text. Names a person chose (branches, files, folders) become stable placeholders, the same throughout one recording, so the replay still sees one branch pushed and then listed. A fixture check fails any recording that keeps more than the contract allows, and runs locally.
+- **Replay deterministically,** on the tier its inputs reach (the table above). Give the capture workflow a scripted model too, so its own plumbing is tested without paid calls.
+- **Keep one live proof** against the real tool, on a slower tier, and record again when it changes: a replay proves your side of the boundary, not that the tool still sends what it sent.
+
+We didn't measure the replay's cost or flake rate against the live runs it stands in for.
 
 ## Cron is not a scheduler you can trust
 
@@ -61,6 +74,8 @@ Two conditions come first:
 - **Every shipping path waits.** Leave required coverage on PRs until every path that ships checks a successful full run at the exact release commit, or at a proven-equivalent input identity. Define what happens on a missed, failed or stale sweep, and on a manual promotion. A direct deploy binds to a checked commit or artifact digest. A repo whose deploys follow every merge, or that has no usable release gate, keeps PR coverage.
 
 The steps below are ours, for npm packages with optional native children. Other artifacts need their own: for a Python wheel or sdist, the build metadata, the resolved build inputs and an install and smoke test in a clean environment; for a container, the image digest.
+
+**A container image, deployed by digest.** Our deploys built their container images until we named each by its digest in the deploy config, so a deploy builds no image and needs no Docker. A record beside each digest holds the hash of the inputs it was built from, and a test fails a PR that changes those inputs without a new digest. A separate CI job builds only the images whose inputs changed, twice on fresh storage, checks the two builds match, pushes the image under a tag named by its inputs, checks the registry's digest is the one it built and fails until the PR records it. A tag is never pushed again. The deploy tool checks each named digest exists before it uploads, so a missing one fails the deploy and the live version stays. We didn't measure the time saved; the change took the image build out of every deploy and limited cold builds to changed images. [Caches](../../skills/cache-ci/references/caches.md#who-may-write-a-cache) says why the build uses fresh storage.
 
 1. **Reject unpublished snapshot dependency URLs** in ordinary PRs, sweeps and releases. Permit them only in explicitly targeted manual experiments. [`scripts/sweeps/`](../../scripts/sweeps/) has the guard; run it right after the plan checks out.
 2. **Run the content-equality guard before tagging or publishing:** the shipped files must match what a passing sweep checked.

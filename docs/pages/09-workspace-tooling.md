@@ -2,11 +2,13 @@
 
 # 9. Workspace tooling
 
+Make type checks, lint and generated files fast on every machine and in CI, by running each once and reusing it wherever it can be.
+
 The workspace checks run on every agent's machine many times an hour, and in every CI run. So the unit of optimization became one project, one lint pass or one parsed file, and each is reused independently. Our stack is TypeScript 7 (native), [tsrs](https://www.npmjs.com/package/tsrs) (a Rust port of the native checker), Oxlint, Vite+ and pnpm. We also use Effect: what was specific to it is in [If you use Effect](#if-you-use-effect), at the end of this section, and the rest reads without it. Take the ideas, not necessarily the tools. Most timings in this section are **local** measurements.
 
 **Start from what the repo has.** On a plain TypeScript repo, keep the existing `tsc`, project graph and task-runner ordering, and its compiler, lint and generation steps as they are. Change one only when a named duplicate pass or a measured bottleneck justifies it, and adopt the commands below one at a time. The Oxlint, tsrs and Vite+ material is conditional: it applies only if you use those tools.
 
-The type driver and its cache, symbol search and the copy check, the export guard and the split lint config are ported in [`tools/workspace/`](../../tools/workspace/), with their tests and the type checker injectable: stock `tsc` by default, or any checker that keeps the contract in its README (for Effect, see [below](#if-you-use-effect)). Its README also gives the setup, the root scripts, and a command/input/output contract for each tool not ported (custom lint rules, the lint-backend adapter, the generation driver).
+The type driver and its cache, symbol search and the copy check, the export guard, the package-graph check and the split lint config are ported in [`tools/workspace/`](../../tools/workspace/), with their tests and the type checker injectable: stock `tsc` by default, or any checker that keeps the contract in its README (for Effect, see [below](#if-you-use-effect)). Its README also gives the setup, the root scripts, and a command/input/output contract for each tool not ported (custom lint rules and the generation driver).
 
 ## The commands
 
@@ -27,31 +29,9 @@ The type driver and its cache, symbol search and the copy check, the export guar
 **Applies when:** A framework's diagnostics or type-aware lint run as a separate compiler pass. **Skip when:** One type pass already covers them.
 
 - **One type pass.** Run any framework's diagnostics inside the authoritative type check, using the editor's diagnostic policy from the same `tsconfig`, so a separate framework-only compiler pass is unnecessary. Folding them in removed a separate `tsc` pass that had cost 10–15 s locally ([If you use Effect](#if-you-use-effect) has ours).
-- **Type-aware lint gets a faster backend.** Oxlint gets its type-aware rules from tsrs-lint. Vite+ expects a `tsgolint` binary and has no backend switch yet, so a pnpm override links that package name to a tiny local adapter package whose only export is a symlink to tsrs-lint. The whole adapter, for a layout with it at `lint/tsgolint/`:
+- **Type-aware lint runs on tsrs.** Oxlint gets its type-aware rules from tsrs-lint, tsrs's port of tsgolint. Vite+ 1.7 and later depend on tsrs and run it for `lint.options.typeAware` and `typeCheck`, so there's nothing to install or link; `vp toolchain` names the tsrs it runs. Before 1.7, Vite+ expected Go tsgolint, and we ran tsrs-lint in its place through a pnpm override to a local adapter package. On an older Vite+, upgrade rather than build that adapter ([section 18](18-tried-and-dropped.md) has the row). After the upgrade, delete the adapter, its override and its peer rule, then show that type-aware lint still runs: a deliberate floating promise in a scratch file must come back as `no-floating-promises` from both `vp lint` and `vp check`. Check the tool versions together after any upgrade; a framework's patcher, if you have one, runs in `prepare` ([If you use Effect](#if-you-use-effect)).
 
-  ```yaml
-  # pnpm-workspace.yaml (sketch)
-  overrides:
-    oxlint-tsgolint: link:./lint/tsgolint
-  peerDependencyRules:
-    allowedVersions:
-      oxlint-tsgolint: "0.0.0"   # the adapter's own version
-  ```
-
-  ```jsonc
-  // lint/tsgolint/package.json
-  { "name": "oxlint-tsgolint", "version": "0.0.0", "private": true,
-    "exports": { "./bin/tsgolint": "./bin/tsgolint" } }
-  ```
-
-  ```sh
-  # add tsrs as a root devDependency, then, from lint/tsgolint/:
-  mkdir -p bin && ln -s ../../../node_modules/tsrs/bin/tsrs-lint bin/tsgolint
-  ```
-
-  The adapter exports only the binary on purpose: with nothing else exported, the framework patcher doesn't go looking for the replaced tsgolint. Use your native checker; a framework's patcher, if you have one, runs in `prepare` ([If you use Effect](#if-you-use-effect)). Check the tool versions together after any upgrade; the override alone doesn't prove they fit.
-
-  In one quiet local run, types took 6.6 s and 3.1 GiB, type-aware lint 13.4 s and 4.5 GiB, and the lint found the same 37 warnings as before. Together that was 105 CPU-seconds, against 169 CPU-seconds and 7.8 GiB for the older setup measured locally on another day. Remove an adapter like this once the tool supports choosing a backend.
+  In one quiet local run, types took 6.6 s and 3.1 GiB, type-aware lint 13.4 s and 4.5 GiB, and the lint found the same 37 warnings as before. Together that was 105 CPU-seconds, against 169 CPU-seconds and 7.8 GiB for the older Go setup measured locally on another day.
 - **The type driver runs one native check per project,** largest first, four at a time, and attributes diagnostics to the project that owns the file (`tools/workspace/src/types/`).
 
 ## Every file in a project, enforced
@@ -112,8 +92,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 - **Complete build inputs.** Production and staging build tasks must list transitive workspace source, manifests and tsconfigs. Before this rule, a deliberately broken dependency source *replayed a successful build*. We use explicit inputs because automatic read tracking hit `spawn EBUSY` on our dev platform.
 - **Seeded property tests.** Property tests must use the shared seeded options, so PR runs reproduce, while the sweep picks fresh seeds.
-- **Boundaries:** no undeclared package access, no forbidden layer imports, each sandbox or isolate entry's transitive import closure restricted to what that runtime permits, and environment access only at entry points. Find your restricted runtime entry points before applying the isolate rule; for us it covers code that runs inside a sandboxed isolate, not all Worker code.
-- **Hygiene:** re-export-only `index.ts` barrels, explicit entry re-exports, reasons on unsafe assertions, and no quadratic accumulator copies.
+- **Boundaries:** no undeclared package access, no forbidden layer imports (both from one declared graph, in [section 21](21-optimize-all-of-your-graphs.md#package-dependencies-declared-and-checked)), each sandbox or isolate entry's transitive import closure restricted to what that runtime permits, and environment access only at entry points. Find your restricted runtime entry points before applying the isolate rule; for us it covers code that runs inside a sandboxed isolate, not all Worker code.
+- **Hygiene:** re-export-only `index.ts` barrels, explicit entry re-exports ([section 21's export paths](21-optimize-all-of-your-graphs.md#export-paths-what-an-edit-triggers)), reasons on unsafe assertions, and no quadratic accumulator copies.
 - **Shared rules live in a published tool** that each repo consumes, with the repo's own domain rules on top. Its tests install the *packed tarball* into a temp consumer, which checks what users actually get.
 
 ## No build before checking or testing
@@ -172,5 +152,5 @@ Agents duplicate code readily, so we gave them two tools:
 Skip this subsection if your stack doesn't use [Effect](https://effect.website). With it, we did three things:
 
 - **Effect's diagnostics in the one type check.** `effect-tsgo patch --typescript` runs in `prepare`, and the type driver calls `effect-tsgo tsrs`, with the diagnostic policy in `tsconfig`. That folded the language service's rules into the authoritative pass and removed the separate `tsc` pass above. In [`tools/workspace/`](../../tools/workspace/README.md), set the injectable compiler to `["node_modules/.bin/effect-tsgo", "tsrs"]`.
-- **The lint adapter alongside it.** The tsgolint adapter above exports only its binary so the Effect patcher doesn't go looking for the replaced tsgolint. Check `effect-tsgo`, tsrs and Oxlint's versions together after any upgrade.
-- **Tests that run their Effects,** fake clocks that leave Effect's scheduler alone, and property generators from Schema: [`skills/ci-doctor/references/speed-up-tests/references/effect.md`](../../skills/ci-doctor/references/speed-up-tests/references/effect.md) has those, for agents.
+- **Its own tsrs for the type check.** `effect-tsgo tsrs` runs the Effect-patched tsrs that `@effect/tsgo` ships, not the tsrs Vite+ or your lockfile holds, so the type check and type-aware lint can run different tsrs releases. That's expected. Check `effect-tsgo`, Vite+ and Oxlint's versions together after any upgrade, and that `effect-tsgo patch` still patches only what it did before.
+- **Tests that run their Effects,** fake clocks that leave Effect's scheduler alone, and property generators from Schema: the [`speed-up-tests`](../../skills/speed-up-tests/SKILL.md) skill's [Effect page](../../skills/speed-up-tests/references/effect.md) has those, for agents.

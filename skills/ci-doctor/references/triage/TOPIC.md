@@ -1,7 +1,7 @@
 <!--
 What: reading a PR's CI result: which job failed and why, whether the run counts, and where each kind of failure goes.
 Where: read by any agent whose PR's check failed or was cancelled.
-Configure: your repo's facts file, `.agents/repo/ci.md`, from agent-knowledge/repo-facts/ci.md.
+Configure: your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
@@ -23,14 +23,19 @@ Wait with `--interval 60`, or your harness's PR watcher: every run on one login 
 1. **Did the run test the PR's current head, against its target?** If not, it doesn't decide anything: [does this run count](ci-result.md#does-this-run-count).
 2. **Which job failed, and on what line?** Read the failed log, not the summary. A failure in setup, install or a cache step is the workflow's, not the tests'.
 3. **Is the failure the PR's?** Check the base's latest run before blaming the PR. A failure outside the PR's files goes by [CI exceptions](ci-result.md#exceptions).
-4. **Which of three is it?** A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure (a lost runner, a full disk, a network or quota error) are three different things; [flakes](../speed-up-tests/references/flakes.md#retries-reruns-and-infrastructure) says what each gets.
+4. **Which of three is it?** A test that passes only on its in-job retry, a failed job that passes on one rerun, and a runner or infrastructure failure (a lost runner, a full disk, a network or quota error) are three different things; [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md#retries-reruns-and-infrastructure) says what each gets.
+
+## An installer that says only "see the log"
+
+When setup or install fails with a summary that points at a log on the runner, the next failure is lost unless the log reaches the job's output. Add a step after the install that runs only on its failure (`if: failure() && steps.<install>.outcome == 'failure'`) and prints the installer's own log, then wait for the next failure to name the cause. Add no retry: an installer that already retries several times and fails the same way won't pass on one more. A passing run pays nothing for it. Put the step in the shared setup action every job installs through, and in each other workflow that installs on its own.
 
 ## Then
 
 | It's | Go to |
 | --- | --- |
 | A real failure in the PR's code or tests | Fix it locally, by file, and push |
-| A flake | [speed-up-tests](../speed-up-tests/TOPIC.md) |
-| The workflow: setup, install, caches, the job graph | [ci-workflows](../ci-workflows/TOPIC.md) |
-| A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../ci-runners/TOPIC.md) |
+| A flake | The [`fix-flaky-test`](../../../fix-flaky-test/SKILL.md) skill |
+| The workflow: setup, the job graph | [ci-workflows](../../../ci-workflows/SKILL.md) |
+| An install or a cache step: a slow install, a cache that missed or restored the wrong thing | [cache-ci](../../../cache-ci/SKILL.md) |
+| A runner or infrastructure failure | Whoever owns the runners; [ci-runners](../../../ci-runners/SKILL.md) |
 | Green, and ready to merge | `ci-merge-workflow`, if adopted |

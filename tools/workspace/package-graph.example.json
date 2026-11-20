@@ -1,0 +1,12 @@
+{
+  "graph": {
+    "@pip/contracts": {},
+    "@pip/model": { "@pip/contracts": { "values": ["core"], "tests": ["testing/vectors"] } },
+    "@pip/compiler": { "@pip/contracts": { "types": ["checks"] } },
+    "@pip/web": { "@pip/model": { "values": ["queue"] }, "@pip/contracts": { "tests": ["core"] } },
+    "@pip/docs": {}
+  },
+  "nodeFiles": { "@pip/compiler": ["src/generate.ts"] },
+  "layers": { "packages/cli/src": [["base"], ["terminal", "client"], ["commands"], ["main"]] },
+  "layerExceptions": { "packages/cli/src": { "terminal/output.ts": ["commands/help"] } }
+}

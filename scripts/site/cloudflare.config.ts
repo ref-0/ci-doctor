@@ -1,4 +1,5 @@
-// The guide on ci-doctor.ref0.dev: static assets only, no Worker code. Build it with
+// The guide, served on ci-doctor.ref0.dev by the site's Worker through its GUIDE binding: static assets only,
+// no Worker code, and no domain or workers.dev URL of its own. Build it with
 // `node scripts/site/build.ts`, then deploy from this folder with `cf deploy ../../dist/site`, as README.md says.
 import { defineConfig } from 'cf/config';
 
@@ -11,9 +12,6 @@ export default defineConfig({
       htmlHandling: 'auto-trailing-slash',
       notFoundHandling: 'none',
     },
-    // The whole host. When the score site's Worker takes ci-doctor.ref0.dev, it serves this build at the same
-    // paths, and this Worker goes.
-    domains: ['ci-doctor.ref0.dev'],
     workersDev: false,
     previewUrls: false,
   },

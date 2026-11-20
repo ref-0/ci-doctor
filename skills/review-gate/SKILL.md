@@ -1,20 +1,22 @@
 ---
 name: review-gate
-description: "The review gate in CI, for a repo that adopted it (.agents/repo/review.md): a draft reviewed before its one CI run, what the gate requires, the tests reviewer, and the record CI's result job checks with review-record.ts. Otherwise follow the repo's own review. Merging: ci-merge-workflow; a test's value: test-audit."
+description: "Runs the review gate in CI, for a repo that adopted it: a draft PR reviewed before its one CI run, and the review record CI checks. Use when reviewing a PR before marking it ready, or when CI fails on a missing review record. Not for merging (ci-merge-workflow); a test's value (test-audit)."
+metadata:
+  version: "0.2.0"
 ---
 
 <!--
 What: the review gate in CI: a PR reviewed while it's a draft, what the gate requires, the tests reviewer, and the record CI's result job checks.
 Where: read by the agent that runs a PR's review, before it marks the PR ready.
-Configure: your repo's `.agents/repo/review.md` (template: the ci-doctor hub's references/agent-knowledge/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
+Configure: your repo's `.agents/repo/review.md` (template: the agent-knowledge skill's templates/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # The review gate before the one CI run
 
-A PR is reviewed while it's a draft, so its one CI run tests reviewed code, and CI's result job fails a ready PR without a valid review record. This skill is that gate: what it requires, the tests reviewer, the record and the reviewed head. **Use it only if the repo adopted the gate,** with `.agents/repo/review.md` (template: [`repo-facts/review.md`](../ci-doctor/references/agent-knowledge/repo-facts/review.md)). Otherwise the repo's own review process applies, and nothing here does.
+A PR is reviewed while it's a draft, so its one CI run tests reviewed code, and CI's result job fails a ready PR without a valid review record. This skill is that gate: what it requires, the tests reviewer, the record and the reviewed head. **Use it only if the repo adopted the gate,** with `.agents/repo/review.md` (template: [`repo-facts/review.md`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/agent-knowledge/templates/repo-facts/review.md)). Otherwise the repo's own review process applies, and nothing here does.
 
-Who reviews, with which reviewer types and in how many rounds is the repo's own choice, written in review.md and the checker's settings, and it wins on policy. [Guide section 15](../../docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review) describes the review we ran: reviewers by what a change reaches, up to three rounds, and how each finding is checked. [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if the repo adopted it, takes the PR from here to merged; otherwise the repo's own merge path does.
+Who reviews, with which reviewer types and in how many rounds is the repo's own choice, written in review.md and the checker's settings, and it wins on policy. [Guide section 15](https://ci-doctor.ref0.dev/guide/docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review) describes the review we ran: reviewers by what a change reaches, up to three rounds, and how each finding is checked. [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md), if the repo adopted it, takes the PR from here to merged; otherwise the repo's own merge path does.
 
 ## What the gate requires
 
@@ -34,7 +36,7 @@ The checker, `review-record.ts`, reads the repo's settings in `.agents/repo/revi
 
 ## Post the record
 
-Post one comment for the session, before marking ready, in [the record's format](references/record.md). Validate it first with `node <review-checker> --comment <file>`, adding `--covered` when the change touches the review list. Then mark ready, as [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md#3-read-the-prs-ci-result)'s step 3 says if the repo adopted it, or by the repo's own merge path.
+Post one comment for the session, before marking ready, in [the record's format](references/record.md). Validate it first with `node <review-checker> --comment <file>`, adding `--covered` when the change touches the review list. Then mark ready, as [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md#3-read-the-prs-ci-result)'s step 3 says if the repo adopted it, or by the repo's own merge path.
 
 ## The reviewed head
 
@@ -44,6 +46,6 @@ Post one comment for the session, before marking ready, in [the record's format]
 
 ## Related
 
-- [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if the repo adopted it: the draft, the one CI run, the Verification comment and the merge.
-- [`test-audit`](../test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping; the tests reviewer applies its authoring gate.
-- [`proof-tiers`](../proof-tiers/SKILL.md), if the repo adopted it: a change to a model's rule, break or bound.
+- [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md), if the repo adopted it: the draft, the one CI run, the Verification comment and the merge.
+- [`test-audit`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping; the tests reviewer applies its authoring gate.
+- [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/proof-tiers/SKILL.md), if the repo adopted it: a change to a model's rule, break or bound.

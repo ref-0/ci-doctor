@@ -184,6 +184,64 @@ describe('too little history', () => {
   });
 });
 
+describe('the stack', () => {
+  it('is in the report, its manifests read in one GraphQL call', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
+
+    assert.equal(r.code, 0, r.stderr);
+    const { stack } = json(r.stdout);
+    assert.deepEqual(stack.languages, [['TypeScript', 98], ['JavaScript', 3]]);
+    assert.deepEqual(stack.workspace, { packageManagers: ['pnpm'], tools: [] });
+    assert.deepEqual(stack.packages, json(r.stdout).profile.packages);
+    assert.deepEqual(stack.testRunners, ['Vitest']);
+    assert.deepEqual(stack.lintFormat, ['ESLint']);
+    assert.deepEqual(stack.runners, json(r.stdout).jobs.providers);
+    assert.deepEqual(stack.agentFiles, []);
+    assert.deepEqual(stack.graph, { packages: [{ name: 'app', path: 'package.json', ecosystem: 'npm', internal: [], exports: false }], count: 1, edges: 0, cycles: [], maxDepth: 0, topFanIn: [] });
+    assert.equal(r.calls.filter((c) => c.includes('graphql')).length, 1);
+
+    const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
+    assert.match(text.stdout, /^Stack:\n  Languages\s+TypeScript 98%, JavaScript 3%\n  Workspace\s+pnpm · 1 npm package\n  Tests\s+Vitest\n  Lint, format\s+ESLint$/m);
+    assert.match(text.stdout, /^  Package graph\s+1 package, 0 internal edges, depth 0, 0 cycles$/m);
+  });
+
+  it('has the graphs, which add no call for a repo with no entry files or task configs', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
+
+    assert.equal(r.code, 0, r.stderr);
+    const { graphs } = json(r.stdout);
+    assert.deepEqual(Object.keys(graphs), ['schema', 'packages', 'exports', 'layers', 'tasks', 'jobs', 'thresholds', 'read', 'unknown']);
+    assert.deepEqual(graphs.read, { files: 0, calls: 0 });
+    assert.deepEqual(graphs.exports.count, { nodes: 0, edges: 0, packages: 1, packagesWithEntries: 0, filesRead: 0 });
+    assert.equal(graphs.jobs.count.nodes, 1);
+
+    const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
+    assert.match(text.stdout, /^Graphs \(guide section 21; flags first\):\n  No flags\.\n  1 Packages {6}1 package, 0 internal edges, depth 0, 0 cycles\n  2 Export paths  none of the 1 npm package declares `exports`, `main` or `module`\n  3 Layers {8}run `scripts\/graph\/` for layers and what triggers what$/m);
+  });
+
+  it('reads a workflow that the tree lists but GitHub no longer has once, for the practices and the stack', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const tree = routes[`repos/${PUBLIC}/git/trees/main`]!.json as { tree: { path: string; type: string; size: number }[] };
+    tree.tree.push({ path: '.github/workflows/gone.yml', type: 'blob', size: 10 });
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(paths(r.calls).filter((p) => p.startsWith(`repos/${PUBLIC}/contents/.github/workflows/gone.yml`)).length, 1);
+  });
+
+  it("in a checkout, comes from its files, with GitHub's languages and runners unknown", async () => {
+    const r = await runCli(['--json'], { cwd: checkout() });
+
+    assert.equal(r.code, 0, r.stderr);
+    const { stack } = json(r.stdout);
+    assert.deepEqual(stack.testRunners, ['Vitest']);
+    assert.deepEqual(stack.workspace.packageManagers, ['npm']);
+    assert.equal(stack.languages, null);
+    assert.equal(stack.runners, null);
+    assert.deepEqual(r.calls, []);
+  });
+});
+
 describe('unknown is not absent', () => {
   it("a truncated tree leaves what it couldn't see unknown, and its fixes out", async () => {
     const routes = fakeRepo({ repo: PUBLIC });

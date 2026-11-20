@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: speed-up-tests-trigger-2
+description: Should load speed-up-tests.
+tags: [speed-up-tests, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "worker.test.ts alone takes over a minute, mostly sleeping I think. Can you make it quicker?"
+graders:
+  - name: loaded-speed-up-tests
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?speed-up-tests"'

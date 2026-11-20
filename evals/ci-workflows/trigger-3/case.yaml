@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: ci-workflows-trigger-3
+description: Should load ci-workflows.
+tags: [ci-workflows, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "The docker build job in ci.yml takes 14 minutes. Rework the workflow so it's faster."
+graders:
+  - name: loaded-ci-workflows
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-workflows"'

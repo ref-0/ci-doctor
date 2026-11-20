@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: ci-merge-workflow-trigger-1
+description: Should load ci-merge-workflow.
+tags: [ci-merge-workflow, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "My PR is reviewed and green. Mark it ready, merge it, and make sure main and the deploy are fine afterwards."
+graders:
+  - name: loaded-ci-merge-workflow
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-merge-workflow"'

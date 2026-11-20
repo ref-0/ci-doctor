@@ -121,3 +121,21 @@ export const listing = (dir: string): string[] =>
     .filter((e) => e.isFile())
     .map((e) => join(e.parentPath, e.name))
     .sort();
+
+/** Points this process's gh at the stub and these answers for the length of `f`, for tests that call the scorer in-process. */
+export const withStub = <T>(routes: Routes, env: Record<string, string>, f: (log: () => string[][]) => T): T => {
+  const root = scratch();
+  const fixtures = join(root, 'routes.json');
+  const logFile = join(root, 'gh.log');
+  writeFileSync(fixtures, JSON.stringify(routes));
+  writeFileSync(logFile, '');
+  const set = { PATH: binDir(root), GH_STUB_FIXTURES: fixtures, GH_STUB_LOG: logFile, GH_TOKEN: '', ...env };
+  const before = Object.fromEntries(Object.keys(set).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, set);
+  const log = () => readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as string[]);
+  try {
+    return f(log);
+  } finally {
+    for (const [k, v] of Object.entries(before)) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+};

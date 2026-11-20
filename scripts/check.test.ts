@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
-import { FALLBACK, OLD_NAMES, site, skillsOnly, tests } from './check.ts';
+import { descriptionProblems, descriptions, FALLBACK, GITHUB_REF, GITHUB_URL, GUIDE_URL, HUB, OLD_NAMES, site, skillsOnly, standalone, tests } from './check.ts';
 import { build } from './site/build.ts';
 
 const flagged = (line: string) => OLD_NAMES.some(([pattern]) => pattern.test(line));
@@ -22,14 +22,14 @@ const write = (root: string, file: string, text: string) => {
 };
 
 describe('the old-name scan', () => {
-  it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+  it('finds the hub\'s old topics and PROMPT.md, after any relative prefix and in commands', () => {
+    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../verify-evidence/TOPIC.md', 'the hub\'s `verify-evidence` topic', 'skills/verify-evidence/', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'skills/ci-doctor/references/ci-workflows/TOPIC.md', 'see ../ci-workflows/TOPIC.md', 'the hub\'s `ci-workflows` topic', 'skills/ci-workflows/references/selection.md', '../../../../ci-workflows/references/caches.md', 'skills/ci-doctor/references/blacksmith/scripts/blacksmith-bill.ts', '[it](../blacksmith/TOPIC.md)', 'the hub\'s `blacksmith` topic', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill', 'skills/ci-doctor/references/speed-up-tests/', '[it](../speed-up-tests/TOPIC.md)', '../speed-up-tests/references/flakes.md', 'skills/ci-doctor/references/triage/flakes.md', 'the hub\'s speed-up-tests topic', 'the `speed-up-tests` topic', 'skills/ci-doctor/references/ci-runners/references/billing.md', '[it](../ci-runners/TOPIC.md)', 'the hub\'s ci-runners topic', 'the `ci-runners` topic', '[section 8](08-a-cheaper-test-harness.md)', 'https://ci-doctor.ref0.dev/guide/docs/pages/08-a-cheaper-test-harness.md', '8. A cheaper test harness']) {
       equal(flagged(line), true, line);
     }
   });
 
   it('leaves the new paths alone', () => {
-    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic']) {
+    for (const line of ['skills/ci-workflows/SKILL.md', '../../../ci-workflows/references/tiers.md', 'the `ci-workflows` skill', 'skills/optimize-graphs/references/selection.md', 'skills/cache-ci/references/caches.md', '../cache-ci/SKILL.md', 'skills/review-gate/SKILL.md', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'skills/speed-up-tests/SKILL.md', '../speed-up-tests/references/fixes.md', 'the `speed-up-tests` skill', 'skills/fix-flaky-test/SKILL.md', '../fix-flaky-test/references/symptoms.md', 'skills/ci-runners/SKILL.md', '../ci-runners/references/queues.md', 'the `ci-runners` skill', 'skills/blacksmith/SKILL.md', '<skills-dir>/blacksmith/scripts', 'the `blacksmith` skill', '[section 8](08-a-faster-test-harness.md)', '8. A faster test harness', 'a cheap test harness']) {
       equal(flagged(line), false, line);
     }
   });
@@ -46,6 +46,65 @@ describe('the skills-only link check', () => {
     const problems = skillsOnly(root);
     equal(problems.length, 1);
     match(problems[0] ?? '', /page\.md:5: .*leaves skills\/ for elsewhere\/notes\.md/);
+  });
+});
+
+describe('the each-skill-alone link check', () => {
+  const root = mkdtempSync(join(tmpdir(), 'check-alone-'));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  const gh = `${GITHUB_URL}blob/${GITHUB_REF}/`;
+  write(root, 'README.md', '# R\n\nSee [the skills](skills/README.md).\n');
+  write(root, 'skills/README.md', '# Skills\n');
+  write(root, `skills/${HUB}/SKILL.md`, `---\nname: ${HUB}\ndescription: "The hub."\n---\n\n# Hub\n\n## Rules\n\nSee [the guide](../../docs/a.md#one), [the leaf](../leaf/SKILL.md#steps) and [a secret](../../private/notes.md).\n`);
+  write(
+    root,
+    'skills/leaf/SKILL.md',
+    [
+      '---\nname: leaf\ndescription: "A leaf."\n---\n\n# Leaf\n\n## Steps\n',
+      'Read [the detail](references/detail.md#gone), [the guide](../../docs/a.md#one) and [the hub](../hub/SKILL.md#rules).',
+      `In full: [the guide](${GUIDE_URL}docs/a.md#one), [no heading](${GUIDE_URL}docs/a.md#two), [the hub](${gh}skills/${HUB}/SKILL.md#rules), [a folder](${GITHUB_URL}tree/${GITHUB_REF}/docs), [gone](${gh}docs/gone.md) and [unserved](${GUIDE_URL}private/notes.md).`,
+      `On next: [the guide](${GITHUB_URL}blob/next/docs/a.md#one) and [gone](${GITHUB_URL}blob/next/docs/next-gone.md). An older tag: [the guide](${GITHUB_URL}blob/v0.0.1/docs/a.md#one).`,
+      'Elsewhere: [another branch](https://github.com/ref-0/ci-doctor/blob/main/docs/gone.md) and [a site](https://example.com/x).',
+      '',
+    ].join('\n\n'),
+  );
+  write(root, 'skills/leaf/references/detail.md', '# Detail\n');
+  write(root, 'docs/a.md', '# A\n\n## One\n');
+  write(root, 'private/notes.md', '# Notes\n');
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  spawnSync('git', ['add', '.'], { cwd: root });
+  write(root, '.gitignore', 'private/\n');
+  spawnSync('git', ['rm', '-q', '--cached', 'private/notes.md'], { cwd: root });
+
+  const results = standalone(root);
+  const of = (name: string) => (results.find((r) => r.name === name)?.problems ?? []).join('\n');
+
+  it('lets the hub link out relatively, to what the site serves only', () => {
+    equal(of(HUB).split('\n').length, 1, of(HUB));
+    match(of(HUB), /\.\.\/\.\.\/private\/notes\.md: leaves ci-doctor\/ for private\/notes\.md, which .* doesn't serve/);
+  });
+
+  it('fails any other skill\'s relative link out of its folder, even to a file the site serves', () => {
+    match(of('leaf'), /SKILL\.md:\d+: \.\.\/\.\.\/docs\/a\.md#one: leaves leaf\/ by a relative path/);
+    match(of('leaf'), /SKILL\.md:\d+: \.\.\/hub\/SKILL\.md#rules: leaves leaf\/ by a relative path/);
+    match(of('leaf'), /references\/detail\.md#gone: .*with leaf installed alone/);
+  });
+
+  it('checks full links to the guide and to GitHub on the branch against the repo, and leaves other URLs alone', () => {
+    const leaf = of('leaf');
+    match(leaf, /docs\/a\.md#two: no heading makes #two in docs\/a\.md/);
+    match(leaf, /docs\/gone\.md: no docs\/gone\.md in the repo/);
+    match(leaf, /private\/notes\.md: .* doesn't serve private\/notes\.md/);
+    match(leaf, /docs\/next-gone\.md: no docs\/next-gone\.md in the repo/);
+    equal(leaf.split('\n').length, 8, leaf);
+  });
+
+  it('resolves links to the release tag in the working tree, before the tag exists, and fails a link to another tag', () => {
+    const leaf = of('leaf');
+    equal(spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${GITHUB_REF}`], { cwd: root }).status, 1);
+    equal(leaf.includes(`blob/${GITHUB_REF}/skills/${HUB}/SKILL.md#rules`), false, leaf);
+    equal(leaf.includes(`tree/${GITHUB_REF}/docs:`), false, leaf);
+    match(leaf, /blob\/v0\.0\.1\/docs\/a\.md#one: links v0\.0\.1, not this release's v\d/);
   });
 });
 
@@ -144,5 +203,48 @@ describe('the site check', () => {
   it("fails a guide page that docs/README.md's contents don't list, so llms.txt leaves it out", () => {
     const found = problems({ 'docs/pages/03-c.md': '# 3. C\n\nNew.\n', 'docs/pages/02-b.md': '# 2. B\n\nNext: [C](03-c.md).\n' });
     deepStrictEqual(found, ["llms.txt: doesn't name docs/pages/03-c.md"]);
+  });
+});
+
+describe('the description lint', () => {
+  const skills = new Set(['speed-up-tests', 'fix-flaky-test']);
+  const good = 'Makes slow tests faster. Use when a test is slow. Not for a flaky test (fix-flaky-test).';
+  const one = (description: string) => descriptionProblems(description, skills);
+
+  it('passes a description in the shape', () => {
+    deepStrictEqual(one(good), []);
+  });
+
+  it('fails each rule, saying why it exists', () => {
+    match(one(`${good} ${'x'.repeat(320)}`).join('\n'), /over 320: .*shorten or drop/);
+    match(one('Makes slow tests faster.').join('\n'), /no "Use when"/);
+    match(one(`${good} See \`x\`.`).join('\n'), /backtick or angle bracket/);
+    match(one(`${good} Reads <file>.`).join('\n'), /backtick or angle bracket/);
+    match(one('Is it slow? Use when a test is slow.').join('\n'), /a question/);
+  });
+
+  it('bans cheap and cheaper', () => {
+    match(one('Makes CI cheaper. Use when slow.').join('\n'), /"cheaper": .*costs less/);
+    match(one('Keeps runs cheap. Use when slow.').join('\n'), /"cheap": /);
+  });
+
+  it('finds first and second person as words only', () => {
+    match(one('Fixes our tests. Use when slow.').join('\n'), /"our": .*third person/);
+    match(one('Use when you see it.').join('\n'), /"you"/);
+    match(one('Use when I see it.').join('\n'), /"I"/);
+    deepStrictEqual(one('Fixes CI in Iowa. Use when outward or yourself-named tests run.'), []);
+  });
+
+  it('fails a "Not for" sibling that is not a skill folder, and leaves brackets before it alone', () => {
+    match(one('Use when slow. Not for a flake (ci-doctor).').join('\n'), /names \(ci-doctor\), which isn't a skill folder/);
+    deepStrictEqual(one('Reads files (any kind). Use when slow. Not for a flake (fix-flaky-test); a slow one (speed-up-tests).'), []);
+  });
+
+  it('reads every skill folder in a repo', () => {
+    const root = mkdtempSync(join(tmpdir(), 'check-descriptions-'));
+    after(() => rmSync(root, { recursive: true, force: true }));
+    write(root, 'skills/a/SKILL.md', '---\nname: a\ndescription: "Does a. Use when a. Not for b (b)."\n---\n');
+    write(root, 'skills/b/SKILL.md', '---\nname: b\ndescription: "Does b. Not for c (c)."\n---\n');
+    deepStrictEqual(descriptions(root), ['skills/b/SKILL.md: description: no "Use when": a harness picks a skill by when to use it, in the words people ask with', "skills/b/SKILL.md: description: \"Not for\" names (c), which isn't a skill folder: a sibling named there must exist, or the request goes nowhere"]);
   });
 });

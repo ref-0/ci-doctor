@@ -2,6 +2,8 @@
 
 # 20. Thresholds cheat sheet
 
+Look up the starting values we used for slow files, shards, budgets and flakes, as examples to derive your own from.
+
 Our starting values, as examples from one repo. Don't adopt them as targets: derive yours from your own bottlenecks and comparable runs.
 
 | Setting | Value |
@@ -25,3 +27,8 @@ Our starting values, as examples from one repo. Don't adopt them as targets: der
 | Wait hints | Files > 10 s |
 | Like-for-like noise band | ~±40% on single comparisons in our CI; measure your own |
 | Records collector | ≤ 1,500 API calls a night, counted as made; keep 1,000 spare |
+| Startup gate | Bytes allocated at module load, 15% over the measured value, for each deploy bundle; CPU only as a gross ceiling |
+| Build-once fixture | Only where setup is at least ~⅓ of the file's time |
+| Unix socket path | ≤ 107 bytes on Linux, ≤ 103 on macOS: check before binding |
+| Interactive proof wait | Completion evidence, polled every 0.2 s; stillness only for the first prompt, or as a logged fallback after 20 s |
+| Persisted-wait replay test | First pass sleeps 10 min, replay 1 s |

@@ -2,6 +2,8 @@
 
 # 3. Workflow anatomy
 
+Shape one workflow as a plan job, the jobs it selects and one result job, so a PR runs only what it needs and merges on one check.
+
 **Applies when:** The repo is on GitHub Actions and its workflow lacks a plan job that gates the others, or a single result job that checks them. **Skip when:** The workflow already gates every job on a plan and checks them in one result job.
 
 One main workflow, shaped as **plan → jobs → result**:

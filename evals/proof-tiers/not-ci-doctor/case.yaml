@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: proof-tiers-not-ci-doctor
+description: Belongs to ci-doctor, so should not load proof-tiers.
+tags: [proof-tiers, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "A check on my PR failed. Tell me which job broke and why."
+graders:
+  - name: did-not-load-proof-tiers
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?proof-tiers"'
+    min: 0
+    max: 0
+    arm: both
