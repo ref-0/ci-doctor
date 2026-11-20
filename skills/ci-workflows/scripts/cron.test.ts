@@ -33,6 +33,15 @@ describe('slots', () => {
     deepStrictEqual(slotsOf(parseCron('0 0 * * 7'), at0, at0 + 7 * day), [at0 + 6 * day]);
   });
 
+  it('reads a day of the week over 0 to 7, with 7 as Sunday, in ranges and steps too', () => {
+    const days = (cron: string) => [...(parseCron(cron).dow ?? [])].toSorted((a, b) => a - b);
+    deepStrictEqual(days('0 0 * * 7'), [0]);
+    deepStrictEqual(days('0 0 * * 0-7'), [0, 1, 2, 3, 4, 5, 6]);
+    deepStrictEqual(days('0 0 * * 1-7'), [0, 1, 2, 3, 4, 5, 6]);
+    deepStrictEqual(days('0 0 * * */7'), [0]);
+    deepStrictEqual(days('0 0 * * 5-7'), [0, 5, 6]);
+  });
+
   it('refuses what it doesn’t read', () => {
     throws(() => parseCron('0 0 * *'), /five fields/);
     throws(() => parseCron('0 25 * * *'), /out of range/);

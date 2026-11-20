@@ -161,6 +161,25 @@ describe('listing runs', () => {
   });
 });
 
+describe('listing runs, at the window’s edge', () => {
+  it('stops at the first run before the window, and isn’t truncated when GitHub listed every run', () => {
+    const start = 1_000_000;
+    const old = (id: number) => ({ id, display_title: 'CI on main, daily', event: 'workflow_dispatch', conclusion: 'success', created_at: at(start - id), head_branch: 'main' });
+    let calls = 0;
+    const fake = () => {
+      calls++;
+      return JSON.stringify({ total_count: 1000, workflow_runs: Array.from({ length: 100 }, (_, i) => old(i + 1)) });
+    };
+    deepStrictEqual(runsOf(fake, 'o/r', 'ci.yml', '', start, () => true, () => false), { runs: [], truncated: false });
+    equal(calls, 1);
+
+    const recent = (page: number) => Array.from({ length: 100 }, (_, i) => ({ ...old(1), id: page * 100 + i, created_at: at(start + day - page * 100 - i) }));
+    const listing = (total: number) => (...args: string[]) => JSON.stringify({ total_count: total, workflow_runs: recent(Number(/[?&]page=(\d+)/.exec(args[2] ?? '')?.[1])) });
+    equal(runsOf(listing(1000), 'o/r', 'ci.yml', '', start, () => true, () => false).truncated, false);
+    equal(runsOf(listing(1001), 'o/r', 'ci.yml', '', start, () => true, () => false).truncated, true);
+  });
+});
+
 describe('main, with a fake gh', () => {
   const now = 100 * day;
   const job = (name: string, minutes: number) => ({ name, conclusion: 'success', started_at: at(now - day), completed_at: at(now - day + minutes * 60), labels: ['ubuntu-24.04'] });
