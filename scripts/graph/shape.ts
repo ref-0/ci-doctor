@@ -11,7 +11,7 @@
  *
  * Reference implementation from a production monorepo; adapt to your repo.
  */
-import { entryFile, exportKeys, REEXPORTS } from './read.ts';
+import { exportKeys, REEXPORTS } from './read.ts';
 import type { FileGraph, Package } from './read.ts';
 import type { TaskGraph } from './tasks.ts';
 
@@ -224,6 +224,8 @@ export interface EntryNode {
   readonly id: string;
   readonly pkg: string;
   readonly key: string;
+  /** The `exports` pattern key a subpath entry matched. */
+  readonly pattern?: string;
   readonly file: string | null;
   /** Other packages, and their files, that import this entry. */
   readonly importedBy: { readonly packages: number; readonly files: number };
@@ -243,22 +245,38 @@ export interface EntryEdge {
   readonly files: number;
 }
 
-/** Each workspace entry: its declared key and file, or `.` for a package without `exports` that something imports. */
+interface Entry { readonly pkg: Package; readonly key: string; file: string | null; readonly pattern?: string }
+const entryCache = new WeakMap<FileGraph, ReadonlyMap<string, Entry>>();
+
+/**
+ * Each workspace entry: every exact `exports` key with its runtime file, each subpath an import
+ * loads through a `*` pattern (with the pattern it matched), and `.` for a package without
+ * `exports` that something imports. Cached per graph.
+ */
 export const entriesOf = (graph: FileGraph) => {
-  const found = new Map<string, { pkg: Package; key: string; file: string | null }>();
+  const cached = entryCache.get(graph);
+  if (cached) return cached;
+
+  const found = new Map<string, Entry>();
   const byName = new Map(graph.packages.map((p) => [p.name, p]));
   for (const pkg of graph.packages) {
-    for (const [key, target] of exportKeys(pkg.manifest)) found.set(`${pkg.name}#${key}`, { pkg, key, file: key.includes('*') ? null : entryFile(pkg, target, graph) });
+    for (const key of exportKeys(pkg.manifest).keys()) if (!key.includes('*')) found.set(`${pkg.name}#${key}`, { pkg, key, file: graph.entry(pkg.name, key) });
   }
   for (const e of graph.edges) {
     if (e.pkg === undefined || e.entry === undefined) continue;
     const id = `${e.pkg}#${e.entry}`;
-    const pkg = byName.get(e.pkg)!;
-    const entry = found.get(id) ?? found.set(id, { pkg, key: e.entry, file: null }).get(id)!;
-    if (!e.entry.includes('*')) entry.file ??= e.to;
+    const entry = found.get(id) ?? found.set(id, { pkg: byName.get(e.pkg)!, key: e.entry, file: null, ...(e.pattern ? { pattern: e.pattern } : {}) }).get(id)!;
+    if (e.kind !== 'type') entry.file ??= e.to;
   }
+  // An entry only `import type` reaches still names its runtime file, or the types it loads.
+  for (const e of graph.edges) {
+    const entry = e.pkg !== undefined && e.kind === 'type' ? found.get(`${e.pkg}#${e.entry}`) : undefined;
+    if (entry && entry.file === null) entry.file = (entry.pattern ? null : graph.entry(entry.pkg.name, entry.key)) ?? e.to;
+  }
+  entryCache.set(graph, found);
   return found;
 };
+
 
 /** Each entry's runtime closure and re-exported modules. */
 const closures = (graph: FileGraph, file: string, byFrom: ReadonlyMap<string, ReadonlyArray<string>>) => {
@@ -336,13 +354,13 @@ export const exportsSection = (graph: FileGraph, commitsThrough: ReadonlyMap<str
   const byFrom = new Map<string, string[]>();
   for (const e of graph.edges) if (REEXPORTS.has(e.kind)) (byFrom.get(e.from) ?? byFrom.set(e.from, []).get(e.from)!).push(e.to);
   const edges = [...edgeFiles].map(([k, files]) => { const [from, to] = k.split('\0') as [string, string]; return { from, to, files: files.size }; });
-  const nodes: EntryNode[] = [...entries].map(([id, { pkg, key, file }]) => {
+  const nodes: EntryNode[] = [...entries].map(([id, { pkg, key, file, pattern }]) => {
     const into = edges.filter((e) => e.to === id);
     const mod = file ? graph.modules.get(file) : undefined;
     const { loads, reexports } = file ? closures(graph, file, byFrom) : { loads: 0, reexports: 0 };
     const packages = into.length;
     return {
-      id, pkg: pkg.name, key, file,
+      id, pkg: pkg.name, key, ...(pattern ? { pattern } : {}), file,
       importedBy: { packages, files: into.reduce((n, e) => n + e.files, 0) },
       reexports, stars: mod?.specs.filter((s) => s.kind === 'star').length ?? 0, barrel: mod?.barrel ?? false, loads,
       overload: reexports * packages,
