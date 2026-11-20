@@ -1,6 +1,6 @@
 ---
 name: test-audit
-description: "Judges whether a test is worth having: gates new or changed tests and audits weak, duplicate or implementation-coupled ones. Use when writing or reviewing tests, pruning a suite, or asking what a test proves. Not for slow tests (speed-up-tests); flaky tests (fix-flaky-test); property tests (proof-tiers)."
+description: "Judges whether a test is worth having: gates new or changed tests, audits weak or duplicate ones, and test-only hooks in production code. Use when writing or reviewing tests, pruning a suite, or asking what a test proves. Not for slow tests (speed-up-tests); flaky tests (fix-flaky-test); property tests (proof-tiers)."
 ---
 
 <!--

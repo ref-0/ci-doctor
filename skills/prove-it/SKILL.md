@@ -1,6 +1,6 @@
 ---
 name: prove-it
-description: "Checks whether the evidence for a claim holds: that a change is faster, cheaper or fixed. Use when quoting a benchmark, a before and after, a speed-up or a saving, or when a fix is said to work now. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
+description: "Checks whether the evidence for a claim holds: that a change made something faster, cheaper or fixed. Use when someone claims a speed-up, a saving or a fix, or quotes a benchmark, a before and after or a few runs. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
 metadata:
   version: "0.1.0"
 ---
