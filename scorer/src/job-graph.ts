@@ -250,6 +250,8 @@ export interface GraphJob {
   virtual: boolean;
   /** A caller of a workflow in another repo: its jobs are taken as one, their order inside unknown. */
   opaque: boolean;
+  /** A caller's own `needs`, which its workflow's first jobs wait on. */
+  after?: string[];
   /** Matches the names of the API's jobs that are this job. */
   pattern: RegExp;
   /** How much of the name is fixed text, so the most specific pattern wins. */
@@ -374,6 +376,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
       const inner = add(parseYaml(called), { key, label: job.label, source, fixed, needs: job.needs }, depth + 1, local!);
       // The caller finishes when every job of its workflow has; jobs that need it wait for all of them.
       job.virtual = true;
+      job.after = job.needs;
       job.needs = inner;
     }
     return keys;
@@ -459,33 +462,76 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
     if (top.length > 1) ambiguous.push(j.name);
     keyOf.set(j.id, top.length === 1 ? top[0]!.key : undefined);
   }
+
+  // A reusable workflow's jobs run once per instance of its caller, such as `call (ubuntu) / build` and
+  // `call (macos) / build`, and each instance's jobs wait only on each other. So a run's nodes are the graph's jobs
+  // in each caller instance they ran under: `call/build@call (ubuntu)`. A top-level job is its own key.
+  const depth = (key: string) => key.split('/').length;
+  const runKeyOf = (key: string, scope: string[]) => (depth(key) === 1 ? key : `${key}@${scope.slice(0, depth(key) - 1).join(' / ')}`);
+  const rkOf = new Map<number, string>();
+  const scopes = new Map<string, string[]>();
   const instances = new Map<string, ApiJob[]>();
-  for (const j of ran) {
-    const k = keyOf.get(j.id);
-    if (k) instances.set(k, [...(instances.get(k) ?? []), j]);
+  for (const j of all) {
+    const key = keyOf.get(j.id);
+    if (!key) continue;
+    const scope = j.name.split(' / ').slice(0, depth(key) - 1);
+    const rk = runKeyOf(key, scope);
+    rkOf.set(j.id, rk);
+    scopes.set(rk, scope);
+    if (j.conclusion !== 'skipped' && j.started_at && j.completed_at) instances.set(rk, [...(instances.get(rk) ?? []), j]);
   }
+
+  const runNodes = new Map<string, { key: string; needs: string[] }>();
+  /** A run node's needs, in its own caller instance: built on first use, so a job that didn't run still has its place. */
+  const runNode = (rk: string, key: string, scope: string[]) => {
+    const hit = runNodes.get(rk);
+    if (hit) return hit;
+    const made = { key, needs: [] as string[] };
+    runNodes.set(rk, made);
+    const g = nodes.get(key);
+    if (!g) return made;
+    const at = (n: string) => {
+      const sc = scope.slice(0, depth(n) - 1);
+      const r = runKeyOf(n, sc);
+      runNode(r, n, sc);
+      return r;
+    };
+    if (g.virtual) {
+      // A caller finishes when every job of its workflow, in this instance of its own caller, has.
+      const mine = (r: string) => r.split('@')[0]!.startsWith(`${key}/`) && scopes.get(r)!.slice(0, depth(key) - 1).join(' / ') === scope.join(' / ');
+      const inside = [...instances.keys()].filter(mine);
+      made.needs = inside.length ? inside : (g.after ?? []).map(at);
+    } else made.needs = g.needs.map(at);
+    return made;
+  };
+  for (const [rk, scope] of scopes) runNode(rk, rk.split('@')[0]!, scope);
 
   const runStart = Math.min(...ran.map((j) => ms(j.created_at)));
   const finishMemo = new Map<string, number>();
-  const finish = (key: string, seen = new Set<string>()): number => {
-    const hit = finishMemo.get(key);
+  const finish = (rk: string, seen = new Set<string>()): number => {
+    const hit = finishMemo.get(rk);
     if (hit !== undefined) return hit;
-    if (seen.has(key)) return runStart;
-    seen.add(key);
-    const own = instances.get(key);
+    if (seen.has(rk)) return runStart;
+    seen.add(rk);
+    const own = instances.get(rk);
     // A job that didn't run, skipped by its `if:` or a caller of a reusable workflow, is done when its needs are.
-    const t = own?.length ? Math.max(...own.map((j) => ms(j.completed_at!))) : ready(key, seen);
-    finishMemo.set(key, t);
+    const t = own?.length ? Math.max(...own.map((j) => ms(j.completed_at!))) : ready(rk, seen);
+    finishMemo.set(rk, t);
     return t;
   };
-  const ready = (key: string, seen = new Set<string>()) => {
-    const needs = nodes.get(key)?.needs ?? [];
+  const ready = (rk: string, seen = new Set<string>()) => {
+    const needs = runNodes.get(rk)?.needs ?? [];
     return needs.length ? Math.max(runStart, ...needs.map((n) => finish(n, seen))) : runStart;
   };
   /** The need that finished last: the one that let this job start. */
-  const releasedBy = (key: string) => {
-    const needs = nodes.get(key)?.needs ?? [];
+  const releasedBy = (rk: string) => {
+    const needs = runNodes.get(rk)?.needs ?? [];
     return needs.length ? needs.reduce((a, b) => (finish(b) > finish(a) ? b : a)) : undefined;
+  };
+  const graphJob = (rk: string | undefined) => (rk ? nodes.get(runNodes.get(rk)!.key) : undefined);
+  const labelOf = (rk: string) => {
+    const own = instances.get(rk) ?? [];
+    return own.length === 1 ? own[0]!.name : shownName(graphJob(rk)!.label);
   };
 
   // Steps' times held inside their job's: GitHub gives some steps placeholder times, such as the year 1.
@@ -497,7 +543,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
       .reduce((a, s) => a + Math.max(0, mins(clamp(ms(s.started_at!)), clamp(ms(s.completed_at!)))), 0);
   };
   const timed = (j: ApiJob): RunJob => {
-    const key = keyOf.get(j.id);
+    const key = rkOf.get(j.id);
     const start = ms(j.started_at!);
     // A job can't start before what it needs is done; if the times say it did, the join is off, and it reads as unblocked then.
     const readyAt = Math.min(key ? ready(key) : runStart, start);
@@ -508,7 +554,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
       id: j.id,
       name: j.name,
       key,
-      needs: key ? (nodes.get(key)?.needs ?? []) : [],
+      needs: key ? (runNodes.get(key)?.needs ?? []) : [],
       readyMin: mins(runStart, readyAt),
       createdMin: mins(runStart, ms(j.created_at)),
       startMin: mins(runStart, start),
@@ -536,7 +582,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
 
   // The critical path: back from the job that ended last.
   const end = ran.reduce((a, b) => (b.completed_at! > a.completed_at! ? b : a));
-  const pathJobs = [...chainBefore(keyOf.get(end.id)), end];
+  const pathJobs = [...chainBefore(rkOf.get(end.id)), end];
   const spanMin = mins(runStart, ms(end.completed_at!));
   let before = 0;
   const path: Link[] = pathJobs.map((a) => {
@@ -550,15 +596,14 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
   const holds = new Map<string, Set<number>>();
   for (const j of jobs)
     for (const up of chainBefore(j.key)) {
-      const k = keyOf.get(up.id)!;
+      const k = rkOf.get(up.id)!;
       holds.set(k, (holds.get(k) ?? new Set()).add(j.id));
     }
   const blockers = [...holds]
     .map(([key, held]) => {
-      const own = instances.get(key)!;
       // From when it could start to when its last instance ended: what the jobs behind it would gain were it instant.
       const tookMin = mins(ready(key), finish(key));
-      return { key, name: own.length === 1 ? own[0]!.name : shownName(nodes.get(key)!.label), heldJobs: held.size, tookMin, heldJobMin: held.size * tookMin };
+      return { key, name: labelOf(key), heldJobs: held.size, tookMin, heldJobMin: held.size * tookMin };
     })
     .sort((a, b) => b.heldJobMin - a.heldJobMin);
 
@@ -568,7 +613,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
   // A job that needs a whole job when it may need only one step of it: the upstream job's last step that makes
   // something ended well before the job did, and the waiting job's steps fetch something. A guess from names.
   const stepWaits: { job: string; waitsOn: string; step: string; earlyMin: number }[] = [];
-  for (const [key, node] of nodes) {
+  for (const [key, node] of runNodes) {
     const down = instances.get(key);
     const upKey = releasedBy(key);
     const up = upKey && lastOf(upKey);
@@ -577,13 +622,13 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
     const made = (up.steps ?? []).filter((s) => s.completed_at && PRODUCES.test(s.name) && !SETUP_STEP.test(s.name)).at(-1);
     if (!made) continue;
     const earlyMin = mins(ms(made.completed_at!), ms(up.completed_at!));
-    if (earlyMin >= LATE_MIN) stepWaits.push({ job: down.length === 1 ? down[0]!.name : shownName(node.label), waitsOn: up.name, step: made.name, earlyMin });
+    if (earlyMin >= LATE_MIN) stepWaits.push({ job: labelOf(key), waitsOn: up.name, step: made.name, earlyMin });
   }
 
   // Waits the YAML can't show: a job that got its runner long after its needs were done, when the others got theirs
   // quickly, is likely waiting on something else, such as another workflow or a concurrency group.
   // The jobs inside a workflow in another repo wait on each other in ways this file doesn't show, so they're left out.
-  const lateStarts = jobs.filter((j) => j.hiddenMin > LATE_MIN && !(j.key && nodes.get(j.key)?.opaque)).map((j) => ({ name: j.name, lateMin: j.hiddenMin }));
+  const lateStarts = jobs.filter((j) => j.hiddenMin > LATE_MIN && !graphJob(j.key)?.opaque).map((j) => ({ name: j.name, lateMin: j.hiddenMin }));
   const waitSteps = ran.flatMap((j) =>
     (j.steps ?? [])
       .filter((s) => s.started_at && s.completed_at && WAIT_STEP.test(s.name) && mins(ms(s.started_at), ms(s.completed_at)) >= 1)
@@ -605,9 +650,9 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
     stepWaits,
     lateStarts,
     waitSteps,
-    unmatched: ran.filter((j) => graph && !keyOf.get(j.id)).map((j) => j.name),
+    unmatched: ran.filter((j) => graph && !rkOf.get(j.id)).map((j) => j.name),
     ambiguous,
-    skipped: [...nodes.values()].filter((n) => !n.virtual && !instances.get(n.key)?.length).map((n) => n.label),
+    skipped: [...nodes.values()].filter((n) => !n.virtual && ![...instances.keys()].some((r) => r.split('@')[0] === n.key)).map((n) => n.label),
   };
 };
 

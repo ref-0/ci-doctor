@@ -202,7 +202,7 @@ jobs:
   const run = runGraph(graph, jobs)!;
 
   it('expands a local one into its jobs, and takes one in another repo as one job', () => {
-    assert.deepEqual(run.jobs.map((j) => j.key), ['build/compile', 'build/pack', 'lint', 'lint', 'e2e', 'gate']);
+    assert.deepEqual(run.jobs.map((j) => j.key), ['build/compile@build', 'build/pack@build', 'lint', 'lint', 'e2e', 'gate']);
     assert.match(graph.unknown.join(), /pip\/shared\/.github\/workflows\/lint.yml, in another repo/);
   });
 
@@ -216,6 +216,25 @@ jobs:
     const r = runGraph(g, [skipped('bench'), job('review / prepare', 0, 0, 1), job('review / run', 5, 5, 6)])!;
     assert.deepEqual(r.unmatched, []);
     assert.deepEqual(r.lateStarts, []);
+  });
+
+  it("keeps each instance of a matrix caller's jobs apart", () => {
+    const g = graphOf(
+      `jobs:
+  call:
+    strategy: { matrix: { os: [ubuntu, macos] } }
+    uses: ./.github/workflows/b.yml
+  after: { needs: call }
+`,
+      { '.github/workflows/b.yml': 'jobs:\n  build: {}\n  test: { needs: build }\n' },
+    );
+    // macOS builds slowly; Ubuntu's test waits only on Ubuntu's build.
+    const r = runGraph(g, [job('call (ubuntu) / build', 0, 0, 1), job('call (macos) / build', 0, 0, 6), job('call (ubuntu) / test', 1, 1, 3), job('call (macos) / test', 6, 6, 7), job('after', 7, 7, 8)])!;
+    const ubuntuTest = r.jobs.find((j) => j.name === 'call (ubuntu) / test')!;
+    assert.deepEqual([ubuntuTest.blockedMin, ubuntuTest.hiddenMin], [1, 0]);
+    assert.deepEqual(ubuntuTest.needs, ['call/build@call (ubuntu)']);
+    assert.deepEqual(r.path.map((l) => l.name), ['call (macos) / build', 'call (macos) / test', 'after']);
+    assert.equal(r.jobs.find((j) => j.name === 'after')!.blockedMin, 7);
   });
 
   it('runs the chain through the called jobs', () => {
