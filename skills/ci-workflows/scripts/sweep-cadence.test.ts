@@ -7,20 +7,14 @@
 import { deepStrictEqual, equal, match, throws } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { bisectSteps, type Commit, commitPages, firstParents, kindOf, longestGap, main, merges, parseCron, parseSlot, perDay, priced, replay, runsOf, schedules, slotIn, slotsOf } from './sweep-cadence.ts';
+import { longestGap, parseCron } from './cron.ts';
+import { bisectSteps, type Commit, commitPages, firstParents, kindOf, main, merges, parseSlot, perDay, priced, replay, runsOf, schedules, slotIn } from './sweep-cadence.ts';
 
 const hour = 3600;
 const day = 24 * hour;
 const at = (s: number) => new Date(s * 1000).toISOString();
 
-describe('cron schedules', () => {
-  const at0 = Date.UTC(2026, 10, 2) / 1000; // Monday 2 November 2026, 00:00 UTC
-
-  it('places slots at the cron’s own time of day, not from the window’s start', () => {
-    // A window that starts at 10:00: the daily 02:41 slot is the next day's, not 10:00 + 24 hours.
-    deepStrictEqual(slotsOf(parseCron('41 2 * * *'), at0 + 10 * hour, at0 + 2 * day), [at0 + day + 2 * hour + 41 * 60]);
-  });
-
+describe('the schedules and their slot', () => {
   it('builds the default schedules at the slot’s time of day', () => {
     deepStrictEqual(
       schedules({ hour: 14, minute: 5, from: 'x' }).map((s) => s.cron),
@@ -28,24 +22,14 @@ describe('cron schedules', () => {
     );
   });
 
-  it('reads every 2 days as cron does, and weekly on its weekday', () => {
-    const twoDays = slotsOf(parseCron('0 0 */2 * *'), at0, at0 + 6 * day).map((t) => new Date(t * 1000).getUTCDate());
-    deepStrictEqual(twoDays, [3, 5, 7]);
-    deepStrictEqual(slotsOf(parseCron('0 3 * * 1'), at0, at0 + 14 * day), [at0 + 3 * hour, at0 + 7 * day + 3 * hour]);
-    // A 30-day month's 29th to the next 1st is two days; a 31-day month's 31st to the 1st is one.
-    equal(longestGap(parseCron('0 0 */2 * *')), 2 * day);
-    equal(longestGap(parseCron('0 0 * * 1')), 7 * day);
-    equal(longestGap(parseCron('5 2,8,14,20 * * *')), 6 * hour);
-    throws(() => parseCron('0 0 * *'), /five fields/);
-    throws(() => parseCron('0 25 * * *'), /out of range/);
-  });
-
-  it('takes the slot from --slot, the workflow’s SWEEP_AT or its first cron, in that order', () => {
+  it('takes the slot from --slot, the workflow’s SWEEP_CRON or its first cron, in that order', () => {
     deepStrictEqual(parseSlot('02:41'), { hour: 2, minute: 41, from: '--slot' });
     throws(() => parseSlot('2:61'), /HH:MM/);
-    const workflow = "on:\n  schedule:\n    - cron: '41 2 * * *'\n    - cron: '41 8,14,20 * * *'\nenv:\n  SWEEP_AT: '03:17'\n";
-    deepStrictEqual(slotIn(workflow, 'sweep.yml'), { hour: 3, minute: 17, from: "sweep.yml's SWEEP_AT" });
+    const workflow = "on:\n  schedule:\n    - cron: '41 2 * * *'\n    - cron: '41 8,14,20 * * *'\nenv:\n  SWEEP_CRON: '17 3 * * 1'\n";
+    deepStrictEqual(slotIn(workflow, 'sweep.yml'), { hour: 3, minute: 17, from: "sweep.yml's SWEEP_CRON" });
     deepStrictEqual(slotIn(workflow.replace(/env:[\s\S]*/, ''), 'sweep.yml'), { hour: 2, minute: 41, from: "sweep.yml's first cron" });
+    // A cron with several times a day: its first.
+    deepStrictEqual(slotIn("    - cron: '30 6,18 * * *'\n", 'sweep.yml'), { hour: 6, minute: 30, from: "sweep.yml's first cron" });
     equal(slotIn('on: push\n', 'sweep.yml'), undefined);
   });
 });
@@ -88,6 +72,17 @@ describe('pricing a schedule', () => {
     deepStrictEqual(priced(weekly, { sweeps: 0, quiet: 0, spans: [], pending: 6 }, 7 * day, 1, cost), {
       schedule: weekly, available: false, why: 'needs a window of at least 14 days (--days)',
     });
+  });
+
+  it('measures the gap over the whole calendar, so a seasonal cron needs a window of its longest gap', () => {
+    // 1 February and 1 March: 28 days apart, then 337 to the next February.
+    const seasonal = { cron: '0 0 1 2,3 *', name: 'seasonal' };
+    const none = { sweeps: 0, quiet: 0, spans: [], pending: 0 };
+    deepStrictEqual(priced(seasonal, none, longestGap(parseCron(seasonal.cron)), 56, cost), {
+      schedule: seasonal, available: false, why: 'needs a window of at least 674 days (--days)',
+    });
+    const never = { cron: '0 0 31 2 *', name: 'never' };
+    deepStrictEqual(priced(never, none, longestGap(parseCron(never.cron)), 56, cost), { schedule: never, available: false, why: 'its cron never runs' });
   });
 
   it('counts the merges still waiting at the window’s end as hidden', () => {
@@ -161,7 +156,7 @@ describe('listing runs', () => {
       { id: 901, display_title: 'CI on main, daily', event: 'workflow_dispatch', conclusion: 'success', created_at: at(start - hour), head_branch: 'main' },
     ] });
     const fake = (...args: string[]) => JSON.stringify(pages[Number(/[?&]page=(\d+)/.exec(args[2] ?? '')?.[1]) - 1] ?? { workflow_runs: [] });
-    const { runs, truncated } = runsOf(fake, 'o/r', 'ci.yml', '', start, (r) => r.display_title.startsWith('CI on main, '), 10);
+    const { runs, truncated } = runsOf(fake, 'o/r', 'ci.yml', '', start, (r) => r.display_title.startsWith('CI on main, '), (_, kept) => kept >= 10);
     deepStrictEqual([runs.map((r) => r.id), truncated], [[900], false]);
   });
 });
@@ -179,7 +174,10 @@ describe('main, with a fake gh', () => {
     if (path.includes('/commits?')) return JSON.stringify(history(now - 20 * day));
     if (path.includes('event=pull_request')) return JSON.stringify({ workflow_runs: [{ id: 3, display_title: 'A change', event: 'pull_request', conclusion: 'success', created_at: at(now - 2 * hour), head_branch: 'x' }] });
     if (path.includes('/runs?')) {
-      return JSON.stringify({ workflow_runs: Object.keys(sweepJobs).map((id) => ({ id: Number(id), display_title: 'CI on main, daily', event: 'workflow_dispatch', conclusion: 'success', created_at: at(now - Number(id) * hour), head_branch: 'main' })) });
+      // Newest first, a minute apart, in pages of 100.
+      const page = Number(/[?&]page=(\d+)/.exec(path)?.[1]);
+      const ids = Object.keys(sweepJobs).map(Number).toSorted((a, b) => a - b).slice((page - 1) * 100, page * 100);
+      return JSON.stringify({ workflow_runs: ids.map((id) => ({ id, display_title: 'CI on main, daily', event: 'workflow_dispatch', conclusion: 'success', created_at: at(now - id * 60), head_branch: 'main' })) });
     }
     const jobs = /runs\/(\d+)\/jobs/.exec(path);
     if (jobs) {
@@ -208,24 +206,39 @@ describe('main, with a fake gh', () => {
   };
 
   it('prices full sweeps by the runs that ran tests, and quiet slots by those that ran none', () => {
-    const out = printed(args, fake(sweeps, "env:\n  SWEEP_AT: '02:41'\n"));
+    const out = printed(args, fake(sweeps, "env:\n  SWEEP_CRON: '41 2 * * *'\n"));
     match(out, /4 merges \(first-parent commits\)/);
     match(out, /A full sweep: 62 job-minutes, 124 vCPU-minutes, the median of 1 passing runs that ran tests. A slot with nothing new: 2 job-minutes, the median of 1 passing runs that ran none/);
-    match(out, /Slots at 02:41 UTC, from \.github\/workflows\/sweep\.yml's SWEEP_AT\./);
+    match(out, /Slots at 02:41 UTC, from \.github\/workflows\/sweep\.yml's SWEEP_CRON\./);
     // 28 slots in 28 days, scaled to a 30-day month.
     match(out, /\| daily \| `41 2 \* \* \*` \| 30 \(/);
     match(out, /\| weekly, Mondays \| `41 2 \* \* 1` \| 4 \(/);
   });
 
   it('takes --slot over the workflow, says when it assumed one, and prices a cron given', () => {
-    match(printed([...args, '--slot', '14:05'], fake(sweeps, "env:\n  SWEEP_AT: '02:41'\n")), /Slots at 14:05 UTC, from --slot\.[\s\S]*\| every 6 hours \| `5 2,8,14,20 \* \* \*`/);
-    match(printed(args, fake(sweeps)), /Slots at 00:00 UTC, from an assumption: no SWEEP_AT or cron/);
+    match(printed([...args, '--slot', '14:05'], fake(sweeps, "env:\n  SWEEP_CRON: '41 2 * * *'\n")), /Slots at 14:05 UTC, from --slot\.[\s\S]*\| every 6 hours \| `5 2,8,14,20 \* \* \*`/);
+    match(printed(args, fake(sweeps)), /Slots at 00:00 UTC, from an assumption: no SWEEP_CRON or cron/);
     const out = printed([...args, '--option', '0 6 * * 1,4'], fake(sweeps));
     match(out, /\| 0 6 \* \* 1,4 \| `0 6 \* \* 1,4` \| 9 \(/);
     equal(out.includes('every 6 hours'), false);
   });
 
-  it('says there is not enough evidence when no sweep in the window ran a test job', () => {
-    throws(() => printed(args, fake({ 1: [job('Plan', 1), job('CI result', 1)], 2: [job('Plan', 1)] })), /not enough evidence: no successful sweep run/);
+  it('marks a seasonal cron unavailable over its whole calendar, and prices the rest', () => {
+    const out = printed([...args, '--option', '0 0 1 2,3 *', '--option', '0 0 * * *'], fake(sweeps));
+    match(out, /\| 0 0 1 2,3 \* \| `0 0 1 2,3 \*` \| unavailable: needs a window of at least 674 days \(--days\)/);
+    match(out, /\| 0 0 \* \* \* \| `0 0 \* \* \*` \| 30 \(/);
+  });
+
+  // From id 10, clear of the PR run's 3.
+  const quietRuns = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i + 10, [job('Plan', 1), job('CI result', 1)]]));
+
+  it('reads past quiet slots until it finds full sweeps', () => {
+    const out = printed(args, fake({ ...quietRuns(40), 50: sweeps[1] }));
+    match(out, /A full sweep: 62 job-minutes, 124 vCPU-minutes, the median of 1 passing runs that ran tests. A slot with nothing new: 2 job-minutes, the median of 10 passing runs that ran none/);
+  });
+
+  it('tells a window with no full sweep from a listing GitHub stopped before one', () => {
+    throws(() => printed(args, fake({ 1: [job('Plan', 1), job('CI result', 1)], 2: [job('Plan', 1)] })), /no full sweep: none of the 2 sweep runs/);
+    throws(() => printed(args, fake({ ...quietRuns(1000), 1010: sweeps[1] })), /incomplete evidence: the newest 1,000 runs of ci\.yml on main, GitHub's limit for a filtered listing, held 1000 sweep runs/);
   });
 });

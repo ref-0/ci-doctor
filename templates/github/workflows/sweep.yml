@@ -6,18 +6,17 @@
 #
 # How often to sweep is the user's cost and risk decision, recorded as a cron in .agents/repo/ci.md's
 # "Sweep cadence": the ci-workflows skill's tiers ("Choosing the sweep's cadence") price schedules
-# from this repo's merges and a sweep's cost with sweep-cadence.ts, which reads SWEEP_AT below for
+# from this repo's merges and a sweep's cost with sweep-cadence.ts, which reads SWEEP_CRON below for
 # the slots' time of day. There's no trigger by merge count, on purpose: a schedule's cost and the
-# merges it can hide are what the user chooses between. The `start` step below finds the newest slot
-# as today's or yesterday's SWEEP_AT, so it fits a daily cron; for another schedule, make it find the
-# newest of that cron's slots, as the `server` job does for SERVER_AT, or a weekly sweep's fallback
-# starts one every day.
+# merges it can hide are what the user chooses between. Any cron works here, weekly or every 2 days
+# too: both jobs find the newest slot with scripts/sweeps/cron.ts, which reads all five fields as
+# sweep-cadence.ts prices them.
 #
-# The slots: the times here are illustrative. Each slot appears in four coupled places, since GitHub
-# takes no expression in a cron or in a job's `if:`. Change them together:
+# The slots: the times here are illustrative. Each cron appears in three coupled places, since
+# GitHub takes no expression in a cron or in a job's `if:`. Change them together:
 #   1. the two crons under `on.schedule`;
 #   2. the server cron's exact string in both jobs' `if:`;
-#   3. SWEEP_AT and SERVER_AT under `env`, which the steps compute the newest slot from.
+#   3. SWEEP_CRON and SERVER_CRON under `env`, which the steps find the newest slot from.
 # A renamed run title (ci.yml's run-name) also has to change in both steps' `select`.
 #
 # Pushes don't each start a sweep. The `push` trigger is the fallback for a late or missing cron: a
@@ -26,7 +25,7 @@
 # start nothing until the next slot. It can start CI on a merge, so approve it separately, or delete
 # it to rely on the cron alone.
 #
-# With one daily suite and no server slots: delete the second cron, SERVER_AT and the `server` job.
+# With one daily suite and no server slots: delete the second cron, SERVER_CRON and the `server` job.
 #
 # The sweep is also the only refresh of the shard times, the one run that times every file. Pick
 # its cadence on cost and risk alone: measured, times a week old split shards about as evenly as
@@ -58,14 +57,16 @@ on:
     - cron: '41 2 * * *'
     - cron: '41 8,14,20 * * *'
 
-# The slots' times, UTC, as the crons above say them. SERVER_AT may be empty.
+# The crons above, UTC, character for character.
 env:
-  SWEEP_AT: '02:41'
-  SERVER_AT: '08:41 14:41 20:41'
+  SWEEP_CRON: '41 2 * * *'
+  SERVER_CRON: '41 8,14,20 * * *'
 
-# The run's own token may start a workflow_dispatch, unlike its other events.
+# The run's own token may start a workflow_dispatch, unlike its other events. Contents: to check out
+# the slot helper.
 permissions:
   actions: write
+  contents: read
 
 jobs:
   start:
@@ -76,18 +77,25 @@ jobs:
       group: sweep-start
       cancel-in-progress: false
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
+      # Only the slot helper, run on Node 24 with nothing installed.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/sweeps/cron.ts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
       # A sweep's name, as ci.yml's run-name gives it on main, whoever started it.
-      - name: Start it, unless one started since the day's slot
+      - name: Start it, unless one started since the newest slot
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          slot=$(date -u "+%Y-%m-%dT${SWEEP_AT}:00Z")
-          if [ "$(date -u +%s)" -lt "$(date -u -d "$slot" +%s)" ]; then
-            slot=$(date -u -d yesterday "+%Y-%m-%dT${SWEEP_AT}:00Z")
-          fi
-          # Only runs started by hand, which a day's merges' own runs can't push past a page.
+          slot=$(node scripts/sweeps/cron.ts newest "$SWEEP_CRON")
+          # Only runs started by hand; --paginate reads every page since the slot.
           started=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&created=%3E%3D$slot&per_page=100" \
             --jq '.workflow_runs[] | select(.display_title | startswith("CI on main, ")) | .id' | wc -l)
           if [ "$started" -gt 0 ]; then
@@ -104,27 +112,28 @@ jobs:
       group: server-sweep-start
       cancel-in-progress: false
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
-      # The newest of the four slots: the sweep's, which `start` keeps and whose sweep runs these
-      # tests too, or one of the three between. A run of either name since it counts.
+      # Only the slot helper, run on Node 24 with nothing installed.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/sweeps/cron.ts
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The newer of the two crons' newest slots: the sweep's, which `start` keeps and whose sweep
+      # runs these tests too, or the server cron's. A run of either name since it counts.
       - name: Start them, unless they started since the slot
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          now=$(date -u +%s)
-          slot=
-          mapfile -t slots < <(printf '%s\n' "$SWEEP_AT" "$SERVER_AT" | sort -r)
-          for day in "$(date -u +%Y-%m-%d)" "$(date -u -d yesterday +%Y-%m-%d)"; do
-            for at in "${slots[@]}"; do
-              if [ "$(date -u -d "${day}T${at}:00Z" +%s)" -le "$now" ]; then
-                slot="${day}T${at}:00Z"
-                break 2
-              fi
-            done
-          done
-          if [[ $slot == *T$SWEEP_AT:00Z ]]; then
-            echo "::notice::The newest slot, $slot, is the sweep's, which runs these tests."
+          sweep=$(node scripts/sweeps/cron.ts newest "$SWEEP_CRON")
+          slot=$(node scripts/sweeps/cron.ts newest "$SERVER_CRON")
+          if [[ ! $slot > $sweep ]]; then
+            echo "::notice::The newest slot, $sweep, is the sweep's, which runs these tests."
             exit 0
           fi
           started=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=workflow_dispatch&created=%3E%3D$slot&per_page=100" \
