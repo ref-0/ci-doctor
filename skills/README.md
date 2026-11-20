@@ -47,7 +47,7 @@ A harness picks a skill by its `description` alone, from a list of every skill i
 5. **Boundaries:** a sibling a nearby request should go to, by its exact folder name, and only skills that exist. Bad: "a flake: ci-doctor", once `fix-flaky-test` owns flakes.
 6. **Plain text:** no backticks, angle brackets or Markdown. Claude Code shows angle brackets as `&lt;`; write `[placeholder]`.
 7. **Length:** at most 320 characters, well under every host's cap.
-8. **Measured:** each skill has should-trigger and should-not-trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/next/evals). Change a description only with a run of its cases.
+8. **Measured:** each skill has should-trigger and should-not-trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/evals). Change a description only with a run of its cases.
 
 `node scripts/check.ts` checks rules 4 to 7 and that each bracketed "Not for" sibling exists. Rules 1 to 3 and 8 are the reviewer's.
 
@@ -72,11 +72,11 @@ What moves, and what stays:
 
 - **Everything moves.** The topic's `TOPIC.md` becomes the skill's `SKILL.md`, its detail goes to the skill's `references/`, and the topic's folder goes. Each fact keeps one home.
 - **The hub keeps links only:** its topic map's row, the phases that used the topic, and its "Not here", each pointing to the skill by name and path. Nothing is copied back.
-- **The description follows [Writing a description](#writing-a-description),** in the asker's words, not CI's, with trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/next/evals).
-- **It stands alone.** What an agent needs to start, such as the setup step, the facts it reads and the checks it follows, is inside the skill, as a short copy or a reference page of its own. Everything else is a full link, to the guide at `https://ci-doctor.ref0.dev/guide/<path>` or to the repo on GitHub at `next`, never a relative path out of the folder. The skill names its release in `metadata.version`, says how to run its tools from a skills-only install, and has its own "Outside this skill" section.
+- **The description follows [Writing a description](#writing-a-description),** in the asker's words, not CI's, with trigger cases in [`evals/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/evals).
+- **It stands alone.** What an agent needs to start, such as the setup step, the facts it reads and the checks it follows, is inside the skill, as a short copy or a reference page of its own. Everything else is a full link, to the guide at `https://ci-doctor.ref0.dev/guide/<path>` or to the repo on GitHub at the release tag `v<version>`, never a relative path out of the folder. A link to what only `next` has points at `next` until the release, which points it at the new tag. The skill names its release in `metadata.version`, which the tag in its links matches, says how to run its tools from a skills-only install, and has its own "Outside this skill" section.
 - **It's in the map** above, the README's Installing, the [`AGENTS.md` snippet](agent-knowledge/templates/AGENTS-snippet.md) and guide section 17's list, and the changelog says what a copy of the hub must change.
 
-The build checks (`scripts/check.ts`) copy each skill's folder alone, as `npx skills add` with one skill chosen installs it, and fail on a link inside it that doesn't resolve in the copy, a relative link out of it, which dangles there, and a full link to the guide site or to GitHub at `next` that names no file in the repo. Only the hub may link out relatively, to what the guide site serves, since its ["Outside the skills"](ci-doctor/SKILL.md#outside-the-skills) covers it. A new skill gets that check by being a folder here.
+The build checks (`scripts/check.ts`) copy each skill's folder alone, as `npx skills add` with one skill chosen installs it, and fail on a link inside it that doesn't resolve in the copy, a relative link out of it, which dangles there, a full link to the guide site, or to GitHub at the release tag or `next`, that names no file in the repo, and a link to GitHub at another tag. Only the hub may link out relatively, to what the guide site serves, since its ["Outside the skills"](ci-doctor/SKILL.md#outside-the-skills) covers it. A new skill gets that check by being a folder here.
 
 [`tools/upstream-sync/`](../tools/upstream-sync/README.md) isn't a skill: it's an opt-in weekly check that the skills you copied from upstream changed there, filed as one issue. [`docs/harnesses.md`](../docs/harnesses.md) says how to run agents in parallel and on a schedule in each harness.
 
