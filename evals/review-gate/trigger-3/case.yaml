@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: review-gate-trigger-3
+description: Should load review-gate.
+tags: [review-gate, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Run the tests reviewer on this draft before its CI run."
+graders:
+  - name: loaded-review-gate
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?review-gate"'

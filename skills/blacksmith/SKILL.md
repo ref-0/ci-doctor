@@ -1,6 +1,6 @@
 ---
 name: blacksmith
-description: "Handles Blacksmith runners for GitHub Actions: labels, sticky disks, CLI, bill and a move there. Use when an ask names Blacksmith, its labels, sticky disks, CLI or bill, or a move to it. Not for other workflow, runner, cache or failed-check work in a Blacksmith repo (ci-workflows, ci-runners, cache-ci, ci-doctor)."
+description: "Runs GitHub Actions on Blacksmith: its runner labels, sticky disks, cache, CLI, bill and the move there. Use when a repo's CI runs on Blacksmith or is moving there, or an ask names its labels, sticky disks or bill. Not for runner sizing and spend on any provider (ci-runners); workflow edits (ci-workflows)."
 metadata:
   version: "0.1.0"
 ---

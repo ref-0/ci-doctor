@@ -1,6 +1,6 @@
 ---
 name: ci-runners
-description: "Sizes CI runners, cuts the CI bill and fixes jobs that wait for a runner, on any provider. Use when the CI bill is too high, jobs wait to start, picking a runner size or shard count, capping spend, or leaving GitHub-hosted runners. Not for workflow edits (ci-workflows) or Blacksmith specifics (blacksmith)."
+description: "Sizes CI runners, cuts the CI bill and fixes jobs that wait for a runner, on any provider. Use when the CI bill is too high, jobs wait to start, picking a runner size or shard count, capping spend, or leaving GitHub-hosted runners. Not for workflow edits (ci-workflows); Blacksmith specifics (blacksmith)."
 metadata:
   version: "0.1.0"
 ---
