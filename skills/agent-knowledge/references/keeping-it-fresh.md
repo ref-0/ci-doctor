@@ -35,7 +35,7 @@ A sweep is a new scheduled job: propose it with its cost, and get its own yes.
 
 A size budget enforced in CI forces cutting rather than moving. The source repo's limits: skill descriptions at most 320 characters, upstream copies' too; its own `SKILL.md` at most 10 KB; the root `AGENTS.md` at most 12 KB; other agent and rules files at most 8 KB; and dated history lines ("Changed on…") rejected, since history belongs in git. Recognized vendored skills are held only to the description budget.
 
-ci-doctor's [`scripts/docs/`](../../../scripts/docs/README.md) has the checker, `docs-budget.ts`, and a link checker, `check-links.ts`, with what each fails on and how to wire them in. Set the budgets from what your docs hold after you compact them, with headroom, and point `layout.skillPath` at where your skills live. Run the link checker after moving or renaming any file.
+ci-doctor's [`scripts/docs/`](https://github.com/ref-0/ci-doctor/blob/next/scripts/docs/README.md) has the checker, `docs-budget.ts`, and a link checker, `check-links.ts`, with what each fails on and how to wire them in. Set the budgets from what your docs hold after you compact them, with headroom, and point `layout.skillPath` at where your skills live. Run the link checker after moving or renaming any file.
 
 ## Upstream skills
 
@@ -44,4 +44,4 @@ A skill copied from another repo goes stale there too.
 - **Pin it.** A skills lockfile records each installed upstream skill. A copy you've edited stays out of the lock, so an update can't overwrite it, and records its source commit instead.
 - **Diff on a schedule, apply by hand.** A weekly job updates the locked skills in a throwaway checkout, reapplies your documented edits, diffs only the locked folders and the lock, and opens or comments on one issue. It never saves the update or merges. A hand-edited copy is compared with its recorded upstream baseline.
 
-ci-doctor's [`tools/upstream-sync/`](../../../tools/upstream-sync/README.md) has the opt-in workflow and the helper that reapplies local edits.
+ci-doctor's [`tools/upstream-sync/`](https://github.com/ref-0/ci-doctor/blob/next/tools/upstream-sync/README.md) has the opt-in workflow and the helper that reapplies local edits.
