@@ -346,12 +346,43 @@ describe("a wait the YAML can't see", () => {
 
   it('says so across the sample', () => {
     const g = jobGraphOf(() => `jobs:\n  build: {}\n  test: { needs: build }\n  lint: {}\n  deploy-preview: {}\n`, [
-      { id: 1, path: '.github/workflows/ci.yml', jobs },
+      { id: 1, path: '.github/workflows/ci.yml', jobs: jobs.filter((j) => j.name !== 'surprise') },
       { id: 2, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 2), job('test', 2, 2.1, 4)] },
     ])!;
+    assert.equal(g.runsLeftOut, 0);
     assert.equal(g.hidden.runs, 1);
     assert.deepEqual(g.hidden.jobs, [{ name: 'deploy-preview', runs: 1 }]);
     assert.match(graphBlock(g), /1 of 2 runs had a job GitHub queued over 2 minutes after its needs finished/);
+  });
+});
+
+describe("a run whose jobs don't fit today's YAML", () => {
+  // Today's YAML has test needing nothing. Runs 2 and 3 ran other YAML: in 2, a PR had test wait on build; in 3, a
+  // job today's YAML doesn't have.
+  const yaml = 'jobs:\n  build: {}\n  test: {}\n  gate: { needs: [build, test] }\n';
+  const sample = [
+    { id: 1, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 3), job('test', 0, 0, 2), job('gate', 3, 3, 3.5)] },
+    { id: 2, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 3), job('test', 3, 3, 5), job('gate', 5, 5, 5.5)] },
+    { id: 3, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 3), job('test', 0, 0, 2), job('docs', 0, 0, 1), job('gate', 3, 3, 3.5)] },
+  ];
+  const g = jobGraphOf(() => yaml, sample)!;
+
+  it('is left out of the chain and the hidden waits, and counted', () => {
+    assert.equal(g.runsLeftOut, 2);
+    assert.equal(g.runsUsed, 1);
+    assert.equal(g.hidden.runs, 0);
+    assert.equal(g.chainRuns, 1);
+    assert.deepEqual(g.chain.map((l) => l.name), ['build', 'gate']);
+    assert.deepEqual(g.leftOutBecause.map((w) => w.why).sort(), ["a job GitHub created as another finished, a need the YAML lacks", "a job the YAML doesn't name, or could name two ways"]);
+    assert.deepEqual(g.perRun.map((r) => r.fits), [true, false, false]);
+    assert.match(graphBlock(g), /Left out {12}2 of 3 runs, whose jobs don't fit today's YAML/);
+  });
+
+  it('is left out when a job started before a need the YAML names', () => {
+    const early = jobGraphOf(() => 'jobs:\n  build: {}\n  test: { needs: build }\n', [{ id: 1, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 3), job('test', 0, 0, 2)] }])!;
+    assert.deepEqual(early.leftOutBecause, [{ why: 'a job GitHub created before a need the YAML names had finished', runs: 1 }]);
+    assert.deepEqual(early.chain, []);
+    assert.match(promptLines(early)[0]!, /^Chain that sets the wait: unknown; 1 of 1 runs left out/);
   });
 });
 

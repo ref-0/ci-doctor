@@ -129,7 +129,8 @@ The job graph is `needs:`, waits on another job's step, and the queue each job w
 - **the top blocker:** the job that holds up the most downstream job-minutes, each dependent counted only for how long it waited on this job past its other needs;
 - **setup in the path:** setup minutes in path jobs that first waited on others, which overlapping with upstream work could hide;
 - **a wait on one step, as a guess:** a job that needs a whole job whose last step that makes something ended minutes before it did;
-- **waits the YAML can't show:** runs with a job created over 2 minutes after its known needs finished, and steps named for waiting or polling.
+- **waits the YAML can't show:** runs with a job created over 2 minutes after its known needs finished, and steps named for waiting or polling;
+- **runs left out:** the graph is the default branch's, so a run whose jobs don't fit it, such as a PR that changed a `needs:`, is counted and left out of the rest, rather than read wrong.
 
 Its fixes "Setup on the critical path" and "A blocker most jobs wait on" link here and to section 7. A job in another repo's reusable workflow is taken as one job, since reading it would cost calls, and one workflow's file can't show what another workflow or a `workflow_run` trigger holds up.
 
