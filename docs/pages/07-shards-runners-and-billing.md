@@ -2,6 +2,8 @@
 
 # 7. Shards, runners and billing
 
+Split tests into shards by measured time, size runners from the work and the bill, and shorten the critical path before buying cores.
+
 ## Shards from measured time, not file count
 
 **Applies when:** Tests run, or should run, across several shards, and each file's time on main is recorded. **Skip when:** There are no per-file times yet.
@@ -48,7 +50,7 @@ Each shard runs a lane per worker, and a lane starts its next task the moment it
 - **Container tests** are packed longest-first into jobs targeting ~150 s, one file at a time, on a small runner (2 vCPU for us; size yours from its own CPU). Re-estimate a file only when it's off by more than 20%.
   - **Pack from a wall-clock measurement around the whole file command,** collection and setup included, from successful files that actually ran. Vitest's per-module duration, which our records store, leaves collection out (the records keep it separately), so it isn't that number. A sum of printed case durations is only a lower bound: if it exceeds the estimate, the estimate is low; if it's lower, that proves nothing. Don't replace estimates with case sums, and remember skipped files have no execution time.
 - **Size each architecture separately.** Going to 8 vCPU halved the Arm compile but didn't help x64.
-- **Cheaper cores aren't cheaper service.** Arm runners at ~37% lower minute price ran our JS tests ~30% slower, and three files failed.
+- **A lower minute price isn't better service.** Arm runners at ~37% lower minute price ran our JS tests ~30% slower, and three files failed.
 
 ## Shorten the critical path before buying cores
 

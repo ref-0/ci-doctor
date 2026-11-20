@@ -2,6 +2,8 @@
 
 # 15. The agent workflow around CI
 
+Run PRs with coding agents so each one aims at a single CI run: drafts until done, a review before ready, and slow-test campaigns in parallel.
+
 **Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
 
 - **Draft until done.** This is our merge policy: engineers open drafts, and a manager agent marks them ready and merges, so each PR aims at one CI run. On another repo, keep its trigger and merge policy (base branch, required checks, allowed merge method, approvals, reviews dismissed on push, merge queue) until the user approves a change, and test the current required ref, including the merge queue's commit where there is one.
@@ -29,7 +31,7 @@ The review gate checks that a record exists and is well formed. This is the revi
 
 **Before starting,** name the session for the PR and the short commit it starts at, such as `<pr>-<head-sha>`, so it never reads an earlier session's output as its own. Check for collisions: `gh pr list --repo <org>/<repo> --search "<file>"` for each file, looking for the same lines, a heading this PR renames, or a table it reflows for one row. Narrow the change, stack on the other PR, or say which merges first.
 
-**Plan the reviewers.** Read the diff, and give each area the change reaches a reviewer of the type that fits it: red team for a token, system design for a lease, storage for a migration, program design for a contract, fuzzing for a parser, bounded verification for a model's rules, stress test for inputs, experiment and skeptic for a spike's results, with the bar in the hub's [`verify-evidence`](../../skills/ci-doctor/references/verify-evidence/TOPIC.md). A type that reaches several areas gets one reviewer per area. We used 1 to 8 reviewers a round.
+**Plan the reviewers.** Read the diff, and give each area the change reaches a reviewer of the type that fits it: red team for a token, system design for a lease, storage for a migration, program design for a contract, fuzzing for a parser, bounded verification for a model's rules, stress test for inputs, experiment and skeptic for a spike's results, with the bar in the [`prove-it`](../../skills/prove-it/SKILL.md) skill. A type that reaches several areas gets one reviewer per area. We used 1 to 8 reviewers a round.
 
 **Rounds, at most three.** Keep the PR a draft, and keep a ledger of the reviewers, the types not run and why, and every finding, written before the first reviewer starts, so a restart can resume from it.
 - Round 1 runs every planned reviewer at once, each on its scope.
@@ -50,7 +52,7 @@ A finding reopens only with evidence its dismissal was wrong or its fix failed. 
 **Applies when:** The slow-file inventory is long enough to split among agents, and the harness runs them in parallel, each in its own worktree. **Skip when:** The harness can't run parallel agents, or one agent can work the inventory.
 
 1. **Collect records** since the last run, rank every file past 10 s, every file that ends a shard, every wide spread and every flake. That's the item list, plus open items from the ledger.
-2. **Review every item, slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.
+2. **Review every item, slowest first.** A second model that costs less reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.
 3. **Merge findings by shared cause** into briefs. Each brief is a file with one finish line, CI's before-times, the proof to keep, the local command and the review requirement. Shared rules live in one README every brief links to.
 4. **One engineer per brief,** each in its own worktree. Cap concurrency per account and by machine load: on one day load climbed well past the core count and no more were started. Check for overlapping PRs (`gh pr list --search <file>`) before starting.
 5. **The manager marks ready and merges** on green, with resolved review and logs showing the files ran. A flaky failure reruns once; a second failure becomes an issue.

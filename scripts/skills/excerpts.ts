@@ -14,8 +14,9 @@
  * `#anchor` points back at its source.
  *
  * The techniques index lists each guide page's H2s, each with the `**Applies when:** …
- * **Skip when:** …` line directly under it. A page with no H2 carries that line under its H1, and
- * any page may. A heading the index lists without one fails the build.
+ * **Skip when:** …` line directly under it. A page with no H2 carries that line under its H1, after
+ * the page's one-sentence lead, and any page may. A heading the index lists without one fails the
+ * build.
  *
  * Runs: from the repo's root. Node 24 only. Tests: `node --test excerpts.test.ts`, from this folder.
  */
@@ -58,7 +59,7 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
     phase: 1,
     title: 'Phase 1: the techniques and the planner',
     parts: [
-      { index: pages(2, 17), why: 'Every technique in guide sections 2–17, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.' },
+      { index: [...pages(2, 17), ...pages(21, 21)], why: 'Every technique in guide sections 2–17 and 21, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.' },
       { from: 'docs/pages/18-tried-and-dropped.md', whole: true, why: 'What was tried and dropped, and what would have to change before trying again.' },
       { from: 'docs/pages/20-thresholds-cheat-sheet.md', whole: true, why: "The source repo's starting values, as examples, not targets." },
       { from: 'docs/pages/04-run-only-what-a-change-can-reach.md', sections: ['Turborepo and Nx: their own affected runs first'], why: 'Selection with Turborepo or Nx.' },
@@ -87,7 +88,6 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
       { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Checking a cache on another task runner'], why: 'Checking a cache before the plan relies on it.' },
       { from: 'docs/pages/16-standing-automations.md', whole: true, why: 'The automations table, for the plan\'s automations step.' },
       { from: 'docs/pages/10-slow-tests-the-method.md', sections: ['Name the wait before changing anything'], why: 'The slow-test fix table, for each file in the inventory.' },
-      { from: 'docs/pages/17-keeping-agent-knowledge-from-going-stale.md', whole: true, why: "Where agent knowledge lives and what keeps it fresh, for the plan's agent-knowledge step." },
     ],
   },
 ];
@@ -200,9 +200,13 @@ export const item = (root: string, path: string, label: string) => {
   return [`### ${label}`, '', ...lines.slice(start, end)].join('\n');
 };
 
-/** The `**Applies when:**` line directly under the heading on line `at`, if it has one. */
-const appliesUnder = (lines: ReadonlyArray<string>, at: number) => {
-  const next = lines.slice(at + 1).find((line) => line.trim() !== '') ?? '';
+/**
+ * The `**Applies when:**` line directly under the heading on line `at`, if it has one. Under a
+ * page's title, `lead` passes over the page's one-sentence lead, which comes first.
+ */
+const appliesUnder = (lines: ReadonlyArray<string>, at: number, lead = false) => {
+  const [first = '', second = ''] = lines.slice(at + 1).filter((line) => line.trim() !== '');
+  const next = lead && !/^\*\*Applies when:\*\*/.test(first) && !/^#/.test(first) ? second : first;
   return /^\*\*Applies when:\*\* .+ \*\*Skip when:\*\* .+\.$/.test(next) ? next : undefined;
 };
 
@@ -226,7 +230,7 @@ const index = (root: string, prefixes: ReadonlyArray<string>, out: string) => {
       const { lines, inside, h1, title } = read(root, path);
       const link = posix.relative(dirname(out), path);
       const heads = lines.flatMap((line, i) => (!inside[i] && /^## /.test(line) ? [i] : []));
-      const top = appliesUnder(lines, h1);
+      const top = appliesUnder(lines, h1, true);
       if (heads.length === 0 && top === undefined) throw new Error(`${path}: no "**Applies when:** … **Skip when:** …" line under its title, and no H2s`);
       const rows = heads.map((i) => {
         const heading = HEADING.exec(lines[i] ?? '')?.[2] ?? '';

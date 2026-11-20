@@ -1,0 +1,456 @@
+/**
+ * graph.ts's tests, on fixture workspaces copied into temporary Git repos: exports conditions, a
+ * barrel and its overload, cycles between packages and folders, a layer violation, the task graph,
+ * and replayed commits. `node --test graph.test.ts`, from this folder.
+ */
+import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { after, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import { headline, readable, report } from '../graph.ts';
+import { DEFAULT_TESTS, globList, openGit, parseModule, pnpmGlobs, readGraph } from '../read.ts';
+import { changesOf } from '../replay.ts';
+import { entriesOf } from '../shape.ts';
+import { scriptCalls } from '../tasks.ts';
+import { graphsOf } from '../../../scorer/src/graphs.ts';
+import { manifestPaths } from '../../../scorer/src/score.ts';
+import type { Source } from '../../../scorer/src/source.ts';
+import { stackOf } from '../../../scorer/src/stack.ts';
+
+const fixtures = fileURLToPath(new URL('./fixtures/', import.meta.url));
+const made: string[] = [];
+after(() => { for (const dir of made) rmSync(dir, { recursive: true, force: true }); });
+
+const git = (dir: string, ...args: string[]) =>
+  execFileSync('git', ['-c', 'user.name=Pip', '-c', 'user.email=pip@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+
+/** A fixture as a repo on `main` with one commit, then each change as a commit of its own. */
+const repo = (fixture: string, changes: ReadonlyArray<Readonly<Record<string, string>>> = []) => {
+  const dir = mkdtempSync(join(tmpdir(), 'graph-test-'));
+  made.push(dir);
+  cpSync(join(fixtures, fixture), dir, { recursive: true });
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'start');
+  for (const change of changes) {
+    for (const [path, text] of Object.entries(change)) writeFileSync(join(dir, path), text);
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-qm', 'change');
+  }
+  return dir;
+};
+
+const layers = JSON.parse(readFileSync(join(fixtures, 'mono-layers.json'), 'utf8'));
+const options = { tests: DEFAULT_TESTS, conditions: [] as string[], rev: 'main', commits: 0 };
+
+describe('imports', () => {
+  it('reads each kind, and none from comments or multi-line strings', () => {
+    const parsed = parseModule([
+      "// import nope from 'comment'",
+      "import a from './a.ts';",
+      "import type { T } from './t.ts';",
+      "import { type U } from './u.ts';",
+      "export * from './star.ts';",
+      "export { b } from './b.ts';",
+      "export const c = 'not-an-import';",
+      'const sample = `',
+      "import fake from 'fake'",
+      '`;',
+      "const lazy = import('./lazy.ts');",
+      'const computed = import(name);',
+      "const url = new URL('./w.wasm', import.meta.url);",
+      "const pages = import.meta.glob('./pages/*.ts');",
+    ].join('\n'));
+    deepStrictEqual(parsed.specs.map((s) => `${s.kind} ${s.spec}`), [
+      'static ./a.ts', 'type ./t.ts', 'static ./u.ts', 'star ./star.ts', 'reexport ./b.ts', 'dynamic ./lazy.ts', 'url ./w.wasm', 'glob ./pages/*.ts',
+    ]);
+    strictEqual(parsed.computed, 1);
+    strictEqual(parseModule("export * from './a.ts';\nexport { b } from './b.ts';\n").barrel, true);
+    strictEqual(parsed.barrel, false);
+  });
+
+  it('reads statements whatever their spacing or names, and counts what it cannot read', () => {
+    const parsed = parseModule([
+      'import{x}from"./x.js";',
+      'import { async as run, default as d } from "./runner.js";',
+      'import type from "./named-type.ts";',
+      'export type Foo = { a: 1 };',
+      'export const a = 1;',
+      'export { a as b };',
+      'export {',
+      '  default as Y,',
+      '} from "./y.ts";',
+      'import x = require("./eq.cjs");',
+      'import { broken',
+      'const sample = "import z from \'./z.ts\'";',
+    ].join('\n'));
+    deepStrictEqual(parsed.specs.map((s) => `${s.kind} ${s.spec}`), ['static ./x.js', 'static ./runner.js', 'static ./named-type.ts', 'reexport ./y.ts', 'require ./eq.cjs']);
+    deepStrictEqual(parsed.unparsed, ['import { broken']);
+  });
+
+  it('reads pnpm-workspace.yaml\'s packages with comments, either indentation, or flow style', () => {
+    deepStrictEqual(pnpmGlobs('packages: # members\n  - packages/*\n  # not this\n  - "apps/*" # apps\ncatalog:\n  - nope\n'), ['packages/*', 'apps/*']);
+    deepStrictEqual(pnpmGlobs('packages:\n- packages/*\n- \'!**/test/**\'\nonlyBuiltDependencies:\n- esbuild\n'), ['packages/*', '!**/test/**']);
+    deepStrictEqual(pnpmGlobs("packages: ['packages/*', 'tools/#x'] # flow\n"), ['packages/*', 'tools/#x']);
+  });
+
+  it('matches globs with exclusions in order', () => {
+    const match = globList(['src/**', '!src/**/*.test.ts']);
+    deepStrictEqual(['src/a.ts', 'src/x/a.test.ts', 'lib/a.ts'].map(match), [true, false, false]);
+  });
+});
+
+/** A repo of the given files on `main`, one commit. */
+const repoOf = (files: Readonly<Record<string, string>>, changes: ReadonlyArray<Readonly<Record<string, string>>> = []) => {
+  const dir = mkdtempSync(join(tmpdir(), 'graph-test-'));
+  made.push(dir);
+  const write = (all: Readonly<Record<string, string>>) => {
+    for (const [path, text] of Object.entries(all)) { mkdirSync(dirname(join(dir, path)), { recursive: true }); writeFileSync(join(dir, path), text); }
+  };
+  write(files);
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'start');
+  for (const change of changes) { write(change); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', 'change'); }
+  return dir;
+};
+
+describe('globs', () => {
+  it('applies a glob call\'s negated patterns', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/pages.ts': "export const pages = import.meta.glob(['./*.ts', '!./generated.ts']);\n",
+      'src/home.ts': 'export const home = 1;\n',
+      'src/generated.ts': 'export const generated = 1;\n',
+    }), options);
+    deepStrictEqual(r.exports.nodes.length, 0);
+    const reach = r.exports.flags.filter((f) => f.kind === 'wide-file').map((f) => `${f.subject} ${f.numbers.files}`).sort();
+    deepStrictEqual(reach, ['src/generated.ts 1', 'src/home.ts 2', 'src/pages.ts 1']);
+  });
+});
+
+/** A pnpm workspace of `lib` and `app`, `app` depending on `lib`, with the given files over it. */
+const workspace = (files: Readonly<Record<string, string>>) => ({
+  'package.json': '{ "name": "root", "private": true }',
+  'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+  'packages/app/package.json': '{ "name": "app", "dependencies": { "lib": "workspace:*" } }',
+  ...files,
+});
+const graphOf = (files: Readonly<Record<string, string>>, conditions: ReadonlyArray<string> = []) =>
+  readGraph(openGit(repoOf(workspace(files))), 'main', { tests: DEFAULT_TESTS, conditions });
+const edgesOf = (graph: ReturnType<typeof graphOf>) => graph.edges.map((e) => `${e.from} ${e.kind} ${e.to}`).sort();
+const lib = (exports: unknown) => ({ 'packages/lib/package.json': JSON.stringify({ name: 'lib', exports }) });
+
+describe('resolution', () => {
+  it('resolves runtime imports through runtime conditions, `types` only for `import type`, and both formats', () => {
+    const g = graphOf({
+      ...lib({ '.': { types: './src/types.d.ts', import: './src/index.mjs', require: './src/index.cjs' } }),
+      'packages/lib/src/types.d.ts': 'export declare const x: number;\n',
+      'packages/lib/src/index.mjs': 'export const x = 1;\n',
+      'packages/lib/src/index.cjs': 'exports.x = 1;\n',
+      'packages/app/a.ts': "import { x } from 'lib';\n",
+      'packages/app/b.cjs': "const { x } = require('lib');\n",
+      'packages/app/c.ts': "import type { x } from 'lib';\n",
+    });
+    deepStrictEqual(edgesOf(g), [
+      'packages/app/a.ts static packages/lib/src/index.cjs', 'packages/app/a.ts static packages/lib/src/index.mjs',
+      'packages/app/b.cjs require packages/lib/src/index.cjs', 'packages/app/b.cjs require packages/lib/src/index.mjs',
+      'packages/app/c.ts type packages/lib/src/types.d.ts',
+    ]);
+    strictEqual(entriesOf(g).get('lib#.')!.file, 'packages/lib/src/index.mjs');
+  });
+
+  it('matches `exports` patterns in Node\'s order, and a `null` target excludes', () => {
+    const g = graphOf({
+      ...lib({ './*': './src/*.js', './*.private': null, './internal/*': null }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/lib/src/x.private.ts': 'export const p = 1;\n',
+      'packages/lib/src/internal/y.ts': 'export const y = 1;\n',
+      'packages/app/a.ts': "import 'lib/x';\nimport 'lib/x.private';\nimport 'lib/internal/y';\n",
+    });
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts']);
+    strictEqual(g.unresolved.get('not-exported')?.count, 2);
+  });
+
+  it('maps the preferred condition\'s target by extension before a later condition', () => {
+    const g = graphOf({
+      ...lib({ '.': { source: './src/x.js', default: './dist/x.js' } }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/lib/dist/x.js': 'export const x = 1;\n',
+      'packages/app/a.ts': "import 'lib';\n",
+    }, ['source']);
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts']);
+  });
+
+  it('resolves `paths` against an inherited `baseUrl`, else the config declaring them', () => {
+    const g = graphOf({
+      ...lib({ '.': './src/x.ts' }),
+      'tsconfig.base.json': '{ "compilerOptions": { "baseUrl": "." } }',
+      'packages/app/tsconfig.json': '{ "extends": "../../tsconfig.base.json", "compilerOptions": { "paths": { "@/*": ["packages/lib/src/*"] } } }',
+      'packages/lib/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["./src/*"] } } }',
+      'packages/lib/src/x.ts': "import '~/y';\n",
+      'packages/lib/src/y.ts': 'export const y = 1;\n',
+      'packages/app/a.ts': "import '@/x';\n",
+    });
+    deepStrictEqual(edgesOf(g), ['packages/app/a.ts static packages/lib/src/x.ts', 'packages/lib/src/x.ts static packages/lib/src/y.ts']);
+  });
+
+  it('counts a `#` specifier with no `imports` match as unresolved, not a package', () => {
+    const g = graphOf({ ...lib({ '.': './src/x.ts' }), 'packages/lib/src/x.ts': "import '#missing';\n" });
+    strictEqual(g.specifiers.external, 0);
+    deepStrictEqual(g.unresolved.get('missing')?.examples, ['packages/lib/src/x.ts: #missing']);
+  });
+
+  it('reads 8,000 exports with an import each in a few seconds, and again for a replayed edit', () => {
+    const n = 8000;
+    const files: Record<string, string> = { ...lib(Object.fromEntries(Array.from({ length: n }, (_, i) => [`./m${i}`, `./src/m${i}.ts`]))) };
+    for (let i = 0; i < n; i++) files[`packages/lib/src/m${i}.ts`] = `export const m${i} = ${i};\n`;
+    files['packages/app/a.ts'] = Array.from({ length: n }, (_, i) => `import 'lib/m${i}';\n`).join('');
+    const started = performance.now();
+    const r = report(repoOf(workspace(files), [{ 'packages/lib/src/m1.ts': 'export const m1 = 11;\n' }]), { ...options, commits: 2 });
+    const seconds = (performance.now() - started) / 1000;
+    strictEqual(r.denominators.entries, n);
+    strictEqual(r.replay!.perCommit[0]!.reached.entries, 1);
+    ok(seconds < 8, `took ${seconds.toFixed(1)} seconds`);
+  });
+});
+
+describe('replayed changes', () => {
+  it('reads a commit\'s changed paths unquoted, renames as a delete and an add', () => {
+    deepStrictEqual(changesOf('M\0src/café.ts\0R100\0src/a.ts\0src/b.ts\0'), [{ status: 'M', path: 'src/café.ts' }, { status: 'D', path: 'src/a.ts' }, { status: 'A', path: 'src/b.ts' }]);
+  });
+
+  it('reaches a non-ASCII path\'s importers, not everything', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/café.ts': 'export const c = 1;\n',
+      'src/café.test.ts': "import './café.ts';\n",
+      'src/other.test.ts': 'export {};\n',
+    }, [{ 'src/café.ts': 'export const c = 2;\n' }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual(commit!.causes, { graph: 1 });
+    deepStrictEqual([commit!.everything, commit!.reached.tests], [false, 1]);
+  });
+
+  it('reaches a test through the text fixture it imports', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/fixture.txt': 'one\n',
+      'src/read.test.ts': "import text from './fixture.txt?raw';\n",
+      'src/other.test.ts': 'export {};\n',
+    }, [{ 'src/fixture.txt': 'two\n' }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual(commit!.causes, { graph: 1 });
+    strictEqual(commit!.reached.tests, 1);
+  });
+
+  it('counts the packages a lockfile edit reaches among those with files, its denominator too', () => {
+    const r = report(repoOf(workspace({
+      ...lib({ '.': './src/x.ts' }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/app/a.ts': "import 'lib';\n",
+      'packages/docs/package.json': '{ "name": "docs" }',
+      'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+    }), [{ 'pnpm-lock.yaml': "lockfileVersion: '9.1'\n" }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    strictEqual(commit!.everything, true);
+    deepStrictEqual([commit!.reached.packages, commit!.of.packages], [2, 2]);
+    deepStrictEqual([r.denominators.packages, r.denominators.packagesWithFiles], [4, 2]);
+    deepStrictEqual(r.packages.replay!.reached, { p50: 1, p90: 1 });
+  });
+
+  it('counts a `*` pattern\'s imported subpath as an entry, with its overload and the commits through it', () => {
+    const r = report(repoOf(workspace({
+      ...lib({ './*': './src/*.ts' }),
+      'packages/lib/src/x.ts': "export * from './leaf.ts';\nexport * from './leaf2.ts';\n",
+      'packages/lib/src/leaf.ts': 'export const leaf = 1;\n',
+      'packages/lib/src/leaf2.ts': 'export const leaf2 = 1;\n',
+      'packages/app/a.ts': "import { leaf } from 'lib/x';\n",
+    }), [{ 'packages/lib/src/leaf.ts': 'export const leaf = 2;\n' }]), { ...options, commits: 2 });
+    deepStrictEqual(r.exports.nodes.map((n) => [n.id, n.pattern, n.file, n.reexports, n.importedBy.packages, n.overload]), [['lib#./x', './*', 'packages/lib/src/x.ts', 2, 1, 2]]);
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual([commit!.reached.entries, commit!.of.entries, commit!.through], [1, 1, ['lib#./x']]);
+  });
+});
+
+describe('the four graphs, measured', () => {
+  const dir = repo('mono');
+  const r = report(dir, { ...options, layers });
+
+  it('reads a pnpm workspace and counts what it could not resolve', () => {
+    strictEqual(r.repo.workspace, 'pnpm');
+    strictEqual(r.denominators.packages, 4);
+    strictEqual(r.denominators.tests, 4);
+    deepStrictEqual(Object.fromEntries(Object.entries(r.unresolved.reasons).map(([k, v]) => [k, v!.count])), { computed: 1, missing: 1 });
+    strictEqual(r.unresolved.specifiers.external, 1);
+    strictEqual(r.unresolved.specifiers.builtin, 1);
+  });
+
+  it('1: finds the manifest cycle between packages, and each package\'s depth', () => {
+    deepStrictEqual(r.packages.flags.map((f) => `${f.kind} ${f.subject}`), ['package-cycle @pip/app ↔ @pip/ui']);
+    strictEqual(r.packages.nodes.find((n) => n.id === '@pip/core')!.importedBy.packages, 2);
+    strictEqual(r.packages.depth, 1);
+  });
+
+  it('2: resolves exports conditions in document order, or as asked', () => {
+    const edge = (rr: typeof r) => rr.exports.nodes.find((n) => n.id === '@pip/core#./util')!.file;
+    strictEqual(r.exports.nodes.find((n) => n.id === '@pip/core#.')!.file, 'packages/core/src/index.ts');
+    strictEqual(edge(r), 'packages/core/src/util-node.ts');
+    strictEqual(edge(report(dir, { ...options, conditions: ['import'] })), 'packages/core/src/util.ts');
+  });
+
+  it('2: measures the barrel\'s export-path overload, and the entry nothing imports', () => {
+    const root = r.exports.nodes.find((n) => n.id === '@pip/core#.')!;
+    deepStrictEqual({ barrel: root.barrel, stars: root.stars, reexports: root.reexports, packages: root.importedBy.packages, overload: root.overload }, { barrel: true, stars: 2, reexports: 3, packages: 2, overload: 6 });
+    deepStrictEqual(r.exports.flags.filter((f) => f.kind === 'unused-entry').map((f) => f.subject), ['@pip/core#./unused']);
+    const widest = r.exports.flags.find((f) => f.kind === 'wide-file')!;
+    strictEqual(widest.subject, 'packages/core/src/a/helper.ts');
+    deepStrictEqual(widest.numbers, { files: 10, filesOf: 15, packages: 3, packagesOf: 3, tests: 3, testsOf: 4 });
+  });
+
+  it('3: finds the folder cycle, and the import that goes against declared layers', () => {
+    deepStrictEqual(r.layers.flags.map((f) => `${f.kind} ${f.subject}`), ['folder-cycle packages/core/src: a ↔ b', 'layer-violation packages/core/src: a → b']);
+    const proposed = report(dir, options);
+    deepStrictEqual(proposed.layers.flags.map((f) => f.kind), ['folder-cycle']);
+    deepStrictEqual(proposed.layers.nodes.filter((n) => n.source === 'packages/core/src').map((n) => `${n.place}:${n.layer}`).sort(), ['a:0', 'b:0', 'index:1', 'util-node:0', 'util:0']);
+  });
+
+  it('4: expands turbo\'s tasks over packages, and flags missing and empty inputs', () => {
+    deepStrictEqual(r.tasks.runners, ['turbo', 'script']);
+    deepStrictEqual(r.tasks.edges.filter((e) => e.from === '@pip/app#build').map((e) => e.to).sort(), ['@pip/core#build', '@pip/ui#build']);
+    deepStrictEqual(r.tasks.flags.filter((f) => f.kind === 'no-inputs').map((f) => f.subject), ['@pip/app#test', '@pip/core#lint', '@pip/core#test', '@pip/ui#test']);
+    deepStrictEqual(r.tasks.flags.filter((f) => f.kind === 'task-cycle').map((f) => f.subject), ['@pip/app#build ↔ @pip/ui#build']);
+    ok(r.tasks.edges.some((e) => e.from === 'mono#test' && e.to === '@pip/core#test' && e.how === 'fan-out'));
+    strictEqual(r.tasks.nodes.find((n) => n.id === '@pip/core#build')!.inputs.files, 7);
+  });
+
+  it('prints a headline line per graph, in order', () => {
+    const lines = headline(r);
+    deepStrictEqual(lines.slice(2).map((l) => l.split(':')[0]), ['1 Packages', '2 Exports', '3 Layers', '4 Tasks']);
+    ok(readable(r).includes('## 4. Tasks'));
+  });
+});
+
+describe('what a change triggers', () => {
+  const dir = repo('mono', [
+    { 'packages/core/src/util.ts': "export const util = 'two';\n" },
+    { 'packages/core/src/b/three.ts': 'export const three = 33;\n' },
+    { 'NOTES.md': '# Notes\n' },
+    { 'pnpm-lock.yaml': "lockfileVersion: '9.0'\n" },
+  ]);
+  const r = report(dir, { ...options, conditions: ['import'], commits: 10 });
+  const commits = r.replay!.perCommit;
+
+  it('replays each first-parent commit, oldest first', () => {
+    strictEqual(r.replay!.commits, 4);
+    strictEqual(r.replay!.asked, 10);
+  });
+
+  it('reaches a module\'s importers across packages through the entry, not the whole package', () => {
+    const [util] = commits;
+    deepStrictEqual(util!.reached, { files: 6, packages: 3, entries: 3, tests: 3 });
+    strictEqual(util!.packageLevelTests, 4);
+    deepStrictEqual(util!.through, ['@pip/core#./util', '@pip/app#.']);
+    // core#lint's `inputs: []` is Turborepo's default, the package's files, so util.ts is one of them.
+    deepStrictEqual(util!.tasks, { touched: 3, withDependents: 7 });
+  });
+
+  it('counts commits whose reach went through each entry', () => {
+    deepStrictEqual(r.exports.replay!.through, { '@pip/app#.': 2, '@pip/core#./util': 1, '@pip/core#.': 1 });
+    const flag = r.exports.flags.find((f) => f.kind === 'overloaded-entry');
+    strictEqual(flag, undefined);
+  });
+
+  it('reaches nothing for docs, and everything for the lockfile', () => {
+    deepStrictEqual(commits[2]!.reached, { files: 0, packages: 0, entries: 0, tests: 0 });
+    strictEqual(commits[3]!.everything, true);
+    strictEqual(commits[3]!.widest!.path, 'pnpm-lock.yaml');
+    deepStrictEqual(r.replay!.everything, { count: 1, of: 4 });
+  });
+
+  it('reports quantiles by nearest rank', () => {
+    deepStrictEqual(r.exports.replay!.tests, { p50: 0.75, p90: 1 });
+  });
+});
+
+describe('a single package with Vite+ tasks and scripts', () => {
+  const r = report(repo('single'), options);
+
+  it('reads it as one package', () => {
+    strictEqual(r.repo.workspace, 'single');
+    strictEqual(r.denominators.packages, 1);
+    deepStrictEqual(r.exports.nodes.map((n) => [n.id, n.barrel, n.reexports]), [['mo#.', true, 1]]);
+  });
+
+  it('reads Vite+ tasks, scripts that call each other, and pre scripts', () => {
+    deepStrictEqual(r.tasks.runners, ['vite-plus', 'script']);
+    const edges = r.tasks.edges.map((e) => `${e.from.slice(3)} ${e.how} ${e.to.slice(3)}`).sort();
+    deepStrictEqual(edges, ['all calls build', 'all calls test', 'build lifecycle postbuild', 'build lifecycle prebuild', 'check calls build', 'check calls test', 'docs dependsOn types', 'types dependsOn gen']);
+    const inputs = Object.fromEntries(r.tasks.nodes.filter((n) => n.cached).map((n) => [n.name, n.inputs.mode]));
+    deepStrictEqual(inputs, { docs: 'auto', gen: 'empty', types: 'declared' });
+    strictEqual(r.tasks.depth, 3);
+    deepStrictEqual(r.tasks.flags.map((f) => `${f.kind} ${f.subject}`), ['no-inputs mo#gen']);
+  });
+});
+
+describe('script commands', () => {
+  it('names the scripts a command runs, and which run in every package', () => {
+    deepStrictEqual(scriptCalls('pnpm run build && yarn lint; npm test; pnpm install'), [{ name: 'build', recursive: false }, { name: 'lint', recursive: false }, { name: 'test', recursive: false }]);
+    deepStrictEqual(scriptCalls('pnpm -r --filter ./packages/* test'), [{ name: 'test', recursive: true }]);
+    deepStrictEqual(scriptCalls('turbo run build lint'), [{ name: 'build', recursive: true }, { name: 'lint', recursive: true }]);
+    deepStrictEqual(scriptCalls('nx run-many -t build,test'), [{ name: 'build', recursive: true }, { name: 'test', recursive: true }]);
+    deepStrictEqual(scriptCalls('run-s clean build:*'), [{ name: 'clean', recursive: false }, { name: 'build:*', recursive: false }]);
+  });
+});
+
+describe('an Nx workspace of project.json projects', () => {
+  const r = report(repo('nx'), options);
+  const task = (id: string) => r.tasks.nodes.find((n) => n.id === id)!;
+
+  it('infers project dependencies from imports, through tsconfig paths', () => {
+    deepStrictEqual(r.tasks.edges.map((e) => `${e.from} ${e.how} ${e.to}`).sort(), ['web#build dependencies core#build', 'web#serve dependsOn web#build']);
+  });
+
+  it('expands named inputs, `^` inputs over dependencies, and workspace files', () => {
+    deepStrictEqual(task('core#build').inputs.globs, ['libs/core/**/*', '!libs/core/**/*.spec.ts']);
+    deepStrictEqual(task('web#build').inputs.globs, ['apps/web/**/*', '!apps/web/**/*.spec.ts', 'libs/core/**/*', '!libs/core/**/*.spec.ts']);
+    strictEqual(task('core#test').inputs.files, 5);
+    deepStrictEqual(r.tasks.flags.filter((f) => f.kind === 'no-inputs').map((f) => f.subject), ['core#lint']);
+    strictEqual(task('web#serve').cached, false);
+  });
+});
+
+// The scorer reads graphs 2 and 4 from GitHub through the same shared code (`scorer/src/graph-core.ts`), but walks
+// re-exports itself, from entry files batch by batch, where this tool has every file. On one fixture, both agree.
+describe('the scorer, reading the same workspace from outside', () => {
+  const root = join(fixtures, 'mono');
+  const files = new Map(readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => {
+    const path = join(e.parentPath, e.name).slice(root.length + 1).split('\\').join('/');
+    return [path, readFileSync(join(root, path), 'utf8')] as const;
+  }));
+  const source: Source = {
+    tree: { truncated: false, blobs: [...files].map(([path, text]) => ({ path, size: text.length })) },
+    read: (p) => files.get(p),
+    readMany: (paths) => ({ texts: new Map(paths.flatMap((p) => (files.has(p) ? [[p, files.get(p)!] as const] : []))), failed: new Map() }),
+  };
+  const stack = stackOf({ source, manifestPaths: manifestPaths(source.tree), workflows: { texts: [], complete: true }, languages: undefined, packages: { npm: 0 }, runners: undefined });
+  const scorer = graphsOf({ source, stack });
+  const tool = report(repo('mono'), options);
+
+  it("gives each entry the tool's file, re-exported modules, `export *` count and barrel", () => {
+    const shape = (n: { id: string; file: string | null; reexports: number | null; stars: number | null; barrel: boolean | null }) => ({ id: n.id, file: n.file, reexports: n.reexports, stars: n.stars, barrel: n.barrel });
+    const ours = tool.exports.nodes.filter((n) => n.file !== null && n.pattern === undefined).map(shape).sort((a, b) => a.id.localeCompare(b.id));
+    deepStrictEqual(scorer.exports.nodes.filter((n) => ours.some((o) => o.id === n.id)).map(shape).sort((a, b) => a.id.localeCompare(b.id)), ours);
+    strictEqual(ours.length, 5);
+  });
+
+  it("gives the tool's tasks, inputs, edges and flags", () => {
+    deepStrictEqual(scorer.tasks.nodes, tool.tasks.nodes);
+    deepStrictEqual(scorer.tasks.edges, tool.tasks.edges);
+    deepStrictEqual(scorer.tasks.flags, tool.tasks.flags);
+  });
+});

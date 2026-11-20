@@ -1,0 +1,11 @@
+{
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": ["default", "!{projectRoot}/**/*.spec.ts"]
+  },
+  "targetDefaults": {
+    "build": { "dependsOn": ["^build"], "inputs": ["production", "^production"], "outputs": ["{projectRoot}/dist"], "cache": true },
+    "test": { "inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"], "cache": true },
+    "lint": { "cache": true }
+  }
+}

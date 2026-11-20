@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: cache-ci-not-optimize-graphs
+description: Belongs to optimize-graphs, so should not load cache-ci.
+tags: [cache-ci, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Nx misses its task cache whenever someone edits an unrelated package. Find out why."
+graders:
+  - name: did-not-load-cache-ci
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?cache-ci"'
+    min: 0
+    max: 0
+    arm: both

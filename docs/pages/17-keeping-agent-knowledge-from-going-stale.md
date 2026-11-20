@@ -2,7 +2,9 @@
 
 # 17. Keeping agent knowledge from going stale
 
-People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill accumulating stale advice?". No, and like this:
+Keep what your agents know about CI where they'll read it, and stop skills and instruction files from collecting stale advice.
+
+People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill accumulating stale advice?". No, and like this. The [`agent-knowledge`](../../skills/agent-knowledge/SKILL.md) skill carries this section for a coding agent: where each piece goes, the templates for a repo's facts, and what keeps it fresh.
 
 ## Where knowledge lives
 
@@ -11,9 +13,9 @@ People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill acc
 - **`AGENTS.md` is a short map:** repo layout, the commands, and a few rules. Ours includes *"When docs and code disagree, the code is right. Fix the doc in the same change."* It's size-budgeted in CI.
 - **Skills** (agent instruction folders) hold the method.
   - `SKILL.md` has only what every use needs.
-  - **`references/` by topic** holds the detail, read when needed. For example, the hub's speed-up-tests topic has `fixes.md`, `measuring.md`, `flakes.md`, `fakes.md` and `campaign.md`.
+  - **`references/` by topic** holds the detail, read when needed. For example, the `speed-up-tests` skill has `fixes.md`, `measuring.md`, `fakes.md` and `campaign.md`.
   - `scripts/` holds the mechanics.
-  - The `description` says when to use it and which sibling skill owns the neighbouring work, so no two skills claim one trigger. This repo's [`skills/`](../../skills/README.md): `ci-doctor` for CI work, with workflows, runners, Blacksmith, slow tests and flakes, evidence and the plan as its topics, since an agent calls all of those CI; `test-audit` for whether a test is worth keeping; `review-gate` for the review before a PR's one run; `ci-merge-workflow` for the run and the merge; `proof-tiers` for models and property tests.
+  - The `description` says when to use it and which sibling skill owns the neighbouring work, so no two skills claim one trigger. This repo's [`skills/`](../../skills/README.md): `ci-doctor` for the plan and a failed check, with triage as its topic, since an agent calls those CI; `ci-workflows` for editing a workflow or a job and `cache-ci` for caches and slow setup, which people ask for in their own words; `ci-runners` for runner size, queues and the bill, which an agent asked why CI costs so much or why jobs wait to start may not call CI work; `blacksmith` for a repo on Blacksmith, which installs only where it applies; `optimize-graphs` for packages, `exports`, folders and task inputs, which an agent doesn't call CI; `speed-up-tests` for a slow test and `fix-flaky-test` for one that fails sometimes, which an agent fixing one locally doesn't call CI; `prove-it` for whether a benchmark, a before and after, a cost or a fix holds up, which isn't only CI's; `agent-knowledge` for instruction files, skills and facts files, which aren't CI's either; `test-audit` for whether a test is worth keeping; `review-gate` for the review before a PR's one run; `ci-merge-workflow` for the run and the merge; `proof-tiers` for models and property tests.
   - **Stack-specific detail gets its own reference page,** linked with "if your stack uses X", so the general text reads correctly without it: Rust in `ci-workflows`, Workers and Effect in `speed-up-tests`.
 - **Checks** are one rule per small document. Each has the moment it applies, yes/no questions, the commands that answer them, and the **incident and numbers that motivated it**. Skills link checks rather than copying them. Examples:
   - wait for the effect;

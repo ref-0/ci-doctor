@@ -2,6 +2,8 @@
 
 # 4. Run only what a change can reach
 
+Use dependency graphs to run only the tests and jobs a change can reach, then verify the selector against full runs.
+
 ## Drafts and concurrency
 
 **Applies when:** PR workflows run while a PR is a draft, or a draft event or an old rerun can cancel the newest head's run. **Skip when:** Every job already skips drafts and concurrency groups keep ready PRs, drafts, reruns, manual runs and merges apart.
@@ -20,7 +22,7 @@ A plan job on 2 vCPU decides what a diff reaches in seconds, with **no workspace
 - **What it reads:** committed trees, package manifests, workspace membership, imports, source references, lockfile install changes, build-command text and config paths. It follows transitive consumers and handles cycles, and the deepest containing package owns a file.
 - **Docs, agent guidance and ignore files** reach no tests. They still get static checks and lint.
 - **Test-only edits** select the tests that run them. A helper used only by tests selects its readers, not every production consumer.
-- **Package entry points.** For shared libraries, it follows which public entry exports the changed module and selects consumers of that entry. In one example, a library edit went from 520 selected files to 120, checked against an independently parsed import graph.
+- **Package entry points.** For shared libraries, it follows which public entry exports the changed module and selects consumers of that entry. In one example, a library edit went from 520 selected files to 120, checked against an independently parsed import graph. How the entry points were split, and what that cost, is [section 21](21-optimize-all-of-your-graphs.md#export-paths-what-an-edit-triggers).
 - **Selection and reuse are separate decisions.** Adopting a standard task runner or cache doesn't justify replacing semantic test selection with its package graph. When we tried that, a manifest-only replacement missed tests in 74 of 100 replayed PRs. Replay a proposed replacement against historical diffs and the explicit disk, generated-code, bundle and config edges. Keep the existing selector until the replacement shows it preserves the coverage you need.
 - **Root scripts** are classified by their callers:
   - used only by tests: select those tests;
@@ -89,4 +91,4 @@ Selector tests build small Git histories and check real output, covering:
 
 Replay proposed selector changes over historical diffs before shipping them, and label reconstructed bases as reconstructions.
 
-Check that the selector would catch real failures with the [past-regression procedure](../../skills/ci-doctor/references/ci-workflows/references/selection.md#replay-past-regressions).
+Check that the selector would catch real failures with the [past-regression procedure](../../skills/optimize-graphs/references/selection.md#replay-past-regressions).

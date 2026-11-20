@@ -4,13 +4,13 @@
     "name": "ref0"
   },
   "metadata": {
-    "description": "ref0's agent plugins for fast, cheap and trustworthy CI."
+    "description": "ref0's agent plugins for fast, trustworthy CI that costs less."
   },
   "plugins": [
     {
       "name": "ci-doctor",
       "source": "./",
-      "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, review and merge gates, test value and proof tiers.",
+      "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, workflows that waste time, caches that miss, slow and flaky tests, runners on any provider or Blacksmith, their queues and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted, and agents' instructions kept short and true.",
       "keywords": [
         "ci",
         "github-actions",

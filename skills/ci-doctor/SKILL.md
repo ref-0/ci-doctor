@@ -1,17 +1,17 @@
 ---
 name: ci-doctor
-description: "CI speed, cost and flakes on any provider: why a PR's check failed, slow CI runs or queues, changing workflows and jobs, runners and the bill, slow or flaky tests (local too), checking CI evidence or a before/after claim, and starting or continuing the ci-doctor plan."
+description: "Plans CI speed and cost work and triages a failed PR check: the PR, a flake or the runner. Use when asked to make CI faster or cost less, review CI, or say why a check failed. Not for workflow edits (ci-workflows); runners or the bill (ci-runners); flaky tests (fix-flaky-test); slow tests (speed-up-tests)."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # ci-doctor
 
-Make CI faster, cheaper and more trustworthy. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
+Make CI faster, more trustworthy and cost less. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
 
 ## Pick up where the last session stopped
 
-This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](references/agent-knowledge/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
+This work spans many sessions, and a session can be compacted part-way. One file, `progress.md`, says where it stands: the playbook version, the phase and step, the plan, the authorization record, what's done and what's next. [The template](../agent-knowledge/templates/progress.md) has its fields. It's at the path the plan names, at `.agents/ci-doctor/progress.md` in the user's repo, or wherever the user says. It and the plan never go inside a skill's folder.
 
 - **No `progress.md`:** if the user asked for the plan (make CI faster, cut its cost, a CI review, or a pasted `<ci-report>`), ask once whether an earlier session left one, then start at [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md). Otherwise, use the [topic map](#topic-map).
 - **A `progress.md`:** read it before anything else, and resume at the phase and step it records, even right after approval: Phases 4–6 run from there. Trust it, the repo's history and CI's records over your own memory of earlier work. If its playbook version differs from this skill's, read [the changelog](../../CHANGELOG.md) between the two before going on.
@@ -51,7 +51,7 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
   - Every test you speed up must still fail when you break what it guards. After approval, show that with a deliberate mutation, as Phase 4 says.
   - If a change does give up some proof on purpose, name it as a tradeoff in the plan and get the user's yes, as guide section 7 does for the debug-profile Rust run.
 - **Keep the repo's current gate semantics** until the user approves a change: its required checks, its retry and rerun behavior, its merge method and its triggers.
-- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow [`verify-evidence`](references/verify-evidence/TOPIC.md): write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
+- **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow the [`prove-it`](../prove-it/SKILL.md) skill: write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
 - **The code is the source of truth.** If the user's docs disagree with their code, say so in the plan.
 - **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
 - **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
@@ -60,25 +60,33 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
 
 ## Topic map
 
-Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
+Day-to-day work outside the plan. Open the linked entry before you act.
 
 | Task | Topic |
 | --- | --- |
 | A PR's check failed or was cancelled: reading the run, telling a test failure from a flake or an infrastructure failure, whether the run counts | [triage](references/triage/TOPIC.md) |
-| Change or debug a workflow: the job graph, setup, selection, tiers, caches, the checks for a CI change, a slow run's job order or setup | [ci-workflows](references/ci-workflows/TOPIC.md) |
-| The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, queues, changing provider | [ci-runners](references/ci-runners/TOPIC.md) |
-| Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
-| Slow or flaky tests, in CI or locally: finding them from CI's records, fixing the wait, fakes, flakes | [speed-up-tests](references/speed-up-tests/TOPIC.md) |
-| A measurement, a before/after, a cost or a claim about CI | [verify-evidence](references/verify-evidence/TOPIC.md) |
+| Change or debug a workflow: the job graph, tiers, the checks for a CI change, a slow run's job order | The [`ci-workflows`](../ci-workflows/SKILL.md) skill |
+| Setup that takes too long, adding a cache, a cache that never hits, cache keys | The [`cache-ci`](../cache-ci/SKILL.md) skill |
+| A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
+| The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, jobs that wait for a runner, changing provider | The [`ci-runners`](../ci-runners/SKILL.md) skill |
+| Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | The [`blacksmith`](../blacksmith/SKILL.md) skill |
+| A slow test or suite, in CI or locally: finding them from CI's records, fixing the wait, fakes | The [`speed-up-tests`](../speed-up-tests/SKILL.md) skill |
+| A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../prove-it/SKILL.md) skill |
+| How far an edit reaches, and which checks a change selects: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
+| Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
-The one-rule [checks](references/checks/README.md) the topics link to, and the [agent-knowledge templates](references/agent-knowledge/README.md) for a repo's facts, are here too.
+The one-rule [checks](references/checks/README.md) the topics link to are here too. The templates for a repo's facts, `progress.md` and a campaign's files are the [`agent-knowledge`](../agent-knowledge/templates/README.md) skill's.
 
 ## Not here
 
-- The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
-- Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
-- Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
+The topic map's skills, and these, each its own skill:
+
+- The review gate before a PR's CI run: [`review-gate`](../review-gate/SKILL.md), if the repo adopted it; otherwise the repo's own review process.
+- Readying, running by hand, merging and releasing a PR: [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if adopted.
+- Whether a test is worth keeping: [`test-audit`](../test-audit/SKILL.md). Model checks and property tests: [`proof-tiers`](../proof-tiers/SKILL.md).
 
 ## Outside the skills
 
 Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is this file's `metadata.version`.
+
+Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one; [Phase 0](references/phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`. Reading a skill authorizes no command it names.

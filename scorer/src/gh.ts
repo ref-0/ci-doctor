@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CliError } from './errors.ts';
+import { CliError, RateLimitError } from './errors.ts';
 
 const DAY = 24 * 3600e3;
 const NOT_SIGNED_IN = "gh isn't signed in. Run `gh auth login`, then run this again.";
@@ -16,6 +16,8 @@ export interface ReadOptions {
   raw?: boolean;
   /** Never cache this answer, such as a job's log. */
   noCache?: boolean;
+  /** Send this GraphQL query, to the `graphql` path. */
+  query?: string;
 }
 
 /** API answers kept on disk, only when asked, under one gh account's folder. */
@@ -50,8 +52,28 @@ export class ApiCache {
 interface ExecError {
   code?: string;
   status?: number | null;
+  stdout?: string;
   stderr?: string;
 }
+
+/** GraphQL's own rate limit answers 200 with a RATE_LIMITED error, which gh prints and exits 1 on. */
+const graphqlThrottled = (stdout: string) => {
+  try {
+    return (JSON.parse(stdout)?.errors ?? []).some((e: { type?: string; message?: string }) => e.type === 'RATE_LIMITED' || /rate limit/i.test(e.message ?? ''));
+  } catch {
+    return false;
+  }
+};
+
+/** A GraphQL answer that holds data, though gh exited 1 on its errors: some aliases were read and some weren't. */
+const partialGraphql = (stdout: string) => {
+  try {
+    const body = JSON.parse(stdout);
+    return body?.data !== undefined && body.data !== null && Array.isArray(body.errors) ? stdout : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 const statusOf = (stderr: string) => Number(stderr.match(/HTTP (\d{3})/)?.[1]) || undefined;
 
@@ -61,22 +83,32 @@ export class Gh {
   oldestCachedAt: number | undefined;
   readonly cache: ApiCache | undefined;
   private readonly startedAt = Date.now();
-  // One run asks for some answers twice, such as a run's jobs; it reads them once, in memory.
-  private readonly memo = new Map<string, string>();
+  // One run asks for some answers twice, such as a run's jobs or a workflow file; it reads them once, in memory. An
+  // absent answer (a status in `absentOn`) is remembered too, as undefined.
+  private readonly memo = new Map<string, string | undefined>();
   // gh 2.97 and later escape control characters unless told not to; logs and files are wanted as they are.
   private escapesFlag = true;
 
-  constructor(cache?: ApiCache) {
+  /** A token to read with instead of gh's own sign-in, such as a GitHub App's, passed to gh as GH_TOKEN. */
+  private readonly token: string | undefined;
+  // Cached answers are keyed by a hash of the token they were read with, never the token, so two clients that share a
+  // cache folder never see each other's answers, such as a private repo's files. Without a token, gh's sign-in reads,
+  // and the CLI keeps each signed-in account's cache in its own folder.
+  private readonly scope: string;
+
+  constructor(cache?: ApiCache, token?: string) {
     this.cache = cache;
+    this.token = token;
+    const credential = token ?? process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
+    this.scope = credential ? `${createHash('sha256').update(credential).digest('hex').slice(0, 32)}:` : '';
   }
 
   /** One API answer as text; undefined only for a status in `absentOn`. Any other failure throws. */
   text(path: string, options: ReadOptions = {}): string | undefined {
-    const key = `${options.raw ? 'raw' : 'api'}:${path}`;
-    const seen = options.noCache ? undefined : this.memo.get(key);
-    if (seen !== undefined) return seen;
+    const key = options.query !== undefined ? `graphql:${options.query}` : `${options.raw ? 'raw' : 'api'}:${path}`;
+    if (!options.noCache && this.memo.has(key)) return this.memo.get(key);
 
-    const hit = options.noCache ? undefined : this.cache?.get(key);
+    const hit = options.noCache ? undefined : this.cache?.get(this.scope + key);
     if (hit) {
       // Only answers from an earlier run count toward how stale this one is.
       if (hit.readAt < this.startedAt) {
@@ -88,16 +120,29 @@ export class Gh {
     }
 
     const body = this.fetch(path, options);
-    // An empty body is a 202 still being computed; keeping it would hide the real answer next time.
-    if (body !== undefined && body.trim() !== '' && !options.noCache) {
+    // An empty body is a 202 still being computed, and a partial GraphQL answer may be whole next time; keeping either
+    // would hide the real answer.
+    if (body === undefined && !options.noCache) this.memo.set(key, undefined);
+    if (body !== undefined && body.trim() !== '' && !options.noCache && !(options.query !== undefined && partialGraphql(body))) {
       this.memo.set(key, body);
-      this.cache?.set(key, body);
+      this.cache?.set(this.scope + key, body);
     }
     return body;
   }
 
   json(path: string, options: ReadOptions = {}): any {
-    const text = this.text(path, options);
+    return this.parse(path, this.text(path, options));
+  }
+
+  /**
+   * One GraphQL query's answer, cached and remembered as a GET is. GitHub counts these against their own hourly points.
+   * An answer with data and errors both comes back as it is, `{ data, errors }`, and isn't cached.
+   */
+  graphql(query: string): any {
+    return this.parse('graphql', this.text('graphql', { query }));
+  }
+
+  private parse(path: string, text: string | undefined): any {
     // GitHub answers 202 with no body while it computes statistics: unknown for now, like an absent answer.
     if (text === undefined || text.trim() === '') return undefined;
 
@@ -115,6 +160,27 @@ export class Gh {
     return login;
   }
 
+  /** When the limit that `path` spends resets, from GitHub's rate_limit answer, which spends none; vaguer if that fails. */
+  private resetsAt(path: string): string {
+    const resource = path === 'graphql' ? 'graphql' : path.startsWith('search/') ? 'search' : 'core';
+    try {
+      this.calls++;
+      const limits = JSON.parse(
+        execFileSync('gh', ['api', '--hostname=github.com', 'rate_limit'], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
+          windowsHide: true,
+        }),
+      );
+      const reset = Number(limits?.resources?.[resource]?.reset);
+      if (Number.isFinite(reset) && reset > 0) return `it resets at ${new Date(reset * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    } catch {
+      // The reset time is a courtesy; the error stands without it.
+    }
+    return 'try again once it resets';
+  }
+
   private fetch(path: string, options: ReadOptions): string | undefined {
     // --hostname pins every read to github.com, which the remote named, whatever GH_HOST says.
     const args = () => [
@@ -123,14 +189,17 @@ export class Gh {
       ...(this.escapesFlag ? ['--allow-escape-sequences'] : []),
       ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
       path,
+      // A query goes on stdin as the request's body: 100 files' worth can pass Windows' 32,767-character command line.
+      ...(options.query !== undefined ? ['--input', '-'] : []),
     ];
     const run = () => {
       this.calls++;
       return execFileSync('gh', args(), {
         encoding: 'utf8',
         maxBuffer: 512 << 20,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
+        stdio: [options.query !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        ...(options.query !== undefined ? { input: JSON.stringify({ query: options.query }) } : {}),
+        env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
         windowsHide: true,
       });
     };
@@ -152,19 +221,22 @@ export class Gh {
         }
 
         const status = statusOf(stderr);
-        // A rate limit or a 429 says nothing about whether the answer exists, so it's never read as absent.
-        const throttled = status === 429 || /rate limit/i.test(stderr);
-        if (status !== undefined && !throttled && options.absentOn?.includes(status)) return undefined;
+        // A rate limit or a 429 says nothing about whether the answer exists, so it's never read as absent, and it
+        // isn't asked again at once: it won't change before the limit resets.
+        const throttled = status === 429 || /rate limit/i.test(stderr) || graphqlThrottled(String(err.stdout ?? ''));
+        const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '').replace(/\.$/, '') || `gh exited ${err.status}`;
+        if (throttled) throw new RateLimitError(`Couldn't read ${path}: ${said}. GitHub's rate limit for this account ran out; ${this.resetsAt(path)}.`);
+        // Some aliases answered and some didn't: what was read is kept, and the errors say why the rest weren't.
+        const partial = options.query !== undefined ? partialGraphql(String(err.stdout ?? '')) : undefined;
+        if (partial) return partial;
+        if (status !== undefined && options.absentOn?.includes(status)) return undefined;
         if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
 
         // A 5xx or a dropped connection gets one more try; a 4xx won't change.
         const transient = status === undefined || status >= 500;
         if (transient && attempt < 2) continue;
 
-        const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '') || `gh exited ${err.status}`;
-        const hint = throttled
-          ? " GitHub's rate limit for this account ran out; try again once it resets."
-          : status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
+        const hint = status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
         throw new CliError(`Couldn't read ${path}: ${said}.${hint}`);
       }
     }

@@ -2,6 +2,8 @@
 
 # 16. Standing automations
 
+Choose which repeated follow-ups run on a schedule, whether CI, an agent or a machine runs each, and what each may do.
+
 **Applies when:** A repeated, read-only or deterministic follow-up would otherwise be done by hand, and the user says yes to its schedule. **Skip when:** The user hasn't said yes: a manual, read-only follow-up is the default.
 
 Each row says how it runs, because these are four different things: *CI* is a script-only GitHub Actions cron or dispatch, with no model; *agent* is a scheduled agent task in a harness, a cloud job or a session loop, which spends model usage as well as any runner minutes; *machine* is a timer or service on a host. Prefer a script for anything deterministic. Every schedule is opt-in and needs the user's yes; until then, a manual read-only follow-up is the default. For each one, name who checks its first eligible result and what happens if no run starts.
@@ -9,7 +11,7 @@ Each row says how it runs, because these are four different things: *CI* is a sc
 | Cadence | Job | What it does |
 |---|---|---|
 | Daily (CI) | Health report | Budgets, shard balance, slow files, retries and spend projection, kept in one issue |
-| Daily or weekly (agent) | **Runner review** | Each job's CPU and memory over its runs since the last review, against its runner's size. Proposes a smaller runner for a job that stays well under its CPU, a bigger one for a job near its memory limit or CPU-bound on the critical path, and a shard-count change when the runner changes. Daily when PRs land often enough that each job has a fair sample every day; weekly otherwise. It only proposes: a resize needs the user's yes. [`ci-runners`' sizing](../../skills/ci-doctor/references/ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule) |
+| Daily or weekly (agent) | **Runner review** | Each job's CPU and memory over its runs since the last review, against its runner's size. Proposes a smaller runner for a job that stays well under its CPU, a bigger one for a job near its memory limit or CPU-bound on the critical path, and a shard-count change when the runner changes. Daily when PRs land often enough that each job has a fair sample every day; weekly otherwise. It only proposes: a resize needs the user's yes. [`ci-runners`' sizing](../../skills/ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule) |
 | Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for late cron. |
 | Daily (CI) | Latest external tools | The newest versions of external tools we integrate with, run against our latest release, without packing a snapshot. One compatibility issue. |
 | Daily (CI) | Infra drift | Read-only diff of production resources against applied state. One issue per stage, closed only when all are in sync. |

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: blacksmith-not-ci-workflows
+description: Belongs to ci-workflows, so should not load blacksmith.
+tags: [blacksmith, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Make the release workflow run only on tags."
+graders:
+  - name: did-not-load-blacksmith
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?blacksmith"'
+    min: 0
+    max: 0
+    arm: both

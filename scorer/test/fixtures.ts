@@ -1,10 +1,13 @@
 // Canned GitHub answers for one made-up repo, keyed as the gh stub keys them.
+import { createHash } from 'node:crypto';
 export type Answer = { status: number; json?: unknown; raw?: string; text?: string; message?: string };
 export type Routes = Record<string, Answer>;
 
 const ok = (json: unknown): Answer => ({ status: 200, json });
 const file = (raw: string): Answer => ({ status: 200, raw });
 const iso = (ms: number) => new Date(ms).toISOString();
+/** A made-up blob id for a path, as the tree lists it and a GraphQL read asks for it. */
+export const blobSha = (path: string) => createHash('sha1').update(path).digest('hex');
 
 export const WORKFLOW = `name: CI
 on:
@@ -114,7 +117,7 @@ export const fakeRepo = ({ repo, private: isPrivate = false, heads = 20, truncat
     { path: 'src/index.ts', type: 'blob', size: 300_000 },
     { path: 'src/index.test.ts', type: 'blob', size: 90_000 },
   ];
-  routes[`repos/${repo}/git/trees/main`] = ok({ tree: blobs, truncated });
+  routes[`repos/${repo}/git/trees/main`] = ok({ tree: blobs.map((b) => ({ ...b, sha: blobSha(b.path) })), truncated });
   for (const path of workflowPaths) routes[`repos/${repo}/contents/${path}?ref=main`] = file(path.endsWith('ci.yml') ? WORKFLOW : 'name: Extra\non: workflow_dispatch\n');
   routes[`repos/${repo}/contents/package.json?ref=main`] = file(PACKAGE_JSON);
 

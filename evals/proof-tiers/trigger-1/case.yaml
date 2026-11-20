@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: proof-tiers-trigger-1
+description: Should load proof-tiers.
+tags: [proof-tiers, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "I want to model-check the lease renewal logic for every interleaving of two workers."
+graders:
+  - name: loaded-proof-tiers
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?proof-tiers"'

@@ -2,7 +2,11 @@
 
 # 6. Reuse work by its real inputs
 
+Cache installs, builds and test results by every input that can change them, so CI replays what hasn't changed and never a stale pass.
+
 **Cache by real inputs.** A replayed result is only as good as its key: every file, setting and environment value that could change the result belongs in it, and nothing else does. Leave one out and a stale pass replays; put a stray one in, such as an absolute path, a temp report or a directory listing, and nothing ever replays. Whatever runs the tasks, the rules below hold: key by contents, keep run-specific values out, count only what ran, verify replays, and decide who may write what main replays.
+
+For agents, the [`cache-ci`](../../skills/cache-ci/SKILL.md) skill holds the rules for CI's dependency, build and toolchain caches, and how to find why one never hits.
 
 ## Task runners and their remote caches
 
@@ -104,7 +108,7 @@ Storage and requests bill separately from CI minutes; check them against your ow
 
 **Applies when:** The stack has Rust. **Skip when:** It has none.
 
-For agents, [`skills/ci-doctor/references/ci-workflows/references/rust.md`](../../skills/ci-doctor/references/ci-workflows/references/rust.md) holds these rules, if your stack uses Rust.
+For agents, [`skills/ci-workflows/references/rust.md`](../../skills/ci-workflows/references/rust.md) holds these rules, if your stack uses Rust.
 
 - **Two keys:**
   - a **pass key** over everything the checks read: sources, tests, fixtures, lockfile, toolchain, Cargo config found above the crate, shared contract vectors, the build workflow and its pinned action, and the relevant CI job blocks;

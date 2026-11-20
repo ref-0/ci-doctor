@@ -2,6 +2,10 @@
 
 # 10. Slow tests: the method
 
+Find the slow tests in CI's records, name what each one waits on, and make it faster without losing what it proves.
+
+The [`speed-up-tests`](../../skills/speed-up-tests/SKILL.md) skill carries this section for a coding agent: finding the slow files, naming the wait, the fixes and fakes that keep each test's proof, and measuring before and after.
+
 ## Find them from CI's own records, not intuition
 
 **Applies when:** Test time bears on the measured limiter, and CI's records give per-file durations. **Skip when:** There are no per-file records yet: recording them comes first (section 13).
@@ -28,7 +32,10 @@ Give each file a verdict: **slow for a wrong reason** (which), **real work**, or
 | A wall-clock window (a limiter's minute) | Count with a windowless stand-in, and keep one test on the real binding. |
 | A fake clock | Fake only the APIs the waited code uses: faking `setImmediate` stopped React's and Effect's schedulers. Step it in small slices. Don't fake time around Web Crypto: the clock outran the crypto work and the test timed out on a fake 15 s before its request was sent. |
 | A long file | Split by subject past ~90 s. Stop when the next split costs a harness start (measure yours) for a few seconds of tests. After splitting, replay representative production edits through both the local and CI selectors: a new file that imports only shared helpers may have no production edge. Add an explicit coverage mapping and a selector test that the relevant source edit selects it; a green direct run doesn't prove future selection. Then update proof references and timing estimates. |
-| An expensive prerequisite | Cache it keyed by everything it reads. Build expensive fixtures lazily inside the suite: a skipped suite still runs its file's top-level code. |
+| An expensive prerequisite | Cache it keyed by everything it reads. Build expensive fixtures lazily inside the suite: a skipped suite still runs its file's top-level code. Build what's **immutable** once (a compiled Wasm module, a bundled child entry, a bare Git template, key material) and give each test its own **mutable** state from it (an instance, a process, a checkout). In paired local runs, a Wasm suite fell to about half its time and a subprocess suite to about a third. Time setup's share of the file first: we skipped files where it was under a third. |
+| A fixture builder's own CPU | Profile the builder apart from the test, as an algorithm. A tree fixture scanned every path once per folder; handing each folder only its children's paths took a 3,050-file build from about 1.2 s to 5 ms in a local benchmark. Run old and new builders side by side on generated inputs, boundary cases included, and compare outputs (we compared 3,000 random sets) before switching. |
+| Deep setup done one step at a time | Find the operation the test measures, then build the state before it the way production builds it in bulk: one grouped write and one turn instead of a turn per entry. Check that the measured operation sees the same state, for example identical row and statement counts at a small and a large size. One file fell by about a quarter in paired local runs. If the deepest proof moves to its own file, check the selector still picks both. |
+| An interactive proof that waits for stillness | Wait for evidence that this step finished, not for the terminal to stop changing: the command's log line, the tool's completion marker, and no prompt still active. Check the predicate against saved screens first, keep stillness for the first prompt, which has no end to wait for, and fall back to it with a logged warning if no end shows. Our proof step shrank by about a third in CI, a figure that includes other setup changes made with it. |
 | Transport overhead | Sending a test's SQL over one socket instead of a request per statement took 19 files from 309 to 158 test-seconds, measured locally. Preserve the caller's statement-completion and transaction-visibility semantics: our socket kept synchronous completion because clock-driven tests relied on it (section 18). |
 | Real work at the size it proves | Leave it, or move it to a later tier with its covered paths. |
 
@@ -51,6 +58,8 @@ A wait can hide behind another: a server retry *and* an SDK's own retry loop bot
 ## Measure honestly
 
 **Applies when:** A before and after, or any timing comparison, is reported. **Skip when:** Nothing is compared.
+
+The [`prove-it`](../../skills/prove-it/SKILL.md) skill carries these rules for a coding agent, for any claim that something is faster, cost less or fixed: the decision and noise floor first, then like for like, interleaving, controls and the limiter.
 
 - **Same command, field and machine** on both sides, and test time, not wall time, when setup is shared.
 - **Interleave** before/after/before/after on a loaded machine, and state the load.

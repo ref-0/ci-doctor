@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: proof-tiers-not-test-audit
+description: Belongs to test-audit, so should not load proof-tiers.
+tags: [proof-tiers, not-trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Is this unit test for the config loader worth keeping, or does it just repeat the code?"
+graders:
+  - name: did-not-load-proof-tiers
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?proof-tiers"'
+    min: 0
+    max: 0
+    arm: both

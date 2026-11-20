@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: ci-doctor-trigger-3
+description: Should load ci-doctor.
+tags: [ci-doctor, trigger]
+runs: 1
+execution:
+  max_turns: 2
+  timeout_seconds: 180
+  allowed_tools: [Skill, Read, Glob, Grep]
+  prompt: "Can you review our CI setup and tell me where the time and the money go?"
+graders:
+  - name: loaded-ci-doctor
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?ci-doctor"'
