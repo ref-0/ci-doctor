@@ -23,13 +23,13 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+    for (const line of ['[ci](../agent-knowledge/repo-facts/ci.md)', 'the hub\'s references/agent-knowledge/', 'see ../agent-knowledge/progress.md', 'see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
       equal(flagged(line), true, line);
     }
   });
 
   it('leaves the new paths alone', () => {
-    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic']) {
+    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', '[ci](../agent-knowledge/templates/repo-facts/ci.md)', 'the [`agent-knowledge`](../agent-knowledge/SKILL.md) skill', 'skills/agent-knowledge/references/where-it-lives.md', 'the hub\'s ci-runners topic']) {
       equal(flagged(line), false, line);
     }
   });

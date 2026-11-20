@@ -1,14 +1,14 @@
 <!--
 What: how to change CI without making it slower, costlier or less trustworthy, on any provider.
 Where: read by a coding agent before it edits workflows, selection, shards, tiers or caches.
-Configure: write your repo's facts file, `.agents/repo/ci.md`, from the hub's references/agent-knowledge/repo-facts/ci.md;
+Configure: write your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md;
 write `.agents/repo/ci-time.json` from repo-facts/ci-time.json for scripts/ci-time.ts.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # CI workflows
 
-Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../agent-knowledge/repo-facts/ci.md)): its Entry points and gate names the repo's workflows, whose headers say what runs when, and the comment above each job and step says why it's shaped as it is. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs. [guide sections 3 to 7](../../../../docs/pages/03-workflow-anatomy.md) explain the design.
+Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](../../../agent-knowledge/templates/repo-facts/ci.md)): its Entry points and gate names the repo's workflows, whose headers say what runs when, and the comment above each job and step says why it's shaped as it is. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs. [guide sections 3 to 7](../../../../docs/pages/03-workflow-anatomy.md) explain the design.
 
 The rules here hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](../ci-runners/TOPIC.md); if you run on Blacksmith, [`blacksmith`](../blacksmith/TOPIC.md) has its CLI, labels, disks and bill. The [templates](../../../../templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
 
@@ -22,7 +22,7 @@ A pull request that changes a workflow runs its own version, so its run is the t
 
 ## Measuring a run
 
-[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](../speed-up-tests/references/ci-history-data.md) says. It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label; with `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [the blacksmith topic's adapter](../blacksmith/scripts/blacksmith-bill.ts). Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](../agent-knowledge/repo-facts/ci-time.json)). Its tests: `node --test ci-time.test.ts`, from `scripts/`.
+[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](../speed-up-tests/references/ci-history-data.md) says. It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label; with `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [the blacksmith topic's adapter](../blacksmith/scripts/blacksmith-bill.ts). Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](../../../agent-knowledge/templates/repo-facts/ci-time.json)). Its tests: `node --test ci-time.test.ts`, from `scripts/`.
 
 Where CI's records are and how to read them is [measuring](../speed-up-tests/references/measuring.md). Judging what a number means is [`verify-evidence`](../verify-evidence/TOPIC.md).
 

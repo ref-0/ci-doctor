@@ -49,7 +49,7 @@
 5. **Setup the user must do,** for the approved items only, in order. For example: create a GitHub budget; approve a repo secret; on Blacksmith, if selected, install its GitHub app and run `blacksmith auth login`; for a self-hosted cache, `wrangler login` and choose the account. Give the exact commands, and say which steps you'll do once they're done.
 6. **Parallel work,** if any: which items go to which agent, how many at once, and which model does the reading.
 7. **Automations:** for each row of [guide section 16's table](../excerpts/phase-3.md#16-standing-automations) that bears on the plan, a verdict: applies, already done, or doesn't fit. For each one that applies: its kind (Phase 0), cadence, its identity and scoped credentials in the environment it actually runs in, whether it needs a model, what it may do on its own, what it must propose instead, who checks its first eligible result, and what happens if no run starts. Prefer a script for a deterministic task. The default is a manual, read-only follow-up. Each new schedule needs the user's yes.
-8. **Agent knowledge:** how to fit [guide section 17](../excerpts/phase-3.md#17-keeping-agent-knowledge-from-going-stale) into the user's layout (Phase 6).
+8. **Agent knowledge:** how to fit the user's layout, as the [`agent-knowledge`](../../../agent-knowledge/SKILL.md) skill says (Phase 6).
 9. **Out of scope or not fitting,** with reasons.
 10. **Questions for the user,** each with your recommendation.
 11. **The authorization record** (below).

@@ -190,7 +190,7 @@ describe('whose comments count', () => {
 
 describe('the settings', () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const template = join(here, '..', '..', 'ci-doctor', 'references', 'agent-knowledge', 'repo-facts', 'review-record.json');
+  const template = join(here, '..', '..', 'agent-knowledge', 'templates', 'repo-facts', 'review-record.json');
 
   it('has a template that holds every default', () => {
     // Read the file itself first: readSettings fills a missing or empty file from DEFAULTS.

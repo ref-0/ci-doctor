@@ -2,7 +2,7 @@
 What: the method for finding slow tests and flakes from CI's records and fixing them without weakening them.
 Where: read by a coding agent, locally, before it touches a slow or flaky test.
 Configure: write your repo's facts file, `.agents/repo/speed-up-tests.md`, from
-the hub's references/agent-knowledge/repo-facts/speed-up-tests.md.
+the agent-knowledge skill's templates/repo-facts/speed-up-tests.md.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
@@ -10,7 +10,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 A slow test is usually a test that waits: on a production period it inherits, a retry's backoff, a poll, a sleep that arranges a race, or a wall-clock window. A test that does real work at the size it proves is usually fine as it is. The job is to tell the two apart from CI's own records, take the wait out while every assertion still holds, and show it in CI. The waits worth most are shared: one in a helper, a fake or a production constant reaches dozens of files.
 
-The repo's records, scripts, settings, holds, fakes and past campaigns are in its `.agents/repo/speed-up-tests.md` (template: [`repo-facts/speed-up-tests.md`](../agent-knowledge/repo-facts/speed-up-tests.md)). Read it first. The method behind this skill is [guide section 10](../../../../docs/pages/10-slow-tests-the-method.md).
+The repo's records, scripts, settings, holds, fakes and past campaigns are in its `.agents/repo/speed-up-tests.md` (template: [`repo-facts/speed-up-tests.md`](../../../agent-knowledge/templates/repo-facts/speed-up-tests.md)). Read it first. The method behind this skill is [guide section 10](../../../../docs/pages/10-slow-tests-the-method.md).
 
 **Checks:** [wait for the effect itself](../checks/wait-for-the-effect.md), [keep slow test files out of the shards](../checks/ci-keep-slow-files-out-of-the-shards.md), [measure CI before changing it](../checks/ci-measure-before-changing-it.md), [read what was tried](../checks/ci-read-what-was-tried.md) and [check what CI actually ran](../checks/check-what-ci-ran.md). Before quoting any number, [`verify-evidence`](../verify-evidence/TOPIC.md).
 
