@@ -243,6 +243,21 @@ describe('replayed changes', () => {
     deepStrictEqual(commit!.causes, { graph: 1 });
     strictEqual(commit!.reached.tests, 1);
   });
+
+  it('counts the packages a lockfile edit reaches among those with files, its denominator too', () => {
+    const r = report(repoOf(workspace({
+      ...lib({ '.': './src/x.ts' }),
+      'packages/lib/src/x.ts': 'export const x = 1;\n',
+      'packages/app/a.ts': "import 'lib';\n",
+      'packages/docs/package.json': '{ "name": "docs" }',
+      'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+    }), [{ 'pnpm-lock.yaml': "lockfileVersion: '9.1'\n" }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    strictEqual(commit!.everything, true);
+    deepStrictEqual([commit!.reached.packages, commit!.of.packages], [2, 2]);
+    deepStrictEqual([r.denominators.packages, r.denominators.packagesWithFiles], [4, 2]);
+    deepStrictEqual(r.packages.replay!.reached, { p50: 1, p90: 1 });
+  });
 });
 
 describe('the four graphs, measured', () => {
