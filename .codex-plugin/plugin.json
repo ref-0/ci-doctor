@@ -1,7 +1,7 @@
 {
   "name": "ci-doctor",
   "version": "0.1.0",
-  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, how far an edit reaches through a workspace's graphs, agents' instructions that stay true, review and merge gates, test value and proof tiers.",
+  "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, slow and flaky tests, runners and the bill, and how far an edit reaches.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
@@ -25,8 +25,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "ci-doctor",
-    "shortDescription": "Fast, cheap, trustworthy CI",
-    "longDescription": "Make CI faster, cheaper and more trustworthy on any provider. Your agent maps the repo, measures CI from its history and writes a plan you approve before anything changes. Day to day, it reads failed runs, changes workflows, sizes runners against the bill, fixes slow and flaky tests without losing what they prove, narrows how far an edit reaches through packages, exports, folders and tasks, keeps agents' instructions and the repo's facts short and true, and, where the repo adopts them, gates review and merging.",
+    "shortDescription": "CI playbook and local scorer",
+    "longDescription": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI from its history and writes a plan for you to approve before anything changes. Day to day, its skills diagnose failed runs, cut checks an edit doesn't need, and fix slow or flaky tests without losing what they prove.",
     "developerName": "ref0",
     "category": "Developer Tools",
     "capabilities": [
