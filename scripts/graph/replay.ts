@@ -26,10 +26,15 @@ const CI = /^(?:\.github\/|\.gitlab-ci\.yml$|\.gitlab\/|\.circleci\/|\.buildkite
 const SHARED = /^(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|bun\.lockb?|\.npmrc|\.yarnrc(?:\.yml)?|\.nvmrc|\.node-version|\.tool-versions|tsconfig[\w.-]*\.json|turbo\.json|nx\.json|[\w.-]+\.config\.[cm]?[jt]s|\.babelrc[\w.]*)$/;
 const PACKAGE_CONFIG = /(?:^|\/)(?:package\.json|tsconfig[\w.-]*\.json|[\w.-]+\.config\.[cm]?[jt]s|\.babelrc[\w.]*|project\.json|turbo\.json)$/;
 
-/** How one changed path reaches the workspace at a commit, `nodes` being the graph's nodes. */
-export const causeOf = (path: string, graph: FileGraph, nodes: ReadonlySet<string>): { cause: Cause; why: string } => {
+/**
+ * How one changed path reaches the workspace at a commit, `nodes` being the graph's nodes and
+ * `imported` those with an edge into them. A file something imports, a `.txt` fixture among them,
+ * is never docs or lint config.
+ */
+export const causeOf = (path: string, graph: FileGraph, nodes: ReadonlySet<string>, imported: ReadonlySet<string> = new Set()): { cause: Cause; why: string } => {
   const single = graph.packages.length === 1;
   if (CI.test(path)) return { cause: 'everything', why: 'CI config' };
+  if (imported.has(path)) return { cause: 'graph', why: 'import graph' };
   if (DOC.test(path)) return { cause: 'none', why: 'docs' };
   if (LINT.test(path)) return { cause: 'none', why: 'lint, format or editor config' };
   if (SHARED.test(path)) return { cause: 'everything', why: 'shared root config or lockfile' };
@@ -80,6 +85,8 @@ export const commitReach = (
 ): CommitReach => {
   const nodes = new Set(nodesOf(graph));
   const beforeNodes = new Set(nodesOf(before));
+  const imported = new Set(graph.edges.map((e) => e.to));
+  const beforeImported = new Set(before.edges.map((e) => e.to));
   const tests = [...nodes].filter(graph.isTest);
   const entries = [...entriesOf(graph)].filter(([, e]) => e.file !== null);
   const causes: Partial<Record<Cause, number>> = {};
@@ -92,7 +99,7 @@ export const commitReach = (
 
   for (const { status, path } of changes) {
     const gone = status.startsWith('D');
-    const { cause, why } = causeOf(path, gone ? before : graph, gone ? beforeNodes : nodes);
+    const { cause, why } = causeOf(path, gone ? before : graph, gone ? beforeNodes : nodes, gone ? beforeImported : imported);
     causes[cause] = (causes[cause] ?? 0) + 1;
     if (cause !== 'none') changedPackages.add((gone ? before : graph).owner(path).name);
     if (cause === 'everything') { everything = true; everythingWhy ??= { path, why }; }
