@@ -2,7 +2,7 @@
   "name": "ci-doctor",
   "displayName": "ci-doctor",
   "version": "0.1.0",
-  "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, slow and flaky tests, runners and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted, and agents' instructions kept short and true.",
+  "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, workflows that waste time, slow and flaky tests, runners and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted, and agents' instructions kept short and true.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
