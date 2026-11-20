@@ -19,8 +19,8 @@
  *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` and
- *    `speed-up-tests` topics, its `flakes.md`,
+ *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs`,
+ *    `speed-up-tests` and `verify-evidence` topics, its `flakes.md`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -55,7 +55,7 @@ export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.tes
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-workflows|ci-runners|blacksmith|verify-evidence';
+const TOPICS = 'ci-workflows|ci-runners|blacksmith';
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
@@ -68,6 +68,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
   [new RegExp(`\\bskills? \`(${TOPICS})\``), 'the hub\'s <topic> topic'],
   [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
+  [/verify-evidence/, 'skills/prove-it/'],
   [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
