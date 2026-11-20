@@ -12,7 +12,7 @@ A slow test is usually a test that waits: on a production period it inherits, a 
 
 The repo's records, scripts, settings, holds, fakes and past campaigns are in its `.agents/repo/speed-up-tests.md` (template: [`repo-facts/speed-up-tests.md`](../../../agent-knowledge/templates/repo-facts/speed-up-tests.md)). Read it first. The method behind this skill is [guide section 10](../../../../docs/pages/10-slow-tests-the-method.md).
 
-**Checks:** [wait for the effect itself](../checks/wait-for-the-effect.md), [keep slow test files out of the shards](../checks/ci-keep-slow-files-out-of-the-shards.md), [measure CI before changing it](../checks/ci-measure-before-changing-it.md), [read what was tried](../checks/ci-read-what-was-tried.md) and [check what CI actually ran](../checks/check-what-ci-ran.md). Before quoting any number, [`verify-evidence`](../verify-evidence/TOPIC.md).
+**Checks:** [wait for the effect itself](../checks/wait-for-the-effect.md), [keep slow test files out of the shards](../checks/ci-keep-slow-files-out-of-the-shards.md), [measure CI before changing it](../checks/ci-measure-before-changing-it.md), [read what was tried](../checks/ci-read-what-was-tried.md) and [check what CI actually ran](../checks/check-what-ci-ran.md). Before quoting any number, the [`prove-it`](../../../prove-it/SKILL.md) skill.
 
 ## 1. Find them from CI's records
 
@@ -74,4 +74,4 @@ The method holds on any stack. Where your stack matches, these say what was spec
 - [`ci-workflows`](../ci-workflows/TOPIC.md): shards, selection, tiers and caches; [`ci-runners`](../ci-runners/TOPIC.md) for runner size and cost.
 - [`test-audit`](../../../test-audit/SKILL.md): whether a test is worth keeping at all; its authoring gate applies to any test you add.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): taking a PR through CI; [`review-gate`](../../../review-gate/SKILL.md) for its tests reviewer.
-- [`verify-evidence`](../verify-evidence/TOPIC.md): judging a number before you quote it.
+- The [`prove-it`](../../../prove-it/SKILL.md) skill: judging a number before you quote it.

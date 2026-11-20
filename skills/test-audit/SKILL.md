@@ -125,7 +125,7 @@ may still be the independent contract; prove otherwise before removing it.
 
 ## Validation
 
-Never edit source or tests while a test runner is running in the checkout. This skill owns test value; [make the test fail first](../ci-doctor/references/checks/make-the-test-fail-first.md) and [test the real boundary](../ci-doctor/references/checks/test-the-real-boundary.md) are the checks behind it. [`verify-evidence`](../ci-doctor/references/verify-evidence/TOPIC.md) owns evidence quality: what a check really saw, and what a number really measured.
+Never edit source or tests while a test runner is running in the checkout. This skill owns test value; [make the test fail first](../ci-doctor/references/checks/make-the-test-fail-first.md) and [test the real boundary](../ci-doctor/references/checks/test-the-real-boundary.md) are the checks behind it. [`prove-it`](../prove-it/SKILL.md) owns evidence quality: what a check really saw, and what a number really measured.
 
 1. Run each owner or sibling test file by name, filtered to the tests you changed where you can, as the commands block of the repo's `AGENTS.md` says. Never pass a directory, package or glob. Follow it for local checks.
 2. For removed source greps or plan assertions, run the executable script or
