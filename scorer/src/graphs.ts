@@ -295,18 +295,20 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
   }
 
   // Each entry's re-exported modules, from what was read: unknown when the walk reaches a file it couldn't read.
-  const walk = (file: string) => {
+  // An entry with `import` and `require` targets in different files re-exports the union of both.
+  const walk = (files: ReadonlyArray<string>) => {
+    const start = new Set(files);
     const reexports = new Set<string>();
-    const waiting = [file];
+    const waiting = [...files];
     let why: string | undefined;
     for (let f = waiting.pop(); f !== undefined; f = waiting.pop()) {
       const reason = failed.get(f) ?? cut.get(f);
       if (reason !== undefined) {
-        why ??= f === file ? `${f}: ${reason}` : `${f}, which it re-exports: ${reason}`;
+        why ??= start.has(f) ? `${f}: ${reason}` : `${f}, which it re-exports: ${reason}`;
         continue;
       }
       // A cycle back to the entry doesn't count the entry itself.
-      for (const t of next.get(f) ?? []) if (t !== file && !reexports.has(t)) (reexports.add(t), waiting.push(t));
+      for (const t of next.get(f) ?? []) if (!start.has(t) && !reexports.has(t)) (reexports.add(t), waiting.push(t));
     }
     return { reexports: reexports.size, why };
   };
@@ -319,7 +321,7 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
     if (e.pattern !== undefined) return { ...base, pattern: e.pattern, subpaths: e.subpaths ?? 0, file: null, reexports: null, stars: null, barrel: null, overload: null };
     if (e.file === undefined) return { ...base, file: null, reexports: null, stars: null, barrel: null, overload: null, unknown: e.miss! };
     const mod = parsed.get(e.file);
-    const w = MODULE.test(e.file) ? walk(e.file) : { reexports: 0, why: undefined };
+    const w = MODULE.test(e.file) ? walk([e.file, ...(e.also ?? []).filter((f) => MODULE.test(f))]) : { reexports: 0, why: undefined };
     const reexports = w.why === undefined ? w.reexports : null;
     return {
       ...base,

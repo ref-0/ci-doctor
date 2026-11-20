@@ -168,7 +168,8 @@ export interface EntryEdge {
   readonly files: number;
 }
 
-interface Entry { readonly pkg: Package; readonly key: string; file: string | null; readonly pattern?: string }
+/** `also`: the entry's other runtime files, such as its `require` target beside its `import` one. */
+interface Entry { readonly pkg: Package; readonly key: string; file: string | null; readonly also: string[]; readonly pattern?: string }
 const entryCache = new WeakMap<FileGraph, ReadonlyMap<string, Entry>>();
 
 /**
@@ -183,13 +184,14 @@ export const entriesOf = (graph: FileGraph) => {
   const found = new Map<string, Entry>();
   const byName = new Map(graph.packages.map((p) => [p.name, p]));
   for (const pkg of graph.packages) {
-    for (const key of exportKeys(pkg.manifest).keys()) if (!key.includes('*')) found.set(`${pkg.name}#${key}`, { pkg, key, file: graph.entry(pkg.name, key) });
+    for (const key of exportKeys(pkg.manifest).keys()) if (!key.includes('*')) found.set(`${pkg.name}#${key}`, { pkg, key, file: graph.entry(pkg.name, key), also: [] });
   }
   for (const e of graph.edges) {
     if (e.pkg === undefined || e.entry === undefined) continue;
     const id = `${e.pkg}#${e.entry}`;
-    const entry = found.get(id) ?? found.set(id, { pkg: byName.get(e.pkg)!, key: e.entry, file: null, ...(e.pattern ? { pattern: e.pattern } : {}) }).get(id)!;
+    const entry = found.get(id) ?? found.set(id, { pkg: byName.get(e.pkg)!, key: e.entry, file: null, also: [], ...(e.pattern ? { pattern: e.pattern } : {}) }).get(id)!;
     if (e.kind !== 'type') entry.file ??= e.to;
+    if (e.kind !== 'type' && e.to !== entry.file && !entry.also.includes(e.to)) entry.also.push(e.to);
   }
   // An entry only `import type` reaches still names its runtime file, or the types it loads.
   for (const e of graph.edges) {
@@ -201,14 +203,15 @@ export const entriesOf = (graph: FileGraph) => {
 };
 
 
-/** Each entry's runtime closure and re-exported modules. */
-const closures = (graph: FileGraph, file: string, byFrom: ReadonlyMap<string, ReadonlyArray<string>>) => {
+/** Each entry's runtime closure, and the modules it re-exports from any of its runtime files. */
+const closures = (graph: FileGraph, file: string, also: ReadonlyArray<string>, byFrom: ReadonlyMap<string, ReadonlyArray<string>>) => {
   const loads = new Set<string>();
   const waiting = [file];
   for (let f = waiting.pop(); f !== undefined; f = waiting.pop()) { if (loads.has(f)) continue; loads.add(f); waiting.push(...(graph.imports.get(f) ?? [])); }
   const reexports = new Set<string>();
-  const through = [file];
-  for (let f = through.pop(); f !== undefined; f = through.pop()) for (const to of byFrom.get(f) ?? []) if (to !== file && !reexports.has(to)) { reexports.add(to); through.push(to); }
+  const start = new Set([file, ...also]);
+  const through = [...start];
+  for (let f = through.pop(); f !== undefined; f = through.pop()) for (const to of byFrom.get(f) ?? []) if (!start.has(to) && !reexports.has(to)) { reexports.add(to); through.push(to); }
   return { loads: loads.size, reexports: reexports.size };
 };
 
@@ -277,10 +280,10 @@ export const exportsSection = (graph: FileGraph, commitsThrough: ReadonlyMap<str
   const byFrom = new Map<string, string[]>();
   for (const e of graph.edges) if (REEXPORTS.has(e.kind)) (byFrom.get(e.from) ?? byFrom.set(e.from, []).get(e.from)!).push(e.to);
   const edges = [...edgeFiles].map(([k, files]) => { const [from, to] = k.split('\0') as [string, string]; return { from, to, files: files.size }; });
-  const nodes: EntryNode[] = [...entries].map(([id, { pkg, key, file, pattern }]) => {
+  const nodes: EntryNode[] = [...entries].map(([id, { pkg, key, file, also, pattern }]) => {
     const into = edges.filter((e) => e.to === id);
     const mod = file ? graph.modules.get(file) : undefined;
-    const { loads, reexports } = file ? closures(graph, file, byFrom) : { loads: 0, reexports: 0 };
+    const { loads, reexports } = file ? closures(graph, file, also, byFrom) : { loads: 0, reexports: 0 };
     const packages = into.length;
     return {
       id, pkg: pkg.name, key, ...(pattern ? { pattern } : {}), file,
