@@ -23,13 +23,13 @@ const write = (root: string, file: string, text: string) => {
 
 describe('the old-name scan', () => {
   it('finds old topic skills and PROMPT.md, after any relative prefix and in commands', () => {
-    for (const line of ['see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill']) {
+    for (const line of ['see ../graphs/TOPIC.md', 'skills/ci-doctor/references/graphs/', 'see ../../skills/ci-workflows/SKILL.md', '.agents/skills/ci-runners/', 'cat PROMPT.md', '[it](../PROMPT.md#x)', 'the `code-review` skill', 'skills/ci-doctor/references/speed-up-tests/', '[it](../speed-up-tests/TOPIC.md)', '../speed-up-tests/references/flakes.md', 'the hub\'s speed-up-tests topic', 'the `speed-up-tests` topic']) {
       equal(flagged(line), true, line);
     }
   });
 
   it('leaves the new paths alone', () => {
-    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic']) {
+    for (const line of ['skills/ci-doctor/references/ci-workflows/TOPIC.md', 'skills/review-gate/SKILL.md', 'the hub\'s ci-runners topic', 'skills/speed-up-tests/SKILL.md', '../speed-up-tests/references/fixes.md', 'the `speed-up-tests` skill', 'skills/ci-doctor/references/triage/flakes.md']) {
       equal(flagged(line), false, line);
     }
   });
