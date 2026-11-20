@@ -11,18 +11,15 @@
  *
  * Reference implementation from a production monorepo; adapt to your repo.
  */
+import { components, depths, taskShape, THRESHOLDS } from '../../scorer/src/graph-core.ts';
+import type { Flag, TaskNode } from '../../scorer/src/graph-core.ts';
 import { exportKeys, REEXPORTS } from './read.ts';
 import type { FileGraph, Package } from './read.ts';
 import type { TaskGraph } from './tasks.ts';
 
-/** A finding, for a person or a page to draw: what it is, about what, its numbers, and the threshold it crossed. */
-export interface Flag {
-  readonly kind: string;
-  readonly subject: string;
-  readonly numbers: Readonly<Record<string, number>>;
-  readonly threshold: Readonly<Record<string, number>> | null;
-  readonly detail?: string;
-}
+// The helpers, the thresholds and the task graph's measure are shared with the scorer: `scorer/src/graph-core.ts`.
+export { components, depths, THRESHOLDS } from '../../scorer/src/graph-core.ts';
+export type { Flag, TaskNode } from '../../scorer/src/graph-core.ts';
 
 export interface Section<N, E> {
   readonly nodes: ReadonlyArray<N>;
@@ -30,80 +27,7 @@ export interface Section<N, E> {
   readonly flags: ReadonlyArray<Flag>;
 }
 
-/** The thresholds flags use. Change them here; each flag carries the one it crossed. */
-export const THRESHOLDS = {
-  /** An entry is overloaded when it re-exports at least this many modules to at least this many packages. */
-  overloadModules: 20,
-  overloadPackages: 3,
-  /** How many overloaded entries and wide files to flag at most. */
-  top: 20,
-  /** A task's inputs are wide when they cover more than this share of the repo's tracked files. */
-  wideInputs: 0.5,
-  /** A task chain is deep at this many tasks. */
-  deepChain: 6,
-};
-
 // ---- Graph helpers ------------------------------------------------------------------------------
-
-/** Strongly connected components, by Tarjan's algorithm without recursion, each in the order found (sinks first). */
-export const components = (nodes: ReadonlyArray<string>, next: (node: string) => Iterable<string>) => {
-  const index = new Map<string, number>();
-  const low = new Map<string, number>();
-  const onStack = new Set<string>();
-  const stack: string[] = [];
-  const found: string[][] = [];
-  let counter = 0;
-  for (const start of nodes) {
-    if (index.has(start)) continue;
-    const work: Array<{ node: string; it: Iterator<string> }> = [];
-    const open = (node: string) => {
-      index.set(node, counter); low.set(node, counter); counter++;
-      stack.push(node); onStack.add(node);
-      work.push({ node, it: next(node)[Symbol.iterator]() });
-    };
-    open(start);
-    while (work.length > 0) {
-      const top = work[work.length - 1]!;
-      const step = top.it.next();
-      if (!step.done) {
-        const to = step.value;
-        if (!index.has(to)) open(to);
-        else if (onStack.has(to)) low.set(top.node, Math.min(low.get(top.node)!, index.get(to)!));
-        continue;
-      }
-      work.pop();
-      if (work.length > 0) { const parent = work[work.length - 1]!.node; low.set(parent, Math.min(low.get(parent)!, low.get(top.node)!)); }
-      if (low.get(top.node) === index.get(top.node)) {
-        const scc: string[] = [];
-        for (let n = stack.pop(); n !== undefined; n = stack.pop()) { onStack.delete(n); scc.push(n); if (n === top.node) break; }
-        found.push(scc.sort());
-      }
-    }
-  }
-  return found;
-};
-
-/** Each node's longest chain of `next` steps below it (0 for a node with none), cycles condensed, and one longest chain. */
-export const depths = (nodes: ReadonlyArray<string>, next: (node: string) => Iterable<string>) => {
-  const sccs = components(nodes, next);
-  const of = new Map<string, number>();
-  sccs.forEach((scc, i) => { for (const n of scc) of.set(n, i); });
-  const depth: number[] = [];
-  const via: Array<number | undefined> = [];
-  sccs.forEach((scc, i) => {
-    let best = 0;
-    let through: number | undefined;
-    for (const n of scc) for (const to of next(n)) {
-      const j = of.get(to)!;
-      if (j !== i && depth[j]! + 1 > best) { best = depth[j]! + 1; through = j; }
-    }
-    depth[i] = best; via[i] = through;
-  });
-  const deepest = depth.reduce((b, d, i) => (d > depth[b]! ? i : b), 0);
-  const chain: string[] = [];
-  for (let i: number | undefined = sccs.length > 0 ? deepest : undefined; i !== undefined; i = via[i]) chain.push(sccs[i]!.join(' + '));
-  return { depth: new Map(nodes.map((n) => [n, depth[of.get(n)!]!])), cycles: sccs.filter((s) => s.length > 1), chain };
-};
 
 /** Every file the changed ones reach through importers, the changed ones included. */
 export const reach = (graph: FileGraph, changed: Iterable<string>) => {
@@ -129,7 +53,6 @@ export const nodesOf = (graph: FileGraph) => {
   return sorted;
 };
 
-const share = (count: number, of: number) => (of === 0 ? 0 : Math.round((count / of) * 10000) / 10000);
 
 // ---- 1. Packages --------------------------------------------------------------------------------
 
@@ -482,49 +405,5 @@ export const layersSection = (graph: FileGraph, declared: Layers = {}): Section<
 
 // ---- 4. Tasks -----------------------------------------------------------------------------------
 
-export interface TaskNode {
-  readonly id: string;
-  readonly pkg: string;
-  readonly name: string;
-  readonly runner: string;
-  readonly cached: boolean;
-  readonly inputs: { readonly mode: string; readonly globs: ReadonlyArray<string>; readonly files: number | null };
-  readonly outputs: ReadonlyArray<string>;
-  /** The longest chain of tasks it waits on. */
-  readonly depth: number;
-}
-
-export const tasksSection = (graph: FileGraph, tasks: TaskGraph): Section<TaskNode, { from: string; to: string; how: string }> & { depth: number; chain: string[]; cached: number } => {
-  const ids = [...tasks.tasks.keys()];
-  const next = (id: string) => tasks.edges.filter((e) => e.from === id).map((e) => e.to);
-  const out = new Map<string, string[]>();
-  for (const e of tasks.edges) (out.get(e.from) ?? out.set(e.from, []).get(e.from)!).push(e.to);
-  const { depth, cycles, chain } = depths(ids, (id) => out.get(id) ?? []);
-  void next;
-  const tracked = [...graph.files.keys()].sort();
-  const counted = new Map<string, number | null>();
-  for (const t of tasks.tasks.values()) {
-    if (!t.cached || t.mode === 'unknown') { counted.set(t.id, null); continue; }
-    let n = 0;
-    for (const f of tracked) if (f.startsWith(t.prefix) && t.matches(f)) n++;
-    counted.set(t.id, n);
-  }
-  const nodes: TaskNode[] = [...tasks.tasks.values()].map((t) => ({
-    id: t.id, pkg: t.pkg, name: t.name, runner: t.runner, cached: t.cached,
-    inputs: { mode: t.mode, globs: t.inputs, files: counted.get(t.id) ?? null }, outputs: t.outputs, depth: depth.get(t.id) ?? 0,
-  })).sort((a, b) => a.id.localeCompare(b.id));
-  const maxDepth = Math.max(0, ...depth.values());
-  const flags: Flag[] = [
-    ...cycles.map((c) => ({ kind: 'task-cycle', subject: c.join(' ↔ '), numbers: { tasks: c.length }, threshold: null })),
-    ...(maxDepth + 1 >= THRESHOLDS.deepChain ? [{ kind: 'deep-chain', subject: chain.join(' → '), numbers: { tasks: maxDepth + 1 }, threshold: { tasks: THRESHOLDS.deepChain } }] : []),
-    ...nodes.filter((n) => n.cached && (n.inputs.mode === 'package-default' || n.inputs.mode === 'empty')).map((n) => ({
-      kind: 'no-inputs', subject: n.id, numbers: { files: n.inputs.files ?? 0, filesOf: tracked.length }, threshold: null,
-      detail: n.inputs.mode === 'empty' ? 'inputs are empty: only the command and env key the cache, so a source change hits it wrongly' : `no declared inputs: ${n.runner}'s default keys every file of the package, so any change there misses`,
-    })),
-    ...nodes.filter((n) => n.cached && n.inputs.mode !== 'auto' && n.inputs.files !== null && share(n.inputs.files, tracked.length) > THRESHOLDS.wideInputs).map((n) => ({
-      kind: 'wide-inputs', subject: n.id, numbers: { files: n.inputs.files!, filesOf: tracked.length, share: share(n.inputs.files!, tracked.length) }, threshold: { share: THRESHOLDS.wideInputs },
-    })),
-  ];
-  return { nodes, edges: tasks.edges, flags, depth: maxDepth + (ids.length > 0 ? 1 : 0), chain, cached: nodes.filter((n) => n.cached).length };
-};
-
+export const tasksSection = (graph: FileGraph, tasks: TaskGraph): Section<TaskNode, { from: string; to: string; how: string }> & { depth: number; chain: string[]; cached: number } =>
+  taskShape(tasks, graph.files.keys());
