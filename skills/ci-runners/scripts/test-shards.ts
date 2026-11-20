@@ -181,6 +181,8 @@ const believable = (at: number, ms: number, now: number) =>
  * is one sample. A sample in two inputs counts once, and only a `believable` one counts.
  *
  * - Each file keeps its newest `keptSamples` samples, and its planned time is their median.
+ * - The output is the same bytes for the same inputs in any order: paths sorted, and samples by
+ *   time, then duration.
  * - With `tracked`, the checkout's files, a file it doesn't hold is dropped, as a deleted test.
  */
 export const merged = (
@@ -215,8 +217,9 @@ export const merged = (
     }
   }
 
-  const files = [...samples].flatMap(([path, list]) => {
-    const newest = list.toSorted((one, other) => one[0] - other[0]).slice(-keptSamples);
+  // Paths in order, and samples by time, then duration, so the same inputs in any order give the same bytes.
+  const files = [...samples].toSorted(([one], [other]) => (one < other ? -1 : one > other ? 1 : 0)).flatMap(([path, list]) => {
+    const newest = list.toSorted((one, other) => one[0] - other[0] || one[1] - other[1]).slice(-keptSamples);
 
     return newest.length === 0
       ? []
