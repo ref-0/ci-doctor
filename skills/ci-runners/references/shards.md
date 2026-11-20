@@ -193,7 +193,7 @@ How fresh the times are decides only how even the split is, and that's a separat
 Why a median of 3, from the same runs (254 shards that replayed no task, 17,042 fresh times):
 
 - **One run's time is noisy.** Against its file's median, a sample fell between 0.70 and 1.58 times it at the 10th and 90th percentiles. Most of that is the machine: a shard's files ran at 0.76 to 1.50 times their own medians at those percentiles, and 2.19 at the most.
-- **More samples didn't help past two or three.** The files were getting faster over those days, so an estimate from the newest 5 runs was further from the next runs' median (0.36 at the median) than one from 2 or 3 (0.25). Three is the fewest whose median drops one slow machine.
+- **More samples didn't help past two or three.** The error measured: at each point in a file's runs, the median of its k runs before, divided by the median of its next 3, minus one, as an absolute value. The middle of that over every point of every file was 0.36 for k = 5, 0.25 for 2 or 3, and 0.31 for 1: a quarter off, from 2 or 3. The files were getting faster over those days, so the newest 5 lagged. Three is the fewest whose median drops one slow machine.
 
 The times are Vitest's module duration of files that ran and passed, with collection reported separately; `--times` leaves out failed, skipped and replayed files. That's the right input for ordinary shards, whose per-file process and group startup the shard model adds on its own (`test-shards.ts`' overheads). It isn't a file's wall time: container packing needs that, measured separately (section 4).
 
