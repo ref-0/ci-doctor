@@ -23,7 +23,8 @@
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
  *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md` and
- *    `caches.md`, its `flakes.md`, `references/agent-knowledge/`,
+ *    `caches.md`, its `flakes.md`, `references/agent-knowledge/`, this repo's `scripts/shards/`
+ *    (now `ci-runners`' own; `scripts/shards/` stays only as the copy's path in a user's repo),
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -82,6 +83,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
   [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
+  [/(?<![\w-])scripts\/shards\/README\.md|\]\((?:\.\.\/)+(?:scripts\/)?shards\/|(?<![\w-])scripts\/shards\/[\w-]+\.test\.ts/, 'skills/ci-runners/references/shards.md and skills/ci-runners/scripts/'],
   [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "A faster test harness"'],
 ];
 

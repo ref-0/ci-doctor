@@ -18,7 +18,7 @@
  * catches what this misses.
  *
  * Where it runs: on developers' and agents' machines, by the `test:cached` script before it runs
- * the picked files' groups (`../shards/test-groups.ts`). Never in CI, which selects from the pull
+ * the picked files' groups (`test-groups.ts`, the ci-runners skill's, copied to `scripts/shards/`). Never in CI, which selects from the pull
  * request's diff. Node's own modules and `git` only.
  *
  * Usage:

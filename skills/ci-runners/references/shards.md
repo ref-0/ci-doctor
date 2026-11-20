@@ -1,30 +1,45 @@
+<!--
+What: how to split a run's tests into shards by measured time, run them, and keep their times current; the scripts are in this skill's scripts/.
+Where: read by an agent planning, wiring or changing test shards, their queue, lanes or container packing.
+Configure: the placeholders at the end, and the constants each script's header names, measured on your runners.
+Reference implementation from a production monorepo; adapt to your repo.
+-->
+
 # Shards: splitting tests by measured time
 
-The plan job splits the test files into shards by measured time, in whole cached groups. Each shard runs its own files in independent lanes, then claims batches from a shared queue through Actions cache keys, so a shard on a fast machine takes more of them. Container test files are packed into jobs of a target length (`JOB_SECONDS`, an example value). The ordinary tests' runner size follows from how much work the run has.
+Part of the [`ci-runners`](../SKILL.md) skill, which owns planning and running shards. The plan job splits the test files into shards by measured time, in whole cached groups. Each shard runs its own files in independent lanes, then claims batches from a shared queue through Actions cache keys, so a shard on a fast machine takes more of them. Container test files are packed into jobs of a target length (`JOB_SECONDS`, an example value). The ordinary tests' runner size follows from how much work the run has.
 
-Why each piece is shaped this way: [guide section 7](../../docs/pages/07-shards-runners-and-billing.md), in particular [shards from measured time](../../docs/pages/07-shards-runners-and-billing.md#shards-from-measured-time-not-file-count), [work stealing over cache-key claims](../../docs/pages/07-shards-runners-and-billing.md#work-stealing-over-cache-key-claims), [independent lanes](../../docs/pages/07-shards-runners-and-billing.md#independent-lanes) and [sizing runners](../../docs/pages/07-shards-runners-and-billing.md#size-runners-from-the-work-and-the-bill). Why tests are tasks: [guide section 6](../../docs/pages/06-reuse-work-by-its-real-inputs.md#a-remote-task-cache-with-tests-as-tasks).
+Why each piece is shaped this way: [guide section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md), in particular [shards from measured time](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#shards-from-measured-time-not-file-count), [work stealing over cache-key claims](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#work-stealing-over-cache-key-claims), [independent lanes](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#independent-lanes) and [sizing runners](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#size-runners-from-the-work-and-the-bill). Why tests are tasks: [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#a-remote-task-cache-with-tests-as-tasks). How many shards a runner's size takes: [sizing](sizing.md#shards-against-a-runners-size).
+
+## Where the scripts live
+
+Every script below is in this skill's [`scripts/`](../scripts/), with its `node --test` tests, so it installs with the skill alone. They need Node 24 or later and nothing installed.
+
+- **Before approval, read-only:** `test-shards.ts` models a split from the repo's own checkout without copying anything. From the repo's root, `node <skills-dir>/ci-runners/scripts/test-shards.ts <most> <file list> [<times.json>...]` prints the plan; it reads `git ls-files` and the files you pass, and writes nothing.
+- **Once the user approves wiring it in:** copy the folder into the repo at `scripts/shards/`, less its `*.test.ts` files, as the [workflow templates' install layout](https://ci-doctor.ref0.dev/guide/templates/github/README.md#install-layout) says. The templates call each script there, and `test-lanes.ts` and `test-tasks.ts` take the repo's root as the folder two above their own. The repo then owns its copy and its values: updating this skill never touches them.
+- **Their tests:** `node --test *.test.ts`, from this skill's `scripts/`.
 
 ## Files
 
 | File | What it does | Where it runs |
 | --- | --- | --- |
-| `test-groups.ts` | Which test files may be replayed from a task cache, and the groups they run in. CI puts one heavy-harness file in a group, or 8 other files, with 1 worker. Local runs put 4 files in a group, with 2 workers. Groups are formed from every test file in the checkout, so task names are stable. Each covered-only file (`COVERED_ONLY`, equal to the planner's `coveredOnly` keys) is a group alone, so a run that leaves it out can't run it in another file's group. | Imported by the others |
-| `test-groups.test.ts` | That a covered-only file never shares a group. `node --test` | Locally or CI |
-| `test-shards.ts` | The plan. The shard count is set so each shard holds `shardSeconds` per worker across `shardWorkers` workers (example values you measure for your runners), with at most the `<most>` the plan passes. It reserves roughly half the estimated work in fixed assignments, greedily onto the least-loaded shard. Each shard's first group, untimed groups and explicitly pinned groups stay fixed even when that passes the target. Queued batches are formed by adding whole groups until their summed estimated work (file times plus modelled startup, across lanes) reaches about `batchSeconds`: a target for summed work, not a promise of a batch's wall time. A one-shard run uses no queue. `--merge` combines the times of several runs. | CI plan job, and a merge-times job |
-| `test-shards.test.ts` | `node --test test-shards.test.ts` | Anywhere |
-| `test-claims.ts` | Claims one queue batch by reserving `<prefix>-<batch>` in the Actions cache: 200 means won, 409 means lost. It retries after 250 and 1000 ms, with a 10 s timeout. A claim that never gets an answer counts as `unsure` and runs anyway. In a test, 20 jobs raced for 540 keys and exactly one job won each key. | Each test shard |
-| `test-claims.test.ts` | `node --test test-claims.test.ts` | Anywhere |
-| `ci-cache.ts` | Saves and restores small files (claims, flakes) in the Actions cache. A save is reserve, then upload, then finalize. A restore matches keys exactly and looks up 8 at a time. The CLI is `save <key> <file>` and `restore <dir> <key>...`. | Steps in CI jobs |
-| `ci-cache.test.ts` | Runs against a cache service held in memory. `node --test ci-cache.test.ts` | Anywhere |
-| `test-tasks.ts` | Turns each group into a Vite Task task: `taskName` is a hash of the group's files. It also sets the env vars that are keyed and those that aren't, and which input paths are left out (volatile caches, `dist/`, folder listings). | Imported by `vite.config.ts` when `TEST_TASKS` is set |
-| `test-lanes.ts` | The runner. It starts `--lanes` lanes, each a `vp run` of one task at a time. The shard's own groups run first, then the queue's batches, claimed one at a time. It reads each task's outcome (local hit, remote hit, passed or failed) from what `vp run` printed. `--times` writes the files' times for the merge. `--no-cache` reads and writes no cache, local or remote. `--verify-hits <n>` reruns a daily-changing sample of `n` replayed tasks with no cache after a clean run, and fails if one fails or doesn't finish. | Each test shard, and locally |
-| `test-lanes.test.ts` | `node --test test-lanes.test.ts`: outcome reading, the no-cache switch, the sample | Anywhere |
-| `container-pack.ts` | Packs container test files longest first into jobs of about `JOB_SECONDS`. A file with no estimate counts as `DEFAULT_SECONDS`. Both are example values. Also holds `runnerFor`, the runner-size rule, and `manualShards`, the shard count for a run by hand. | CI plan job |
-| `container-pack.test.ts` | `node --test container-pack.test.ts` | Anywhere |
+| [`test-groups.ts`](../scripts/test-groups.ts) | Which test files may be replayed from a task cache, and the groups they run in. CI puts one heavy-harness file in a group, or 8 other files, with 1 worker. Local runs put 4 files in a group, with 2 workers. Groups are formed from every test file in the checkout, so task names are stable. Each covered-only file (`COVERED_ONLY`, equal to the planner's `coveredOnly` keys) is a group alone, so a run that leaves it out can't run it in another file's group. | Imported by the others |
+| [`test-groups.test.ts`](../scripts/test-groups.test.ts) | That a covered-only file never shares a group. `node --test` | Locally or CI |
+| [`test-shards.ts`](../scripts/test-shards.ts) | The plan. The shard count is set so each shard holds `shardSeconds` per worker across `shardWorkers` workers (example values you measure for your runners), with at most the `<most>` the plan passes. It reserves roughly half the estimated work in fixed assignments, greedily onto the least-loaded shard. Each shard's first group, untimed groups and explicitly pinned groups stay fixed even when that passes the target. Queued batches are formed by adding whole groups until their summed estimated work (file times plus modelled startup, across lanes) reaches about `batchSeconds`: a target for summed work, not a promise of a batch's wall time. A one-shard run uses no queue. `--merge` combines the times of several runs. | CI plan job, and a merge-times job |
+| [`test-shards.test.ts`](../scripts/test-shards.test.ts) | `node --test test-shards.test.ts` | Anywhere |
+| [`test-claims.ts`](../scripts/test-claims.ts) | Claims one queue batch by reserving `<prefix>-<batch>` in the Actions cache: 200 means won, 409 means lost. It retries after 250 and 1000 ms, with a 10 s timeout. A claim that never gets an answer counts as `unsure` and runs anyway. In a test, 20 jobs raced for 540 keys and exactly one job won each key. | Each test shard |
+| [`test-claims.test.ts`](../scripts/test-claims.test.ts) | `node --test test-claims.test.ts` | Anywhere |
+| [`ci-cache.ts`](../scripts/ci-cache.ts) | Saves and restores small files (claims, flakes) in the Actions cache. A save is reserve, then upload, then finalize. A restore matches keys exactly and looks up 8 at a time. The CLI is `save <key> <file>` and `restore <dir> <key>...`. | Steps in CI jobs |
+| [`ci-cache.test.ts`](../scripts/ci-cache.test.ts) | Runs against a cache service held in memory. `node --test ci-cache.test.ts` | Anywhere |
+| [`test-tasks.ts`](../scripts/test-tasks.ts) | Turns each group into a Vite Task task: `taskName` is a hash of the group's files. It also sets the env vars that are keyed and those that aren't, and which input paths are left out (volatile caches, `dist/`, folder listings). | Imported by `vite.config.ts` when `TEST_TASKS` is set |
+| [`test-lanes.ts`](../scripts/test-lanes.ts) | The runner. It starts `--lanes` lanes, each a `vp run` of one task at a time. The shard's own groups run first, then the queue's batches, claimed one at a time. It reads each task's outcome (local hit, remote hit, passed or failed) from what `vp run` printed. `--times` writes the files' times for the merge. `--no-cache` reads and writes no cache, local or remote. `--verify-hits <n>` reruns a daily-changing sample of `n` replayed tasks with no cache after a clean run, and fails if one fails or doesn't finish. | Each test shard, and locally |
+| [`test-lanes.test.ts`](../scripts/test-lanes.test.ts) | `node --test test-lanes.test.ts`: outcome reading, the no-cache switch, the sample | Anywhere |
+| [`container-pack.ts`](../scripts/container-pack.ts) | Packs container test files longest first into jobs of about `JOB_SECONDS`. A file with no estimate counts as `DEFAULT_SECONDS`. Both are example values. Also holds `runnerFor`, the runner-size rule, and `manualShards`, the shard count for a run by hand. | CI plan job |
+| [`container-pack.test.ts`](../scripts/container-pack.test.ts) | `node --test container-pack.test.ts` | Anywhere |
 
 ## Wire it in
 
-Set this up only once the user approves the plan ([ci-doctor, "Before approval"](../../skills/ci-doctor/SKILL.md#before-approval-read-only)).
+Set this up only once the user approves the plan ([ci-doctor, "Before approval"](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ### Start simple: a fixed split
 
@@ -39,7 +54,7 @@ Before task groups, lanes or claims, a fixed split by measured time often gets m
 
 Work stealing (below) is a later, separately measured change: add it when the slowest shard still sits well past the median on runs of the same selection.
 
-[`templates/github/workflows/ci.yml`](../../templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](../../templates/github/actions/ci-cache/), copied to `.github/actions/ci-cache/`.
+[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
 
 ### 1. Tests as tasks
 
@@ -98,7 +113,7 @@ tests:
   strategy: { fail-fast: false, matrix: { shard: '${{ fromJSON(needs.plan.outputs.shards) }}' } }
   steps:
     - uses: actions/checkout@v6
-    # ... install dependencies, and the remote task cache's env (../local/task-cache.ts) ...
+    # ... install dependencies, and the remote task cache's env (the ci-doctor repo's scripts/local/task-cache.ts) ...
     # The cache is needed for claims, and also for flakes and times on a one-shard run.
     - id: cache
       uses: ./.github/actions/ci-cache
@@ -163,11 +178,11 @@ A final job restores every shard's claims file and fails the run if any queue ba
 
 ### 4. Container test jobs
 
-Pass `sandbox_files` to a matrix. Each job runs its `file` list one after another. Keep the estimates in a JSON file. Re-measure from a full run's records (`../records/`), and change an estimate only when it's off by more than 20%.
+Pass `sandbox_files` to a matrix. Each job runs its `file` list one after another. Keep the estimates in a JSON file. Re-measure from a full run's records ([`scripts/records/`](https://ci-doctor.ref0.dev/guide/scripts/records/README.md) in the ci-doctor repo), and change an estimate only when it's off by more than 20%.
 
-Estimate from each file's whole elapsed time, collection, imports, setup and hooks included, measured as wall clock around the command that runs the file. Neither a sum of the printed per-test durations nor the records' Vitest module duration includes all of that, so each is only a lower bound: a lower bound above an estimate proves the estimate low, but one below it proves nothing about the estimate being high. Never replace an estimate with one, and don't read a skipped or failed file as fast: neither says anything of a normal run. Apply this before the 20% rule. [Comparing before and after](../../skills/speed-up-tests/references/measuring.md#comparing-before-and-after) says the same for a fix's timings.
+Estimate from each file's whole elapsed time, collection, imports, setup and hooks included, measured as wall clock around the command that runs the file. Neither a sum of the printed per-test durations nor the records' Vitest module duration includes all of that, so each is only a lower bound: a lower bound above an estimate proves the estimate low, but one below it proves nothing about the estimate being high. Never replace an estimate with one, and don't read a skipped or failed file as fast: neither says anything of a normal run. Apply this before the 20% rule. [Comparing before and after](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/references/measuring.md#comparing-before-and-after) says the same for a fix's timings.
 
-Which container files a PR runs is the planner's job, not this script's: see [`templates/plan/README.md`](../../templates/plan/README.md#container-test-reach).
+Which container files a PR runs is the planner's job, not this script's: see [`templates/plan/README.md`](https://ci-doctor.ref0.dev/guide/templates/plan/README.md#container-test-reach).
 
 ### 5. Keeping the times current
 
