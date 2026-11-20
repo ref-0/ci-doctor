@@ -308,6 +308,23 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     );
     assert.deepEqual(task(g, 'core#build')!.inputs, { mode: 'declared', globs: ['tsconfig.base.json'], files: 3 });
   });
+
+  it("reads Nx's `^named` inputs by each dependency's own named inputs and root", () => {
+    const { g } = graphs({
+      'package.json': json({ name: 'nxroot', private: true }),
+      'nx.json': json({ namedInputs: { production: ['{projectRoot}/**/*'] }, targetDefaults: { build: { cache: true, inputs: ['production', '^production'] } } }),
+      'apps/web/project.json': json({ name: 'web', implicitDependencies: [], targets: { build: {} }, namedInputs: { production: ['{projectRoot}/app/**'] } }),
+      'apps/web/package.json': json({ name: 'web', private: true, dependencies: { core: 'workspace:*' } }),
+      'apps/web/app/main.ts': 'export {};\n',
+      'libs/core/project.json': json({ name: 'core', targets: { build: {} }, namedInputs: { production: ['{projectRoot}/src/**', '!{projectRoot}/src/**/*.spec.ts'] } }),
+      'libs/core/package.json': json({ name: 'core', private: true }),
+      'libs/core/src/index.ts': 'export {};\n',
+      'libs/core/src/index.spec.ts': 'export {};\n',
+      'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - libs/*\n',
+    });
+    assert.deepEqual(task(g, 'web#build')!.inputs.globs, ['apps/web/app/**', 'libs/core/src/**', '!libs/core/src/**/*.spec.ts']);
+    assert.equal(task(g, 'web#build')!.inputs.files, 2);
+  });
 });
 
 describe('the graphs in the report', () => {

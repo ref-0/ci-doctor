@@ -1065,46 +1065,50 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
     }
     for (const { pkg } of projects.values()) for (const set of pkg.deps.values()) for (const n of set) add(pkg.name, n);
     const projectByName = new Map([...projects.values()].map((p) => [p.pkg.name, p.pkg]));
-    for (const { pkg, targets, named: own } of projects.values()) {
+    for (const { pkg, targets } of projects.values()) {
       const root = pkg.dir.replace(/\/$/, '');
       const names = new Set([...Object.keys(targets), ...Object.keys(record(pkg.manifest.scripts)), ...Object.keys(record(record(pkg.manifest.nx).targets))]);
       for (const name of names) {
         const target = { ...record(record(record(pkg.manifest.nx).targets)[name]), ...record(targets[name]) };
         const config = { ...targetDefault(name, target, name in record(pkg.manifest.scripts)), ...target };
-        const deps: string[] = [];
         const globs: string[] = [];
         let other = 0;
-        const expand = (input: unknown, seen: Set<string>, scope: 'self' | 'deps') => {
+        const depPackages = [...(inferred.get(pkg.name) ?? [])].map((n) => projectByName.get(n)).filter((p): p is Package => p !== undefined);
+        // An input of this project, or, under `^` or `dependencies: true`, of each dependency, by that project's own
+        // root and named inputs, as Nx reads them.
+        const expand = (input: unknown, seen: Set<string>, at: Package) => {
+          const self = at === pkg;
+          const each = (inner: unknown) => {
+            if (self) for (const dep of depPackages) expand(inner, new Set(), dep);
+          };
           if (typeof input === 'string') {
             const out = input.startsWith('!');
             const bare = out ? input.slice(1) : input;
             if (bare.startsWith('^')) {
-              expand(bare.slice(1), seen, 'deps');
+              each(out ? `!${bare.slice(1)}` : bare.slice(1));
               return;
             }
             if (bare.includes('{')) {
-              const path = bare.replace('{workspaceRoot}/', '').replace('{projectRoot}', scope === 'deps' ? '{deps}' : root).replace(/^\//, '');
-              (scope === 'deps' ? deps : globs).push(out ? `!${path}` : path);
+              const path = bare.replace('{workspaceRoot}/', '').replace('{projectRoot}', at.dir.replace(/\/$/, '')).replace(/^\//, '');
+              globs.push(out ? `!${path}` : path);
               return;
             }
             if (seen.has(bare)) return;
-            const definition = own[bare] ?? named[bare] ?? (bare === 'default' ? ['{projectRoot}/**/*'] : undefined);
+            const definition = projects.get(at.name)?.named[bare] ?? named[bare] ?? (bare === 'default' ? ['{projectRoot}/**/*'] : undefined);
             if (definition === undefined) {
               other++;
               return;
             }
-            for (const each of Array.isArray(definition) ? definition : []) expand(each, new Set([...seen, bare]), scope);
+            for (const inner of Array.isArray(definition) ? definition : []) expand(inner, new Set([...seen, bare]), at);
             return;
           }
           const object = record(input);
-          if (typeof object.fileset === 'string') expand(object.fileset, seen, scope);
-          else if (typeof object.input === 'string') expand(object.input, seen, object.dependencies === true || object.projects === 'dependencies' ? 'deps' : scope);
+          if (typeof object.fileset === 'string') expand(object.fileset, seen, at);
+          else if (typeof object.input === 'string') (object.dependencies === true || object.projects === 'dependencies' ? each(object.input) : expand(object.input, seen, at));
           else other++;
         };
         const declared = Array.isArray(config.inputs);
-        for (const input of declared ? (config.inputs as unknown[]) : ['default', '^default']) expand(input, new Set(), 'self');
-        const depPackages = [...(inferred.get(pkg.name) ?? [])].map((n) => projectByName.get(n)).filter((p): p is Package => p !== undefined);
-        for (const glob of deps) for (const dep of depPackages) globs.push(glob.replace('{deps}', dep.dir.replace(/\/$/, '')).replace(/^\//, ''));
+        for (const input of declared ? (config.inputs as unknown[]) : ['default', '^default']) expand(input, new Set(), pkg);
         const cached = typeof config.cache === 'boolean' ? config.cache : cacheable.includes(name);
         const previous = tasks.get(`${pkg.name}#${name}`);
         const command = typeof record(config.options).command === 'string' ? String(record(config.options).command) : previous?.command;
@@ -1112,7 +1116,7 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
           ...(command !== undefined ? { command } : {}),
           cached,
           mode: declared ? ((config.inputs as unknown[]).length === 0 ? 'empty' : 'declared') : 'package-default',
-          inputs: globs,
+          inputs: [...new Set(globs)],
           outputs: stringOrList(config.outputs).map((o) => o.replace('{workspaceRoot}/', '').replace('{projectRoot}', root).replace(/^\//, '')),
         });
         if (other > 0 && !declared) unread.push(`${task.id}: ${other} named or non-file inputs not read`);
