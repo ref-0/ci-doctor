@@ -20,7 +20,7 @@ This check owns the split. It covers the files eligible for the ordinary shards;
 
 ## How
 
-- Rank files from the records collector's fresh times, as [measuring](../speed-up-tests/references/measuring.md#reading-cis-records) says. [`ci-time.ts`](../ci-workflows/scripts/ci-time.ts)'s `--shards <run-id>` gives one run's file lines for a first look; they may be replays, and the run may not have selected every eligible file.
+- Rank files from the records collector's fresh times, as [measuring](../../../speed-up-tests/references/measuring.md#reading-cis-records) says. [`ci-time.ts`](../ci-workflows/scripts/ci-time.ts)'s `--shards <run-id>` gives one run's file lines for a first look; they may be replays, and the run may not have selected every eligible file.
 - Read a slow file's tests by time in its shard's log, where each test's line follows the file's own with its milliseconds. A test that takes about as long as a timer in the code it runs is waiting on that timer.
 - Split a file along its `describe`s, with the helpers they share in a testing folder such as `<app-dir>/src/testing/`.
 - Move a recorded time back instead of waiting: a helper that moves a run's "retired at" time back past the 15 minutes a deploy takes to reach every instance turns a 15-minute wait into none.
@@ -40,5 +40,5 @@ In the source repo (amounts are relative):
 ## Pointed at from
 
 - [`ci-workflows`](../ci-workflows/references/performance.md), when a run is slow.
-- [`speed-up-tests`](../speed-up-tests/references/fixes.md#a-long-file), on a long file.
+- [`speed-up-tests`](../../../speed-up-tests/references/fixes.md#a-long-file), on a long file.
 - [Measure CI before changing it](ci-measure-before-changing-it.md).

@@ -45,7 +45,7 @@ A package's places are its top folders, and files at its top without their exten
 The task graph is each task's dependencies, inputs and outputs, so its cache key. A task's workspace inputs are its package's closure in graph 1, so each edge removed there is a set of edits that no longer move its key.
 
 - **Look for:** cached tasks with no declared inputs (any change in the package misses) or empty inputs (a source change hits wrongly); inputs covering most of the repo, through a global input or an incidental listing; the longest `dependsOn` chain, which no cache shortens on a miss.
-- **Count** the keys a one-line edit moves, for an edit to a leaf, a shared module and a root config, from the runner's planned hashes without running anything: Turborepo's `turbo run <task> --dry=json`, and [guide section 6's table](../../../docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches) for the others.
+- **Count** the keys a one-line edit moves, for an edit to a leaf, a shared module and a root config, from the runner's planned hashes without running anything: Turborepo's `turbo run <task> --dry=json`, and [guide section 6's table](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches) for the others.
 
 ## 5. CI jobs
 
@@ -56,4 +56,4 @@ The task graph is each task's dependencies, inputs and outputs, so its cache key
 - **Waits `needs:` doesn't show:** a job created well after its last `needs:` finished waited on something else, such as a concurrency group, an environment or another workflow. A polling step waits inside a job and reads as its work.
 - **The critical path:** the chain of jobs that ends last, and what ends it. It can be lint, packing or a queue, not a shard.
 
-The scorer's "Job graph" block gives the chain, its blocked, queued and work time, the top blocker, setup in the path and waits the YAML can't show. [Guide section 21's CI jobs](../../../docs/pages/21-optimize-all-of-your-graphs.md#ci-jobs) lists each field.
+The scorer's "Job graph" block gives the chain, its blocked, queued and work time, the top blocker, setup in the path and waits the YAML can't show. [Guide section 21's CI jobs](https://ci-doctor.ref0.dev/guide/docs/pages/21-optimize-all-of-your-graphs.md#ci-jobs) lists each field.

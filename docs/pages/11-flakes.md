@@ -48,7 +48,7 @@ Each case is one we hit, forced on purpose to prove its cause, then fixed in the
 - **A refused upload resets the connection.**
   - *Symptom:* `EPIPE` or `ECONNRESET` (`fetch failed`) from a call that should have been refused cleanly, more often on a loaded runner.
   - *Cause:* a test bridge carried the request body and the answer on one HTTP exchange; the server answered and closed while the client was still sending the body.
-  - *Fix:* the fake drains the body before it answers, and the test keeps asserting the refusal. Check how production carries the stream first: ours carried the stream and the answer separately and didn't race. A forced slow upload failed four of six runs before the fix and passed six of six after ([Workers notes](../../skills/ci-doctor/references/speed-up-tests/references/workers.md#a-refused-upload-through-the-local-proxy)).
+  - *Fix:* the fake drains the body before it answers, and the test keeps asserting the refusal. Check how production carries the stream first: ours carried the stream and the answer separately and didn't race. A forced slow upload failed four of six runs before the fix and passed six of six after ([Workers notes](../../skills/speed-up-tests/references/workers.md#a-refused-upload-through-the-local-proxy)).
 - **A reporting step reads an empty tree.**
   - *Symptom:* a non-gating step, such as the flake filer, silently does nothing, and the run stays green.
   - *Cause:* an earlier sparse, blob-less checkout used the workspace, so the later full checkout landed on a clone already at its commit and restored nothing. `continue-on-error` hid the failure.
