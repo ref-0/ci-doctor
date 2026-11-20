@@ -210,6 +210,27 @@ describe('local reusable workflows', () => {
   });
 });
 
+describe('reading the workflow files', () => {
+  const jobs = [job('a', 0, 0, 1)];
+  const refused = () => {
+    throw new Error("Couldn't read repos/pip/app/contents/x: HTTP 403.");
+  };
+
+  it('asks only for the sampled workflow and what it calls', () => {
+    const asked: string[] = [];
+    const files: Record<string, string> = { '.github/workflows/ci.yml': 'jobs:\n  a:\n    uses: ./.github/workflows/b.yml\n', '.github/workflows/b.yml': 'jobs:\n  x: {}\n' };
+    jobGraphOf((p) => (asked.push(p), files[p]), [{ id: 1, path: '.github/workflows/ci.yml', jobs }]);
+    assert.deepEqual(asked, ['.github/workflows/ci.yml', '.github/workflows/b.yml']);
+  });
+
+  it('takes a refused read as unknown, with the reason, and goes on', () => {
+    const top = jobGraphOf(refused, [{ id: 1, path: '.github/workflows/ci.yml', jobs }])!;
+    assert.match(top.unknown.join(), /ci\.yml couldn't be read \(Couldn't read .*HTTP 403\)/);
+    const callee = jobGraphOf((p) => (p.endsWith('ci.yml') ? 'jobs:\n  a:\n    uses: ./.github/workflows/b.yml\n' : refused()), [{ id: 1, path: '.github/workflows/ci.yml', jobs }])!;
+    assert.match(callee.unknown.join(), /calls \.github\/workflows\/b\.yml, which couldn't be read \(.*HTTP 403\)/);
+  });
+});
+
 describe('a skipped job', () => {
   const graph = graphOf(`jobs:
   test: {}

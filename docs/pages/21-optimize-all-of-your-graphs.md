@@ -122,7 +122,7 @@ The job graph is `needs:`, waits on another job's step, and the queue each job w
 - **Blocked time:** from the run's start until its last `needs:` finished, which only a change to the graph shortens.
 - **The critical path:** the chain of jobs that ends last, and what ends it. It can be lint, packing or a queue, not a shard (section 1).
 
-**The scorer** (`npx @ref0/ci-doctor`) reads the graph from the workflow files, `needs:`, matrices, reusable workflows and `if:`, and joins it with the jobs of its sampled PR runs, at no extra API calls. Its report's "Job graph" block, and `jobGraph` in `--json`, give:
+**The scorer** (`npx @ref0/ci-doctor`) reads the graph from the workflow files, `needs:`, matrices, reusable workflows and `if:`, and joins it with the jobs of its sampled PR runs, with no extra API calls unless a repo has more than 40 workflow files. Its report's "Job graph" block, and `jobGraph` in `--json`, give:
 
 - **the chain that sets the wait,** each job with its minutes and share, and how many sampled runs it set;
 - **blocked, queued and work time** on that chain, and each job's in every sampled run, to scale, for a replay;
