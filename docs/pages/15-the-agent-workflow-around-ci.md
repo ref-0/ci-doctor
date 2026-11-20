@@ -2,6 +2,8 @@
 
 # 15. The agent workflow around CI
 
+Run PRs with coding agents so each one aims at a single CI run: drafts until done, a review before ready, and slow-test campaigns in parallel.
+
 **Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
 
 - **Draft until done.** This is our merge policy: engineers open drafts, and a manager agent marks them ready and merges, so each PR aims at one CI run. On another repo, keep its trigger and merge policy (base branch, required checks, allowed merge method, approvals, reviews dismissed on push, merge queue) until the user approves a change, and test the current required ref, including the merge queue's commit where there is one.

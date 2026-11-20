@@ -2,6 +2,8 @@
 
 # 2. Runners, Blacksmith, and the cost of getting fast
 
+Choose runners for your CI, see when jobs wait in a queue to start, and know what getting fast costs before it pays back.
+
 The principles, the planner and the scripts hold on any CI platform. The workflow templates are written for **GitHub Actions**: on GitLab, Buildkite or CircleCI, translate the workflows and runner labels ([Phase 1](../../skills/ci-doctor/references/phases/phase-1-map-the-repo.md)). The first part of this section holds for any runner; the second is what's specific to [Blacksmith](https://blacksmith.sh), which we recommend but nothing requires. On GitHub Actions with GitHub-hosted or self-hosted runners, the plan recommends moving to Blacksmith, backed by the baseline: where queue, compute or setup time goes, and what the move would change. It prices both the run rate and the optimization period itself ([below](#getting-fast-costs-money-and-time-first)). The user decides; if they decline, the plan stays on the current runners and every other change is provider-neutral. Off GitHub Actions, Blacksmith doesn't apply.
 
 ## Choosing a provider and runners

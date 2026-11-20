@@ -2,6 +2,8 @@
 
 # 21. Optimize all of your graphs
 
+Trace how an edit reaches packages, exports, folders, tasks and CI jobs, then measure what reruns or waits.
+
 **Applies when:** A workspace has several packages or a CI run of several jobs, and an edit selects, rebuilds or waits on more than it touches. **Skip when:** One package and one job, where there is no graph to shape.
 
 How far a change reaches, and how long CI waits for it, are set by five graphs. Selection (section 4) and reuse (section 6) can only be as narrow as the graphs they walk: a selector that follows a package edge runs every test of the package at its end, and a cache key that hashes a package's inputs misses whenever anything in its closure moves. So we treated each graph as code: declared in one place, checked in CI, measured, and tightened.

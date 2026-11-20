@@ -61,6 +61,11 @@ describe('excerpts', () => {
     match(text, /\n {2}- \[One\]\(\.\.\/\.\.\/\.\.\/\.\.\/docs\/pages\/02-a\.md#one\): \*\*Applies when:\*\* X\. \*\*Skip when:\*\* Y\./);
   });
 
+  it("passes over a page's lead to the applies-when line under its title", () => {
+    guide('02-a.md', '# 2. A\n\nDo the thing a chapter helps with.\n\n**Applies when:** Top. **Skip when:** Never.\n');
+    match(techniques(), /- \*\*\[2\. A\]\(\.\.\/\.\.\/\.\.\/\.\.\/docs\/pages\/02-a\.md\)\*\*: \*\*Applies when:\*\* Top\. \*\*Skip when:\*\* Never\./);
+  });
+
   it('refuses an index heading with no applies-when line, and a page with neither H2s nor one under its title', () => {
     guide('02-a.md', '# 2. A\n\n## One\n\nBody.\n');
     throws(techniques, /no "\*\*Applies when:\*\* … \*\*Skip when:\*\* …" line under "One"/);

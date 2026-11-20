@@ -2,6 +2,8 @@
 
 # 8. A cheaper test harness
 
+Cut what a heavy test runtime, such as workerd under Vitest, costs each test file, without making any test prove less.
+
 **Applies when:** A server with a heavy runtime per test file, such as workerd under Vitest. **Skip when:** The runtime's startup and bundling are a small share of each test file's time.
 
 Our server ran on Cloudflare Workers, so its tests ran it in workerd under Vitest. The ideas apply to any server with a heavy runtime per test file; what was specific to Workers is in the [`speed-up-tests`](../../skills/speed-up-tests/SKILL.md) skill's [Workers page](../../skills/speed-up-tests/references/workers.md), if your stack runs on them. A coding agent making a slow test faster follows that skill.

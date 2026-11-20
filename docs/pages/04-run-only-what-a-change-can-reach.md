@@ -2,6 +2,8 @@
 
 # 4. Run only what a change can reach
 
+Use dependency graphs to run only the tests and jobs a change can reach, then verify the selector against full runs.
+
 ## Drafts and concurrency
 
 **Applies when:** PR workflows run while a PR is a draft, or a draft event or an old rerun can cancel the newest head's run. **Skip when:** Every job already skips drafts and concurrency groups keep ready PRs, drafts, reruns, manual runs and merges apart.

@@ -14,8 +14,9 @@
  * `#anchor` points back at its source.
  *
  * The techniques index lists each guide page's H2s, each with the `**Applies when:** …
- * **Skip when:** …` line directly under it. A page with no H2 carries that line under its H1, and
- * any page may. A heading the index lists without one fails the build.
+ * **Skip when:** …` line directly under it. A page with no H2 carries that line under its H1, after
+ * the page's one-sentence lead, and any page may. A heading the index lists without one fails the
+ * build.
  *
  * Runs: from the repo's root. Node 24 only. Tests: `node --test excerpts.test.ts`, from this folder.
  */
@@ -200,9 +201,13 @@ export const item = (root: string, path: string, label: string) => {
   return [`### ${label}`, '', ...lines.slice(start, end)].join('\n');
 };
 
-/** The `**Applies when:**` line directly under the heading on line `at`, if it has one. */
-const appliesUnder = (lines: ReadonlyArray<string>, at: number) => {
-  const next = lines.slice(at + 1).find((line) => line.trim() !== '') ?? '';
+/**
+ * The `**Applies when:**` line directly under the heading on line `at`, if it has one. Under a
+ * page's title, `lead` passes over the page's one-sentence lead, which comes first.
+ */
+const appliesUnder = (lines: ReadonlyArray<string>, at: number, lead = false) => {
+  const [first = '', second = ''] = lines.slice(at + 1).filter((line) => line.trim() !== '');
+  const next = lead && !/^\*\*Applies when:\*\*/.test(first) && !/^#/.test(first) ? second : first;
   return /^\*\*Applies when:\*\* .+ \*\*Skip when:\*\* .+\.$/.test(next) ? next : undefined;
 };
 
@@ -226,7 +231,7 @@ const index = (root: string, prefixes: ReadonlyArray<string>, out: string) => {
       const { lines, inside, h1, title } = read(root, path);
       const link = posix.relative(dirname(out), path);
       const heads = lines.flatMap((line, i) => (!inside[i] && /^## /.test(line) ? [i] : []));
-      const top = appliesUnder(lines, h1);
+      const top = appliesUnder(lines, h1, true);
       if (heads.length === 0 && top === undefined) throw new Error(`${path}: no "**Applies when:** … **Skip when:** …" line under its title, and no H2s`);
       const rows = heads.map((i) => {
         const heading = HEADING.exec(lines[i] ?? '')?.[2] ?? '';
