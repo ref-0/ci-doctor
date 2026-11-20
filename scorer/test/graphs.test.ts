@@ -208,6 +208,12 @@ describe("graph 2: what an entry's count covers", () => {
     const { g } = graphs(libRepo({ 'src/a.ts': "export * from './b.ts';\n", 'src/b.ts': "export * from './a.ts';\nexport * from './c.ts';\nexport { c } from './c.ts';\n", 'src/c.ts': 'export const c = 1;\n' }, { '.': './src/a.ts' }));
     assert.equal(node(g, 'lib#.')!.reexports, 2);
   });
+
+  it("counts the union of an entry's `import` and `require` files' re-exports", () => {
+    const { g } = graphs(libRepo({ 'src/index.ts': "export * from './a.ts';\nexport * from './both.ts';\n", 'src/index.cts': "export * from './b.ts';\nexport * from './both.ts';\n", 'src/a.ts': 'export const a = 1;\n', 'src/b.ts': 'export const b = 1;\n', 'src/both.ts': 'export const both = 1;\n' }, { '.': { import: './src/index.ts', require: './src/index.cts' } }));
+    assert.equal(node(g, 'lib#.')!.file, 'packages/lib/src/index.ts');
+    assert.equal(node(g, 'lib#.')!.reexports, 3);
+  });
 });
 
 describe('graph 4: tasks', () => {
