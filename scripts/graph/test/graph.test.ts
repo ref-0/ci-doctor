@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { headline, readable, report } from '../graph.ts';
 import { DEFAULT_TESTS, globList, openGit, parseModule, pnpmGlobs, readGraph } from '../read.ts';
+import { changesOf } from '../replay.ts';
 import { entriesOf } from '../shape.ts';
 import { scriptCalls } from '../tasks.ts';
 
@@ -217,6 +218,30 @@ describe('resolution', () => {
 describe('replayed changes', () => {
   it('reads a commit\'s changed paths unquoted, renames as a delete and an add', () => {
     deepStrictEqual(changesOf('M\0src/café.ts\0R100\0src/a.ts\0src/b.ts\0'), [{ status: 'M', path: 'src/café.ts' }, { status: 'D', path: 'src/a.ts' }, { status: 'A', path: 'src/b.ts' }]);
+  });
+
+  it('reaches a non-ASCII path\'s importers, not everything', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/café.ts': 'export const c = 1;\n',
+      'src/café.test.ts': "import './café.ts';\n",
+      'src/other.test.ts': 'export {};\n',
+    }, [{ 'src/café.ts': 'export const c = 2;\n' }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual(commit!.causes, { graph: 1 });
+    deepStrictEqual([commit!.everything, commit!.reached.tests], [false, 1]);
+  });
+
+  it('reaches a test through the text fixture it imports', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/fixture.txt': 'one\n',
+      'src/read.test.ts': "import text from './fixture.txt?raw';\n",
+      'src/other.test.ts': 'export {};\n',
+    }, [{ 'src/fixture.txt': 'two\n' }]), { ...options, commits: 2 });
+    const [commit] = r.replay!.perCommit;
+    deepStrictEqual(commit!.causes, { graph: 1 });
+    strictEqual(commit!.reached.tests, 1);
   });
 });
 
