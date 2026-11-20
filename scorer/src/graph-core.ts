@@ -908,9 +908,11 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
     const declared = globList(inputs.filter((g) => !g.startsWith('!')));
     const excluded = globList(inputs.filter((g) => g.startsWith('!')).map((g) => g.slice(1)));
     const global = globList(fields.global ?? []);
-    const base = fields.mode === 'package-default' || fields.mode === 'auto' || fields.base === 'package' ? ownedBy(pkg) : () => false;
+    const own = fields.mode === 'package-default' || fields.mode === 'auto' || fields.base === 'package';
+    const base = own ? ownedBy(pkg) : () => false;
     const matches = (path: string) => global(path) || ((base(path) || declared(path)) && !excluded(path));
-    const prefix = (fields.global ?? []).length > 0 || pkg.dir === '' ? '' : fields.mode === 'declared' && fields.base !== 'package' ? prefixOf(inputs) : pkg.dir;
+    // The folder every matching file is under: the package's, widened by any input outside it, such as `$TURBO_ROOT$/…`.
+    const prefix = (fields.global ?? []).length > 0 || pkg.dir === '' ? '' : !own && inputs.length === 0 ? pkg.dir : prefixOf([...(own ? [`${pkg.dir}*`] : []), ...inputs]);
     const deps: Dep[] = [];
     return { id: `${pkg.name}#${name}`, pkg: pkg.name, name, runner, ...(fields.command !== undefined ? { command: fields.command } : {}), cached: fields.cached, mode: fields.mode, inputs, outputs: fields.outputs ?? [], matches, prefix, deps };
   };

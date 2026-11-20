@@ -299,6 +299,15 @@ describe('graph 4: tasks, as each runner reads its config', () => {
     assert.match(flag.detail!, /^no declared inputs/);
     assert.doesNotMatch(graphsBlock(g), /empty inputs/);
   });
+
+  it('counts inputs outside the package, such as `$TURBO_ROOT$/…`, beside its default ones', () => {
+    const g = turboRepo(
+      { tasks: { build: { inputs: ['$TURBO_DEFAULT$', '$TURBO_ROOT$/tsconfig.base.json'] } } },
+      { core: { build: 'tsc' } },
+      { 'tsconfig.base.json': '{}\n' },
+    );
+    assert.deepEqual(task(g, 'core#build')!.inputs, { mode: 'declared', globs: ['tsconfig.base.json'], files: 3 });
+  });
 });
 
 describe('the graphs in the report', () => {
