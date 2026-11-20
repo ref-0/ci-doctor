@@ -23,8 +23,8 @@ This check owns the decision to resize a job.
 
 ## How
 
-- Read a job's CPU from the provider, or sample it in the job yourself (`/proc/stat` or `vmstat 5` in a background step), as [sizing](../ci-runners/references/sizing.md#size-and-architecture) says. If you run on Blacksmith, `blacksmith jobs stats <job-id> --format json` has it at `.vm_metrics.cpu.aggregates`; read jobs one by one, or with `ci-time.ts --bill blacksmith` ([CLI](../blacksmith/references/cli.md)).
-- Read the provider's unit and rounding for each label from ci.md, as [billing](../ci-runners/references/billing.md#packing-against-minute-rounding) says. Where each job rounds up to a minute, a 61 s job bills as much as a 119 s one. Setup was a large slice of each job's first minute in the source repo until a warm install cut it to a small one ([caches](../ci-workflows/references/caches.md)).
+- Read a job's CPU from the provider, or sample it in the job yourself (`/proc/stat` or `vmstat 5` in a background step), as [sizing](../ci-runners/references/sizing.md#size-and-architecture) says. If you run on Blacksmith, `blacksmith jobs stats <job-id> --format json` has it at `.vm_metrics.cpu.aggregates`; read jobs one by one, or with `node <skills-dir>/ci-workflows/scripts/ci-time.ts --bill blacksmith` ([CLI](../blacksmith/references/cli.md)).
+- Read the provider's unit and rounding for each label from ci.md, as [billing](../ci-runners/references/billing.md#packing-against-minute-rounding) says. Where each job rounds up to a minute, a 61 s job bills as much as a 119 s one. Setup was a large slice of each job's first minute in the source repo until a warm install cut it to a small one ([caches](../../../cache-ci/references/caches.md)).
 - Each job's `runs-on`, and the comment above it, say which runner it takes and why.
 
 ## Why

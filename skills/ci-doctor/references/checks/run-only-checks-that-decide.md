@@ -34,4 +34,4 @@ In the source repo, one three-day plan spent dozens of PRs and many hours on CI,
 
 - The repo's `AGENTS.md`, through the snippet's line under its commands block.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md), local checks and manual runs.
-- [`ci-workflows`](../ci-workflows/references/change-checks.md).
+- [`ci-workflows`](../../../ci-workflows/references/change-checks.md).
