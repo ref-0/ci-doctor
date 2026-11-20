@@ -32,6 +32,10 @@ What the shared skills read about this repo's CI. Each workflow's header says ho
 - `<sweep-workflow>`, main's scheduled sweep, runs everything at `<sweep-time>` and fills the cache.
 - A release waits for `<what a release waits for>`.
 
+### Sweep cadence
+
+The user's choice, as the `ci-workflows` skill's tiers ask for it: `<after N merges or T hours, whichever comes first>`, chosen `<date>` from `sweep-cadence.ts`' options at `<merges a day>` merges a day: `<job-minutes>` a month, at most `<merges>` merges a missed break can hide (about `<steps>` bisect steps). The sweep's workflow sets T as its schedule and N as its merge count. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes. Shard times stay fresh apart from this, as the `ci-runners` skill's shards say.
+
 ### What a change selects
 
 - `<kind of change>`: `<what it runs>`.
