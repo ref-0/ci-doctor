@@ -7,10 +7,10 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Blacksmith's billing
 
-Part of the [`blacksmith`](../TOPIC.md) topic. The general rules, packing against minute rounding, the cap, auditing spend and budgeting runs CI starts, are in [`ci-runners`' billing](../../ci-runners/references/billing.md). These are Blacksmith's specifics, as its [pricing](https://www.blacksmith.sh/pricing) and [runner docs](https://docs.blacksmith.sh/blacksmith-runners/overview) said in November 2026. Check both before you quote a number.
+Part of the [`blacksmith`](../TOPIC.md) topic. The general rules, packing against minute rounding, the cap, auditing spend and budgeting runs CI starts, are in [`ci-runners`' billing](../../../../ci-runners/references/billing.md). These are Blacksmith's specifics, as its [pricing](https://www.blacksmith.sh/pricing) and [runner docs](https://docs.blacksmith.sh/blacksmith-runners/overview) said in November 2026. Check both before you quote a number.
 
 - **A job bills its started minutes times its vCPUs,** at a list price per vCPU-minute (`<price-per-vcpu-minute>`), whether it computes or waits. A job at 2:01 costs as much as one at 2:59.
-- **arm64 costs less per minute than x64,** and **macOS several times as much.** Measure the same tests on arm64 before moving them: cheaper cores ran some tests slower ([sizing](../../ci-runners/references/sizing.md)).
+- **arm64 costs less per minute than x64,** and **macOS several times as much.** Measure the same tests on arm64 before moving them: cheaper cores ran some tests slower ([sizing](../../../../ci-runners/references/sizing.md)).
 - **The free allowance** is counted in 2 vCPU x64 minutes; a larger runner uses it proportionally faster. Budget at list price rather than relying on it.
 - **Flexible scheduling,** a `;scheduling=flex` suffix on a label, is cheaper for a job that can wait to start. It doesn't suit anything a person waits on.
 - **A sticky disk bills by the GB-month** until a week after its last use. Keep one disk per install, not one per lockfile ([disks](disks.md)).

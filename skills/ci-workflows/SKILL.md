@@ -17,7 +17,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 A workflow change is easy to make and hard to see the cost of: a new job pays its setup on every run, a wait between jobs lengthens every run, and a step that can't fail hides what it stopped doing. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs: the checks for a change, the tiers, slow runs and jobs, Rust in CI, and [`ci-time.ts`](scripts/ci-time.ts), which prints where a run's time and minutes went. [Guide sections 3 to 7](https://ci-doctor.ref0.dev/guide/docs/pages/03-workflow-anatomy.md) explain the design.
 
-The rules hold on any provider. Where a rule turns on how runners are sized or billed, read the ci-doctor hub's [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md); if you run on Blacksmith, its [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md) has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
+The rules hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md); if you run on Blacksmith, the hub's [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md) topic has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
 
 ## Start here
 
@@ -50,7 +50,7 @@ Read a value from its file; don't copy it here or into a plan. ci.md's Runners, 
 
 Each of these is a choice a change could undo. Keep it, or measure first.
 
-- A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md).
+- A slow run, a long test file, or how many shards: read [slow runs](references/performance.md). To choose a runner's size, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md).
 - What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
 - Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md).
 - Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).

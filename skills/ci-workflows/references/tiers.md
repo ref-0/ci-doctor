@@ -36,7 +36,7 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 
 ## Adding a scheduled run
 
-- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/references/billing.md) says.
+- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/billing.md) says.
 - **Select from the newest passing ancestor,** run nothing when that is the head or no change reaches what it checks, and run everything when no ancestor passed.
 - **Give it a run name of its own.** Where only the daily sweep may close main's failure issue, a narrower run's name mustn't start like the sweep's. A narrower run names the merges since its base when it fails.
 - **Don't trust the cron.** GitHub starts scheduled runs late or skips them. A merge after a slot starts the run when nothing has since, choosing the newest slot and taking turns, so a late cron can't start it twice.
