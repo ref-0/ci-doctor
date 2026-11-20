@@ -213,6 +213,11 @@ describe('the description lint', () => {
     match(one('Is it slow? Use when a test is slow.').join('\n'), /a question/);
   });
 
+  it('bans cheap and cheaper', () => {
+    match(one('Makes CI cheaper. Use when slow.').join('\n'), /"cheaper": .*costs less/);
+    match(one('Keeps runs cheap. Use when slow.').join('\n'), /"cheap": /);
+  });
+
   it('finds first and second person as words only', () => {
     match(one('Fixes our tests. Use when slow.').join('\n'), /"our": .*third person/);
     match(one('Use when you see it.').join('\n'), /"you"/);

@@ -30,7 +30,7 @@
  *    name every guide page, skill and reference README, and only what's served.
  * 9. **Descriptions:** each skill's description, which a harness picks the skill by, follows `skills/README.md`'s
  *    "Writing a description": at most 320 characters, a "Use when", no backticks or angle brackets, no first or
- *    second person and no question, and every skill its "Not for" part names in brackets exists.
+ *    second person, no "cheap" and no question, and every skill its "Not for" part names in brackets exists.
  * 10. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
  *    checks use, each from its own folder. A skipped test fails: each needs its fixtures.
  *
@@ -266,6 +266,8 @@ export const descriptionProblems = (description: string, skills: ReadonlySet<str
   if (/[`<>]/.test(description)) problems.push('a backtick or angle bracket: listings show descriptions as plain text, and Claude Code escapes angle brackets');
   const person = /\b(?:our|ours|your|yours|you|we)\b/i.exec(description)?.[0] ?? /\bI\b/.exec(description)?.[0];
   if (person !== undefined) problems.push(`"${person}": the hosts ask for the third person, since a description is injected into the agent's own prompt`);
+  const cheap = /\bcheap(?:er|est|ly)?\b/i.exec(description)?.[0];
+  if (cheap !== undefined) problems.push(`"${cheap}": calling CI or a change cheap devalues what it buys; say it costs less`);
   if (description.includes('?')) problems.push('a question: say what the skill does and when, not what the user might ask');
   const notFor = /Not for (.*)$/s.exec(description)?.[1] ?? '';
   for (const [, named = ''] of notFor.matchAll(/\(([^)]*)\)/g)) {

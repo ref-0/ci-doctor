@@ -1,13 +1,13 @@
 ---
 name: prove-it
-description: "Checks whether the evidence for a claim holds: that a change made something faster, cheaper or fixed. Use when someone claims a speed-up, a saving or a fix, or quotes a benchmark, a before and after or a few runs. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
+description: "Checks whether the evidence for a claim holds: that a change made something faster, cost less or fixed. Use when someone claims a speed-up, a saving or a fix, or quotes a benchmark, a before and after or a few runs. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
 metadata:
   version: "0.1.0"
 ---
 
 # prove-it
 
-A claim that something got faster, cheaper, smaller or fixed is only as good as the evidence under it. This skill judges that evidence before the claim goes into a PR, a plan, a report or a decision. It works the same for a function's benchmark, a page's load time, a query, a build, a CI run, a cloud bill or a bug fix.
+A claim that something got faster, smaller, cost less or was fixed is only as good as the evidence under it. This skill judges that evidence before the claim goes into a PR, a plan, a report or a decision. It works the same for a function's benchmark, a page's load time, a query, a build, a CI run, a cloud bill or a bug fix.
 
 Use it before you quote a number, call work done, accept someone else's result, or decide what to build from a spike. This skill reviews the evidence for a claim. Diagnosing a CI run, why it failed or what made it slow, is the `ci-doctor` skill's, and whether a test is worth keeping is `test-audit`'s.
 
