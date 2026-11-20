@@ -28,7 +28,7 @@ Under 1.0, a minor release carries what would be a major one.
 
 ### The scorer, `@ref0/ci-doctor`
 
-- **A run that never ran isn't CI time.** A first attempt that took over an hour and has no jobs, such as a fork's run nobody approved that GitHub failed days later, is left out of the PR wait and the red heads, and counted as `wait.neverRan`. One jobs call per such run, at most 60 a report. On two popular repos, such runs had stretched the PR wait p90 to 11 and 58 hours; without them it is 16 and 17 minutes.
+- **A run that never ran isn't CI time.** A failed first attempt on a pull request that took over an hour and has no jobs, such as a fork's run nobody approved that GitHub failed days later, is left out of the PR wait and the red heads, and counted as `wait.neverRan`. One jobs call per such run, at most 60 a report. On two popular repos, such runs had stretched the PR wait p90 to 11 and 58 hours; without them it is 16 and 17 minutes.
 - **An unscored repo whose pushes nearly all came from bots says so,** naming the bots, instead of saying that too few pushes ran the main workflows. `wait.botPushes` and `wait.bots` count them.
 
 ## v0.2.0

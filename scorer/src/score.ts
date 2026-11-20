@@ -126,13 +126,14 @@ const firstAttempts = (gh: Gh, repo: string, cap: number) => {
   };
 };
 
-// A first attempt that took over an hour with no jobs never ran: GitHub failed it while it waited,
-// such as a fork's run nobody approved, closed days later with its pull request. Its hours aren't
-// CI time and its failure isn't a red check. One call each, capped per report.
+// A failed first attempt that took over an hour with no jobs never ran: GitHub failed it while it
+// waited, such as a fork's run nobody approved, closed days later with its pull request. Its hours
+// aren't CI time and its failure isn't a red check. A run that passed did run, so it isn't asked.
+// One call each, capped per report.
 const ranJobs = (gh: Gh, repo: string, cap: number) => {
   const seen = new Map<number, boolean>();
   return (run: Run): boolean => {
-    if (run.run_attempt > 1 || Date.parse(run.updated_at) - Date.parse(run.run_started_at) <= 60 * 60e3) return true;
+    if (run.conclusion !== 'failure' || run.run_attempt > 1 || Date.parse(run.updated_at) - Date.parse(run.run_started_at) <= 60 * 60e3) return true;
     if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=1&page=1`).jobs.length > 0);
     return seen.get(run.id) ?? true;
   };
@@ -760,7 +761,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   const ranAny = ranJobs(gh, repo, 60);
   const wait = waits(gating, first, ci.heavy, ranAny);
   const allPushes = waits(gating, first, undefined, ranAny);
-  const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)), undefined, undefined, ranAny);
+  const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)));
   const bots = share(runs.filter((r) => r.actor?.login.endsWith('[bot]')).length, runs.length);
 
   // Jobs of the workflow that most often finishes last.
