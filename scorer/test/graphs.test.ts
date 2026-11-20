@@ -224,6 +224,16 @@ describe("graph 2: what an entry's count covers", () => {
     assert.equal(root.reexportsAtLeast, 3);
     assert.equal(root.unknown, 'packages/lib/src/s0.ts, which it re-exports: the walk stops 2 re-exports deep');
   });
+
+  it('makes the count a lower bound, not zero, when a re-export names a workspace file that resolves to nothing', () => {
+    const { g } = graphs(libRepo({ 'src/index.ts': "export * from './gone';\nexport * from './a.ts';\nexport * from 'react';\n", 'src/a.ts': 'export const a = 1;\n', 'src/ext.ts': "export * from 'react';\n" }, { '.': './src/index.ts', './ext': './src/ext.ts' }));
+    const root = node(g, 'lib#.')!;
+    assert.equal(root.reexports, null);
+    assert.equal(root.reexportsAtLeast, 1);
+    assert.equal(root.unknown, 'packages/lib/src/index.ts: it re-exports `./gone`, which resolves to no tracked file');
+    // A package outside the workspace isn't a miss: it re-exports no workspace module.
+    assert.equal(node(g, 'lib#./ext')!.reexports, 0);
+  });
 });
 
 describe('graph 4: tasks', () => {
