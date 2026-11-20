@@ -41,16 +41,16 @@ A runner's size, the way its provider rounds minutes, the number of shards a run
 
 ## The tools
 
-`ci-time.ts`, in the hub's [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/TOPIC.md#measuring-a-run) topic, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](references/billing.md#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-doctor/references/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`, and run it from there:
+`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](references/billing.md#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, on `next` until the release that adds this skill, then at the release this skill names in `metadata.version`, and run it from there:
 
 ```sh
 git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
-node <ci-doctor>/skills/ci-doctor/references/ci-workflows/scripts/ci-time.ts --help
+node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 ```
 
 ## Not here
 
-- Changing a workflow, its tiers, caches or the checks for a CI change: the hub's [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-workflows/TOPIC.md).
+- Changing a workflow, its tiers, caches or the checks for a CI change: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md).
 - Blacksmith's labels, CLI, sticky disks and bill: the hub's [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md), when the repo runs on Blacksmith or the user approved a move there.
 - A slow test file that sets a shard's floor: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/SKILL.md). How many jobs an edit starts: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/SKILL.md).
 - Whether a cost or a speed-up holds up: [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md).

@@ -3,8 +3,8 @@
  * What: prints where CI's time went, and roughly what it cost, from GitHub's runs and jobs API.
  * Where: run by a person or an agent from a checkout of the repo, before and after a change to CI.
  * Configure: the repo's `.agents/repo/ci-time.json` (SETTINGS below), or the flags that override it. Needs Node 24 and `gh`, logged in
- *   to <org>. With `--bill blacksmith`, also the `blacksmith` CLI and the blacksmith topic's adapter
- *   (references/blacksmith/scripts/blacksmith-bill.ts in the ci-doctor hub). It never reads either CLI's credentials.
+ *   to <org>. With `--bill blacksmith`, also the `blacksmith` CLI and Blacksmith's adapter,
+ *   blacksmith-bill.ts, from the installed skills (ADAPTER_DIRS) or `--adapter-dir`. It never reads either CLI's credentials.
  * Tests: `node --test ci-time.test.ts`, from this folder.
  * Reference implementation from a production monorepo; adapt to your repo.
  *
@@ -25,7 +25,7 @@
  *                              --shard prefix is a shard
  *   ci-time.ts --bill blacksmith
  *                              take each job's billed vCPU-minutes from Blacksmith's bill, and each
- *                              shard's CPU from its stats, through the blacksmith topic's adapter
+ *                              shard's CPU from its stats, through Blacksmith's adapter
  *
  * It is a diagnostic, not a baseline or a spend audit. It reads the newest runs `gh run list` returns,
  * and each run's latest attempt only; an earlier attempt, a run older than the sample and a job
@@ -49,7 +49,7 @@
  *   large run by shard count. They aren't a whole-suite time, and they aren't proof every file ran.
  *   For fresh, complete timings, use the records collector (scripts/records/ in the playbook).
  *
- * The check that runs this is the hub's references/checks/ci-measure-before-changing-it.md, with the ci-workflows topic.
+ * The check that runs this is the hub's references/checks/ci-measure-before-changing-it.md, with the ci-workflows skill.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -119,7 +119,7 @@ const DURATION = /Duration +([0-9.]+)s/;
 export type Run = (...args: string[]) => string;
 /** Billed vCPU-minutes by run id, then by job name, from an adapter. */
 export type Bill = Record<string, Record<string, number>>;
-/** A billing adapter, `<provider>-bill.ts`: see the blacksmith topic's blacksmith-bill.ts. */
+/** A billing adapter, `<provider>-bill.ts`: see Blacksmith's blacksmith-bill.ts. */
 export type Adapter = {
   billed: (repo: string, workflowName: string, runIds: ReadonlySet<string>, since: number, run: Run) => Bill;
   cpu: (jobId: number | string, run: Run) => string | null;
@@ -378,12 +378,19 @@ export function newestLargeRun(worked: readonly WorkflowRun[], jobs: ReadonlyMap
   return null;
 }
 
-/** A billing adapter by name, from --adapter-dir or the hub's topic of that name, beside this one. */
+/**
+ * Where a provider's adapter is looked for, from the skills folder this skill is installed in: a skill of the
+ * provider's name beside this one, then the ci-doctor hub's topic of that name.
+ */
+export const ADAPTER_DIRS = (name: string): string[] => [join(name, 'scripts'), join('ci-doctor', 'references', name, 'scripts')];
+
+/** A billing adapter by name, from --adapter-dir or the first of ADAPTER_DIRS that has it. */
 export async function loadAdapter(name: string, folder?: string): Promise<Adapter> {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const file = join(folder ? resolve(folder) : resolve(here, '..', '..', name, 'scripts'), `${name}-bill.ts`);
-  if (!existsSync(file)) {
-    stderr.write(`--bill ${name}: no ${name}-bill.ts found in the ci-doctor hub's ${name} topic; pass --adapter-dir\n`);
+  const skills = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const dirs = folder ? [resolve(folder)] : ADAPTER_DIRS(name).map((d) => join(skills, d));
+  const file = dirs.map((d) => join(d, `${name}-bill.ts`)).find((f) => existsSync(f));
+  if (file === undefined) {
+    stderr.write(`--bill ${name}: no ${name}-bill.ts found beside the ci-workflows skill; pass --adapter-dir\n`);
     exit(1);
   }
   return (await import(pathToFileURL(file).href)) as Adapter;
