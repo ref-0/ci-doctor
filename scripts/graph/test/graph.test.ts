@@ -5,9 +5,9 @@
  */
 import { deepStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -89,6 +89,35 @@ describe('imports', () => {
   it('matches globs with exclusions in order', () => {
     const match = globList(['src/**', '!src/**/*.test.ts']);
     deepStrictEqual(['src/a.ts', 'src/x/a.test.ts', 'lib/a.ts'].map(match), [true, false, false]);
+  });
+});
+
+/** A repo of the given files on `main`, one commit. */
+const repoOf = (files: Readonly<Record<string, string>>, changes: ReadonlyArray<Readonly<Record<string, string>>> = []) => {
+  const dir = mkdtempSync(join(tmpdir(), 'graph-test-'));
+  made.push(dir);
+  const write = (all: Readonly<Record<string, string>>) => {
+    for (const [path, text] of Object.entries(all)) { mkdirSync(dirname(join(dir, path)), { recursive: true }); writeFileSync(join(dir, path), text); }
+  };
+  write(files);
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'add', '-A');
+  git(dir, 'commit', '-qm', 'start');
+  for (const change of changes) { write(change); git(dir, 'add', '-A'); git(dir, 'commit', '-qm', 'change'); }
+  return dir;
+};
+
+describe('globs', () => {
+  it('applies a glob call\'s negated patterns', () => {
+    const r = report(repoOf({
+      'package.json': '{ "name": "mo" }',
+      'src/pages.ts': "export const pages = import.meta.glob(['./*.ts', '!./generated.ts']);\n",
+      'src/home.ts': 'export const home = 1;\n',
+      'src/generated.ts': 'export const generated = 1;\n',
+    }), options);
+    deepStrictEqual(r.exports.nodes.length, 0);
+    const reach = r.exports.flags.filter((f) => f.kind === 'wide-file').map((f) => `${f.subject} ${f.numbers.files}`).sort();
+    deepStrictEqual(reach, ['src/generated.ts 1', 'src/home.ts 2', 'src/pages.ts 1']);
   });
 });
 

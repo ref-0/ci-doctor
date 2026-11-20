@@ -759,10 +759,15 @@ export const readGraph = (
     for (const { spec, kind } of mod.specs) {
       specifiers.total++;
       if (kind === 'glob') {
-        const pattern = posix.normalize(posix.join(posix.dirname(path), spec.replace(/^!/, '')));
-        if (spec.startsWith('!')) { specifiers.total--; continue; }
-        const re = globToRegExp(pattern);
-        const hits = tracked.filter((p) => p !== path && re.test(p));
+        // One call's patterns in order, relative to the file (or to its package for `/…`), `!` ones excluding.
+        const patterns = spec.split('\n').filter(Boolean).map((g) => {
+          const out = g.startsWith('!');
+          const bare = out ? g.slice(1) : g;
+          const full = bare.startsWith('/') ? posix.join(from.dir, bare.slice(1)) : posix.normalize(posix.join(posix.dirname(path), bare));
+          return out ? `!${full}` : full;
+        });
+        const matches = globList(patterns);
+        const hits = tracked.filter((p) => p !== path && matches(p));
         if (hits.length === 0) miss('glob-empty', `${path}: ${spec}`);
         else specifiers.resolved++;
         for (const to of hits) edges.push({ from: path, to, kind });
