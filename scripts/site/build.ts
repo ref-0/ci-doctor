@@ -220,8 +220,6 @@ export const build = (root: string, out: string): { files: number; bytes: number
   write('llms.txt', llms(root, set));
   write(`${BASE}/llms-full.txt`, llmsFull(root, set));
   write('_headers', HEADERS);
-  // Until the score site takes ci-doctor.ref0.dev's root, it leads to the repo, which renders the README.
-  write('_redirects', '/ https://github.com/ref-0/ci-doctor 302\n');
 
   const all = walk(out);
   return { files: all.length, bytes: all.reduce((n, f) => n + statSync(f).size, 0) };
