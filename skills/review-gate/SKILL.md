@@ -6,7 +6,7 @@ description: "The review gate in CI, for a repo that adopted it (.agents/repo/re
 <!--
 What: the review gate in CI: a PR reviewed while it's a draft, what the gate requires, the tests reviewer, and the record CI's result job checks.
 Where: read by the agent that runs a PR's review, before it marks the PR ready.
-Configure: your repo's `.agents/repo/review.md` (template: the ci-doctor hub's references/agent-knowledge/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
+Configure: your repo's `.agents/repo/review.md` (template: the agent-knowledge skill's templates/repo-facts/review.md), its review list, and the checker's settings in `.agents/repo/review-record.json`, for scripts/review-record.ts, kept at <review-checker>.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 

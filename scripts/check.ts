@@ -19,8 +19,8 @@
  *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` and
- *    `speed-up-tests` topics, its `flakes.md`,
+ *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs`,
+ *    `speed-up-tests` and `verify-evidence` topics, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -55,7 +55,7 @@ export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.tes
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-workflows|ci-runners|blacksmith|verify-evidence';
+const TOPICS = 'ci-workflows|ci-runners|blacksmith';
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
@@ -68,11 +68,13 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
   [new RegExp(`\\bskills? \`(${TOPICS})\``), 'the hub\'s <topic> topic'],
   [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
+  [/verify-evidence/, 'skills/prove-it/'],
+  [/references\/agent-knowledge\b|(?<![\w-])agent-knowledge\/(?!SKILL\.md|templates\b|references\b)[\w-]+(?:\.md|\/)/, 'skills/agent-knowledge/templates/'],
   [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
-  [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/ci-doctor/references/agent-knowledge/'],
+  [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
   [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
 ];
@@ -141,12 +143,6 @@ export const GUIDE_URL = `${ORIGIN}/${BASE}/`;
 export const GITHUB_URL = 'https://github.com/ref-0/ci-doctor/';
 export const GITHUB_REF = 'next';
 
-/**
- * Paths another open change adds, so a full link to one may not resolve yet. Remove each entry once its path exists.
- * The agent-knowledge skill holds the templates the other skills link to.
- */
-export const PENDING = ['skills/agent-knowledge/'];
-
 /** The repo path a full link to the guide site or to GitHub at GITHUB_REF names, or undefined for any other URL. */
 export const ownPath = (url: string): string | undefined => {
   const [base = ''] = url.split('#');
@@ -182,7 +178,6 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
           const [path = '', anchor = ''] = target.split('#');
           const own = ownPath(target);
           if (own !== undefined) {
-            if (PENDING.some((p) => own.startsWith(p))) continue;
             if (own === '' && target.startsWith(GUIDE_URL)) continue;
             const exists = existsSync(join(root, own.replace(/\/$/, '')));
             if (!exists) problems.push(`${at}: no ${own} in the repo`);
