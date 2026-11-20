@@ -2,6 +2,8 @@
 
 # 17. Keeping agent knowledge from going stale
 
+Keep what your agents know about CI where they'll read it, and stop skills and instruction files from collecting stale advice.
+
 People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill accumulating stale advice?". No, and like this. The [`agent-knowledge`](../../skills/agent-knowledge/SKILL.md) skill carries this section for a coding agent: where each piece goes, the templates for a repo's facts, and what keeps it fresh.
 
 ## Where knowledge lives

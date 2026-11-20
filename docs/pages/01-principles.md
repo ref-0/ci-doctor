@@ -2,6 +2,8 @@
 
 # 1. Principles
 
+Learn the words the guide uses and the numbers to measure before changing CI, so every change can say which number it moved.
+
 - **Words used throughout.** A *shard* is one job's share of the tests. The *critical path* is the longest chain of dependent jobs and steps from trigger to the required result. A *sweep* is a scheduled run on main that checks what PRs left out. A *covered-only* test runs on a PR only when the PR touches the source paths it declares.
 - **Measure before changing CI.** Price recent runs by job and event, name the critical path, and find the file that ends the slowest shard. Several of our "obvious" wins measured as zero; several boring ones were the biggest.
 - **Several different numbers:**

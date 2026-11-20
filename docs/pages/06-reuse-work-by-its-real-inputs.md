@@ -2,6 +2,8 @@
 
 # 6. Reuse work by its real inputs
 
+Cache installs, builds and test results by every input that can change them, so CI replays what hasn't changed and never a stale pass.
+
 **Cache by real inputs.** A replayed result is only as good as its key: every file, setting and environment value that could change the result belongs in it, and nothing else does. Leave one out and a stale pass replays; put a stray one in, such as an absolute path, a temp report or a directory listing, and nothing ever replays. Whatever runs the tasks, the rules below hold: key by contents, keep run-specific values out, count only what ran, verify replays, and decide who may write what main replays.
 
 ## Task runners and their remote caches

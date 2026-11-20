@@ -2,6 +2,8 @@
 
 # 7. Shards, runners and billing
 
+Split tests into shards by measured time, size runners from the work and the bill, and shorten the critical path before buying cores.
+
 ## Shards from measured time, not file count
 
 **Applies when:** Tests run, or should run, across several shards, and each file's time on main is recorded. **Skip when:** There are no per-file times yet.

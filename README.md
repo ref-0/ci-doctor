@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-Everything your agents need to make CI fast, and keep it that way. A playbook, coding-agent skills and a local GitHub Actions scorer.
+Tired of waiting on CI? ci-doctor is a set of skills and tools your coding agent uses to make CI fast, and keep it that way.
 
 It's what we learned in a 1.5M-line TypeScript and Rust monorepo where AI agents write most of the code, without letting tests prove less: across 189 successful first-attempt runs of ready PRs in one week, CI's wall time had a median of about 3.2 minutes and a p90 of about 4.5 ([how we got here](docs/pages/19-how-we-got-here.md)). It cost us a lot of time and money to learn. It's all here so it doesn't cost you the same.
 
