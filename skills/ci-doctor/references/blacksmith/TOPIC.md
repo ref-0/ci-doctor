@@ -39,5 +39,5 @@ These are what the source repo leaned on, as [guide section 2](../../../../docs/
 ## Related
 
 - [`ci-runners`](../ci-runners/TOPIC.md): sizing, packing, the cap and choosing a provider.
-- [`ci-workflows`](../../../ci-workflows/SKILL.md): changing workflows, tiers and caches.
+- [`ci-workflows`](../../../ci-workflows/SKILL.md): changing workflows and tiers; [`cache-ci`](../../../cache-ci/SKILL.md): caches.
 - [`ci-merge-workflow`](../../../ci-merge-workflow/SKILL.md): a PR's result, runs by hand and the merge.

@@ -14,7 +14,7 @@ Part of the [`ci-runners`](../TOPIC.md) topic. Read when costing a run or a chan
 
 - **Find your provider's unit and rounding first,** for each label, and record them with the label's list price in ci.md. GitHub-hosted runners price each runner type per minute, rounded up per job; Blacksmith prices per vCPU-minute; a self-hosted runner costs its machines whatever runs. Check the current pricing pages.
 - **Where each job rounds up to a minute, pack a job's work to just under a minute boundary:** a job of 61 s bills as much as one of 119 s. Where the provider doesn't round per job, packing saves nothing. An invented example: 14 shards each ending just under 2 minutes bill 28 shard-minutes, and 9 shards each spilling just past 2 minutes bill 27, so the faster layout costs about the same. Warn when a shard's p95 nears the boundary.
-- **Each job pays for its setup.** A warm install skips most of it ([caches](../../../../ci-workflows/references/caches.md)); otherwise the job installs. Measure both paths in your CI. One test file per job wastes most of a runner.
+- **Each job pays for its setup.** A warm install skips most of it ([`cache-ci`](../../../../cache-ci/SKILL.md)); otherwise the job installs. Measure both paths in your CI. One test file per job wastes most of a runner.
 - **Measure queue and startup time.** When runners start together without queueing, the longest job sets wall time.
 - **Verify any free allowance before budgeting.** Larger runners often use it faster. Budget at list price rather than relying on free minutes.
 - **Three numbers, kept apart:** test-seconds, wall time and billed minutes, as [measuring](../../../../speed-up-tests/references/measuring.md#comparing-before-and-after) says. A change can move one and not the others.
