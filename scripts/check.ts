@@ -19,8 +19,8 @@
  *    fails, since it dangles in the copy. The hub alone may also link out relatively, to a file the
  *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs`,
- *    `speed-up-tests` and `verify-evidence` topics, its `flakes.md`, `references/agent-knowledge/`,
+ *    release replaced: `code-review`, the hub's `ci-runners` and `blacksmith` topics as skills, the hub's `graphs`,
+ *    `speed-up-tests`, `verify-evidence` and `ci-workflows` topics, `ci-workflows`' `selection.md`, its `flakes.md`, `references/agent-knowledge/`,
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
  * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
@@ -50,12 +50,12 @@ import { stale } from './skills/excerpts.ts';
 export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 'README.md', 'CHANGELOG.md'];
 
 /** Test files the build runs besides every one under `skills/`. */
-export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/graph/test/graph.test.ts'];
+export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci-time.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/graph/test/graph.test.ts'];
 
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
 
-const TOPICS = 'ci-workflows|ci-runners|blacksmith';
+const TOPICS = 'ci-runners|blacksmith';
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
@@ -73,6 +73,8 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
+  [/ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/, 'skills/ci-workflows/'],
+  [/(?<![\w-])ci-workflows\/references\/selection\.md/, 'skills/optimize-graphs/references/selection.md'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
