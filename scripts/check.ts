@@ -12,14 +12,19 @@
  *    it. A link that stays in the copy must resolve there. A link that leaves it must land on a file
  *    in the repo under one of FALLBACK's paths, the ones the hub's "Outside the skills" names, and
  *    the hub must name each.
- * 5. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
- *    release replaced: `code-review`, the hub's five topics as skills, `<root>`, `install.ts`, or
- *    `PROMPT.md`, `docs/prompts/`, `checks/` and `templates/agent-knowledge/` as paths.
- * 6. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
- * 7. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
+ * 5. **Links, each skill alone:** each skill's folder copied alone, as `npx skills add` with one skill
+ *    chosen, or a copy of that folder, installs it. A link that stays in the folder must resolve in the
+ *    copy. A link that leaves it must land on a file the guide site serves (`served` in
+ *    `scripts/site/build.ts`), so it resolves at ci-doctor.ref0.dev/guide/<path>, with its anchor.
+ * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
+ *    release replaced: `code-review`, the hub's five topics as skills, the hub's `graphs` topic,
+ *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
+ *    `templates/agent-knowledge/` as paths.
+ * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
+ * 8. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
  *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
  *    name every guide page, skill and reference README, and only what's served.
- * 8. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
+ * 9. **Tests:** every test file under `skills/` and `scorer/test/` (the scorer's CLI run from source), and those under `scripts/` that the skills' scripts and these
  *    checks use, each from its own folder. A skipped test fails: each needs its fixtures.
  *
  * Runs: from the repo's root, before pushing. Node 24, `git` and `jq` only. Temporary folders go in
@@ -28,14 +33,14 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { argv, cwd } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { anchorsOf, checkFile, filesUnder, linkTargets, proseLines } from './docs/check-links.ts';
 import { docsBudget, layout } from './docs/docs-budget.ts';
 import { validate } from './plugin/validate.ts';
-import { build, siteProblems } from './site/build.ts';
+import { BASE, build, ORIGIN, served, siteProblems } from './site/build.ts';
 import { stale } from './skills/excerpts.ts';
 
 /** Where a link out of `skills/` may land: the paths the hub's "Outside the skills" names. */
@@ -59,6 +64,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [new RegExp(`\\b(${TOPICS})/SKILL\\.md`), '<topic>/TOPIC.md'],
   [new RegExp(`(?<![\\w-])\`?(${TOPICS})\`?('s)? skills?\\b`), 'the hub\'s <topic> topic'],
   [new RegExp(`\\bskills? \`(${TOPICS})\``), 'the hub\'s <topic> topic'],
+  [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/ci-doctor/references/agent-knowledge/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
@@ -121,6 +127,57 @@ export const skillsOnly = (root: string): string[] => {
   return problems;
 };
 
+/** One skill's folder copied alone: its links that don't resolve in the copy, or leave it for a path the site doesn't serve. */
+export const standaloneSkill = (root: string, name: string, site: ReadonlySet<string> = new Set(served(root))): string[] => {
+  const problems: string[] = [];
+  const folders = new Set([...site].flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
+  const top = mkdtempSync(join(tmpdir(), `ci-doctor-skill-${name}-`));
+  try {
+    const copy = join(top, name);
+    cpSync(join(root, 'skills', name), copy, { recursive: true, dereference: true });
+    for (const file of walk(copy).filter((f) => f.endsWith('.md'))) {
+      const shown = `skills/${relative(top, file).split(sep).join('/')}`;
+      const inside = (target: string) => target.startsWith('#') || resolve(dirname(file), decodeURIComponent(target.split('#')[0] ?? '')).startsWith(copy + sep);
+      problems.push(...checkFile(file).filter((p) => inside(p.target)).map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, with ${name} installed alone`));
+      proseLines(readFileSync(file, 'utf8')).forEach((line, index) => {
+        for (const target of linkTargets(line)) {
+          if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#|<)/i.test(target)) continue;
+          const [path = '', anchor = ''] = target.split('#');
+          const resolved = resolve(dirname(file), decodeURIComponent(path));
+          if (resolved === copy || resolved.startsWith(copy + sep)) continue;
+          const inRepo = repoPath(relative(top, resolved));
+          const at = `${shown}:${index + 1}: ${target}`;
+          if (inRepo === undefined || (!site.has(inRepo) && !folders.has(inRepo.replace(/\/$/, '')))) {
+            problems.push(`${at}: leaves ${name}/ for ${inRepo ?? 'outside the repo'}, which ${ORIGIN}/${BASE}/ doesn't serve`);
+            continue;
+          }
+          const there = join(root, inRepo);
+          if (anchor && there.endsWith('.md') && statSync(there).isFile() && !anchorsOf(there).has(anchor.toLowerCase())) problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
+        }
+      });
+    }
+  } finally {
+    rmSync(top, { recursive: true, force: true });
+  }
+  return problems;
+};
+
+/** A path from the copy's parent folder, as the repo path it has beside `skills/<name>/`, or undefined if it leaves the repo. */
+const repoPath = (fromTop: string): string | undefined => {
+  const path = posix.normalize(posix.join('skills', fromTop.split(sep).join('/')));
+  return path.startsWith('..') ? undefined : path;
+};
+
+/** Every skill, each copied alone: its name and what's wrong. */
+export const standalone = (root: string): { name: string; problems: string[] }[] => {
+  const site = new Set(served(root));
+  return readdirSync(join(root, 'skills'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .map((name) => ({ name, problems: standaloneSkill(root, name, site) }));
+};
+
 /** The site, built into a temporary folder: links that leave what it serves, and `llms.txt`'s gaps. */
 export const site = (root: string): { problems: string[]; files: number } => {
   const top = mkdtempSync(join(tmpdir(), 'ci-doctor-site-'));
@@ -179,11 +236,13 @@ export const checks = (root: string): Result[] => {
   const budget = docsBudget(root, { ...layout, skillPath: /^skills\/([^/]+)\/SKILL\.md$/, upstreamLock: undefined, upstreamPrefixes: ['test-audit'], rules: undefined });
   const run = tests(root);
   const built = site(root);
+  const alone = standalone(root);
   return [
     { name: 'plugin', problems: validate(root), summary: 'manifests agree; each skill loads as one' },
     { name: 'excerpts', problems: stale(root).map((p) => `${p}: stale; run node scripts/skills/excerpts.ts`), summary: 'match their sources' },
     { name: 'links, repo', problems: links.flatMap(checkFile).map((p) => `${relative(root, p.file)}:${p.line}: ${p.target}: ${p.why}`), summary: `${links.length} Markdown files resolve` },
     { name: 'links, skills only', problems: skillsOnly(root), summary: 'resolve in the copy, or leave it only for the fallback' },
+    { name: 'links, each skill alone', problems: alone.flatMap((s) => s.problems), summary: alone.map((s) => `${s.name} ok`).join(', ') },
     { name: 'old names', problems: oldNames(root), summary: 'none' },
     { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget` },
     { name: 'site', problems: built.problems, summary: `${built.files} files; every link lands on one, and llms.txt names every page` },
