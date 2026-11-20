@@ -371,8 +371,9 @@ export interface RunJob {
   /** The graph's job this is, or undefined when no job in the YAML matched its name. */
   key: string | undefined;
   needs: string[];
-  /** Minutes from the run's start: when its last `needs` finished, when a runner took it, when it ended. */
+  /** Minutes from the run's start: when its last `needs` finished, when GitHub created it, when a runner took it, when it ended. */
   readyMin: number;
+  createdMin: number;
   startMin: number;
   endMin: number;
   blockedMin: number;
@@ -466,6 +467,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
       key,
       needs: key ? (nodes.get(key)?.needs ?? []) : [],
       readyMin: mins(runStart, readyAt),
+      createdMin: mins(runStart, ms(j.created_at)),
       startMin: mins(runStart, start),
       endMin: mins(runStart, ms(j.completed_at!)),
       blockedMin: mins(runStart, readyAt),
@@ -687,7 +689,20 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
       spanMin: r1(r.spanMin),
       path: r.path.map((l) => l.name),
       topBlocker: r.topBlocker?.name ?? null,
-      jobs: r.jobs.map((j) => ({ name: j.name, needs: j.needs, readyMin: r1(j.readyMin), startMin: r1(j.startMin), endMin: r1(j.endMin), setupMin: r1(j.setupMin) })),
+      // Blocked, then hidden wait (created late), then queued (waiting on a runner), then work: they add up to endMin.
+      jobs: r.jobs.map((j) => ({
+        name: j.name,
+        needs: j.needs,
+        readyMin: r1(j.readyMin),
+        createdMin: r1(j.createdMin),
+        startMin: r1(j.startMin),
+        endMin: r1(j.endMin),
+        blockedMin: r1(j.blockedMin),
+        hiddenMin: r1(j.hiddenMin),
+        queueMin: r1(j.queueMin),
+        workMin: r1(j.workMin),
+        setupMin: r1(j.setupMin),
+      })),
     })),
   };
 };
