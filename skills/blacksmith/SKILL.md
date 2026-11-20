@@ -1,6 +1,6 @@
 ---
 name: blacksmith
-description: "Runs GitHub Actions on Blacksmith: its runner labels, sticky disks, Actions cache, CLI, bill and the move there. Use when a repo's CI runs on Blacksmith or is moving there, or a request names its labels, sticky disks or bill. Not for sizing and spend on any provider (ci-runners) or workflow edits (ci-workflows)."
+description: "Handles Blacksmith runners for GitHub Actions: labels, sticky disks, CLI, bill and a move there. Use when an ask names Blacksmith, its labels, sticky disks, CLI or bill, or a move to it. Not for other workflow, runner, cache or failed-check work in a Blacksmith repo (ci-workflows, ci-runners, cache-ci, ci-doctor)."
 metadata:
   version: "0.1.0"
 ---
@@ -32,7 +32,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 ## Rules
 
 - **A person signs in.** `blacksmith auth login` opens a browser; ask the user to run it, and check with `blacksmith auth status`. Never read or print `~/.blacksmith/credentials`, and never put a token on a command line.
-- **Never re-enable a workflow the team's spend watcher disabled,** and keep Blacksmith's own spend limit above the watcher's cap, so the watcher stops CI first.
+- **Never re-enable a workflow the team's spend watcher disabled,** and keep Blacksmith's own spend limit above the watcher's cap, so the watcher can act first; neither stops spend exactly at its cap ([billing](references/billing.md)).
 - **Only main's runs commit a sticky disk.** Turn on Blacksmith's branch protection for sticky disks.
 - **Run macOS only in a release, or by hand with a person's yes:** a Mac minute costs several Linux ones.
 - **Check current pricing and labels** in [Blacksmith's docs](https://docs.blacksmith.sh) before quoting either; they change.
