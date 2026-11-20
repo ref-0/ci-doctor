@@ -43,13 +43,15 @@ describe('remembering answers', () => {
 
 describe('GraphQL', () => {
   it('sends the query on stdin, so its length never meets a command-line limit', () => {
-    const long = `query { repository(owner: "pip", name: "app") { ${Array.from({ length: 100 }, (_, i) => `f${i}: object(expression: "main:${'deep/'.repeat(60)}${i}.json") { ... on Blob { text } }`).join(' ')} } }`;
+    const long = `query { repository(owner: "pip", name: "app") { ${Array.from({ length: 100 }, (_, i) => `f${i}: object(oid: "${String(i).padStart(40, '0')}") { ... on Blob { text } } # ${'deep/'.repeat(60)}`).join('\n')} } }`;
     assert.ok(long.length > 32_767);
     withStub({}, {}, (log) => {
       const answer = new Gh().graphql(long);
       assert.equal(Object.keys(answer.data.repository).length, 100);
       assert.ok(log()[0]!.includes('--input'));
-      assert.ok(log()[0]!.every((a) => a.length < 1000));
+      const [call] = log();
+      assert.ok(call!.filter((a) => !a.startsWith('stdin:')).every((a) => a.length < 1000));
+      assert.equal(JSON.parse(call!.at(-1)!.slice('stdin:'.length)).query, long);
     });
   });
 });
