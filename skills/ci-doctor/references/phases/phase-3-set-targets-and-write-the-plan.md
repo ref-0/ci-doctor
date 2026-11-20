@@ -29,7 +29,7 @@
    3. Per-file timing records (instrumentation only: keep the current retry behavior).
    4. Time-based shards: start with a deterministic static assignment per suite, each exact list run through the installed runner, the aggregate checked against the collected inventory ([a fixed split](../excerpts/phase-3.md#start-simple-a-fixed-split)). Keep families that share fixture state together, include install and collection time in the model, and cap matrix concurrency by the organization's limits. Work stealing is a later, separately measured step.
    5. Split the longest files. Split a dominating, indivisible file before tuning a layout.
-   6. Selection by what a diff reaches, keeping coverage as Phase 1 says.
+   6. Selection by what a diff reaches, keeping coverage as Phase 1 says. Where a graph's width is what keeps it wide, the graph changes [`optimize-graphs`](../../../optimize-graphs/SKILL.md#3-propose-in-this-order) proposes, in its order: each a change to the user's code, as its own step with its own yes.
    7. Caches keyed by real inputs, including a **remote task cache**:
       - **Audit the current cache first.** Then choose: local only, the existing remote service, or an explicitly approved self-hosted implementation of the task runner's protocol, by measured need. For Turborepo, Nx, Bazel or Gradle, skip this repo's Vite+ Worker, its wrapper, token scripts and OIDC example. If the user approves self-hosting, Cloudflare (Worker, R2, D1) is what we recommend ([`cache/remote/`](../../../../cache/remote/README.md) for Vite+).
       - **Record:** the runner's installed version, the endpoint and team configuration, who owns the credentials, the CI writer, reader and fork policy, retention, and rollback.

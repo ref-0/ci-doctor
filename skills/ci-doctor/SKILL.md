@@ -70,7 +70,7 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | Slow or flaky tests, in CI or locally: finding them from CI's records, fixing the wait, fakes, flakes | [speed-up-tests](references/speed-up-tests/TOPIC.md) |
 | A measurement, a before/after, a cost or a claim about CI | [verify-evidence](references/verify-evidence/TOPIC.md) |
-| How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | [graphs](references/graphs/TOPIC.md) |
+| How far an edit reaches: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
 
 The one-rule [checks](references/checks/README.md) the topics link to, and the [agent-knowledge templates](references/agent-knowledge/README.md) for a repo's facts, are here too.
 
@@ -79,6 +79,7 @@ The one-rule [checks](references/checks/README.md) the topics link to, and the [
 - The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
+- How far an edit reaches through packages, `exports`, folders, task inputs and jobs: `optimize-graphs`.
 
 ## Outside the skills
 

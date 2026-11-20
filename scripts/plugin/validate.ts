@@ -8,7 +8,8 @@
  * - `plugin.json` at the root is the source of truth: the Claude Code, Codex and Cursor manifests
  *   repeat its name, version, description and keywords, and each marketplace lists the plugin.
  * - Every folder in `skills/` is a skill: a `SKILL.md` whose frontmatter `name` is the folder's
- *   name, a description of at most 320 characters, and at most 10 KB in all.
+ *   name, a description of at most 320 characters, and at most 10 KB in all. The hub's
+ *   `metadata.version`, and any other skill's that declares one, is `plugin.json`'s version.
  * - No other file under `skills/` is named `SKILL.md`. Codex registers one at any depth as a
  *   skill of its own, so a hub's topic named that would load beside the hub.
  * - The README installs the plugin in each harness and names every skill.
@@ -157,9 +158,10 @@ export const validate = (root: string): string[] => {
   const license = join(root, 'scorer', 'LICENSE');
   if (!existsSync(license) || readFileSync(license, 'utf8') !== readFileSync(join(root, 'LICENSE'), 'utf8')) problems.push('scorer/LICENSE: must be a copy of LICENSE, since npm packs only scorer/');
 
-  // A skills-only install carries no manifest, so the hub names its release in its own frontmatter.
+  // A skills-only install carries no manifest, so the hub, and any skill that installs alone, names its release in its own frontmatter.
+  const versionOf = (text: string) => /^---\n[\s\S]*?^metadata:\n(?:[ \t]+.*\n)*?[ \t]+version:\s*"?([^"\n]+)"?\s*$/m.exec(text)?.[1];
   const hub = join(root, 'skills', 'ci-doctor', 'SKILL.md');
-  const hubVersion = existsSync(hub) ? /^---\n[\s\S]*?^metadata:\n(?:[ \t]+.*\n)*?[ \t]+version:\s*"?([^"\n]+)"?\s*$/m.exec(readFileSync(hub, 'utf8'))?.[1] : undefined;
+  const hubVersion = existsSync(hub) ? versionOf(readFileSync(hub, 'utf8')) : undefined;
   if (hubVersion !== portable.version) problems.push(`skills/ci-doctor/SKILL.md: metadata.version is ${String(hubVersion)}, not plugin.json's ${String(portable.version)}`);
 
   const skills = skillNames(root);
@@ -175,6 +177,8 @@ export const validate = (root: string): string[] => {
     if (!description) problems.push(`skills/${name}/SKILL.md: no description`);
     else if (description.length > 320) problems.push(`skills/${name}/SKILL.md: description is ${description.length} characters, over 320`);
     if (statSync(path).size > 10_000) problems.push(`skills/${name}/SKILL.md: over 10 KB`);
+    const version = versionOf(text);
+    if (version !== undefined && version !== portable.version) problems.push(`skills/${name}/SKILL.md: metadata.version is ${version}, not plugin.json's ${String(portable.version)}`);
     if (!readme.includes(`\`${name}\``)) problems.push(`README.md: doesn't name the skill \`${name}\``);
   }
   for (const file of skillFiles(join(root, 'skills'))) {
