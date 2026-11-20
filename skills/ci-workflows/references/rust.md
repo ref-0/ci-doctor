@@ -28,7 +28,7 @@ Part of the [`ci-workflows`](../SKILL.md) skill, if your stack uses Rust. The ge
 
 ## The toolchain
 
-Cache the toolchain that `rust-toolchain.toml` pins, with its components and targets, keyed by that file and the installing action. Probe it before use, as [`cache-ci`'s caches](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/references/caches.md#a-toolchain-cache) say. If you run on Blacksmith, a sticky disk holds it ([disks](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/disks.md#the-rust-toolchains-disk)); elsewhere, cache `~/.rustup` with `actions/cache`, as the [templates' README](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#without-blacksmith) shows.
+Cache the toolchain that `rust-toolchain.toml` pins, with its components and targets, keyed by that file and the installing action. Probe it before use, as [`cache-ci`'s caches](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/references/caches.md#a-toolchain-cache) say. If you run on Blacksmith, a sticky disk holds it ([disks](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/references/disks.md#the-rust-toolchains-disk)); elsewhere, cache `~/.rustup` with `actions/cache`, as the [templates' README](https://github.com/ref-0/ci-doctor/blob/next/templates/github/README.md#without-blacksmith) shows.
 
 ## Running Rust's tests
 

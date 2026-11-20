@@ -17,7 +17,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 A workflow change is easy to make and hard to see the cost of: a new job pays its setup on every run, a wait between jobs lengthens every run, and a step that can't fail hides what it stopped doing. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs: the checks for a change, the tiers, slow runs and jobs, Rust in CI, and [`ci-time.ts`](scripts/ci-time.ts), which prints where a run's time and minutes went. [Guide sections 3 to 7](https://ci-doctor.ref0.dev/guide/docs/pages/03-workflow-anatomy.md) explain the design.
 
-The rules hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md); if you run on Blacksmith, the hub's [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/TOPIC.md) topic has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
+The rules hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/SKILL.md); if you run on Blacksmith, [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/SKILL.md) has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
 
 ## Start here
 
@@ -38,7 +38,7 @@ A pull request that changes a workflow runs its own version, so its run is the t
 
 [`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/references/ci-history-data.md) says.
 
-It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label. With `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [Blacksmith's adapter](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/scripts/blacksmith-bill.ts), found beside this skill or passed with `--adapter-dir`. Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/repo-facts/ci-time.json)). Its tests run with this skill installed alone: `node --test ci-time.test.ts`, from `scripts/`.
+It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label. With `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [Blacksmith's adapter](https://github.com/ref-0/ci-doctor/blob/next/skills/blacksmith/scripts/blacksmith-bill.ts), found beside this skill or passed with `--adapter-dir`. Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](https://github.com/ref-0/ci-doctor/blob/next/skills/agent-knowledge/templates/repo-facts/ci-time.json)). Its tests run with this skill installed alone: `node --test ci-time.test.ts`, from `scripts/`.
 
 Where CI's records are and how to read them is `speed-up-tests`' [measuring](https://github.com/ref-0/ci-doctor/blob/next/skills/speed-up-tests/references/measuring.md). Judging what a number means is the [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md) skill.
 
@@ -66,7 +66,7 @@ Tests that run the repo's code against real containers are the slowest, and thei
 
 ```sh
 git clone --depth 1 --branch next https://github.com/ref-0/ci-doctor.git <ci-doctor>
-node <skills-dir>/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <ci-doctor>/skills/ci-doctor/references/blacksmith/scripts
+node <skills-dir>/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <ci-doctor>/skills/blacksmith/scripts
 ```
 
 ## Not here
