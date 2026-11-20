@@ -305,7 +305,8 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
         why ??= f === file ? `${f}: ${reason}` : `${f}, which it re-exports: ${reason}`;
         continue;
       }
-      for (const t of next.get(f) ?? []) if (!reexports.has(t)) (reexports.add(t), waiting.push(t));
+      // A cycle back to the entry doesn't count the entry itself.
+      for (const t of next.get(f) ?? []) if (t !== file && !reexports.has(t)) (reexports.add(t), waiting.push(t));
     }
     return { reexports: reexports.size, why };
   };
