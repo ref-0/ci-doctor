@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # If your stack runs on Cloudflare Workers
 
-Part of the [`speed-up-tests`](../TOPIC.md) topic. The general rules are in [fixes](fixes.md), [fakes](fakes.md) and the check [test a platform's guarantee through its real boundary](../../checks/test-the-real-boundary.md); this page says what they meant for a Workers server, tested in workerd through Vitest, with Durable Objects and Wrangler. [guide section 8](../../../../../docs/pages/08-a-cheaper-test-harness.md) has the harness and what it measured.
+Part of the [`speed-up-tests`](../SKILL.md) skill. The general rules are in [fixes](fixes.md), [fakes](fakes.md) and the check [test a platform's guarantee through its real boundary](../../ci-doctor/references/checks/test-the-real-boundary.md); this page says what they meant for a Workers server, tested in workerd through Vitest, with Durable Objects and Wrangler. [guide section 8](../../../docs/pages/08-a-cheaper-test-harness.md) has the harness and what it measured.
 
 ## The harness
 
@@ -39,13 +39,13 @@ Every test file's workerd, every `wrangler dev` and every cold isolate pays the 
 
 ## A refused upload through the local proxy
 
-Miniflare's proxy sends a stream from Node to workerd as the body of one HTTP request, and the answer comes back on the same exchange. If the Worker refuses and cancels the stream unread, workerd can reset the connection while undici still sends the last bytes: `EPIPE` on the write or `ECONNRESET` on the read, and `fetch failed` instead of the refusal. Workers RPC carries the stream and the answer separately, so production doesn't race; check that inside workerd before deciding where to fix. The fix is in the fake: read the whole body, then answer, and keep the test's refusal assertion. To reproduce it, stall the stream after its first chunk, as a loaded runner does ([section 11](../../../../../docs/pages/11-flakes.md#cause-symptom-fix)).
+Miniflare's proxy sends a stream from Node to workerd as the body of one HTTP request, and the answer comes back on the same exchange. If the Worker refuses and cancels the stream unread, workerd can reset the connection while undici still sends the last bytes: `EPIPE` on the write or `ECONNRESET` on the read, and `fetch failed` instead of the refusal. Workers RPC carries the stream and the answer separately, so production doesn't race; check that inside workerd before deciding where to fix. The fix is in the fake: read the whole body, then answer, and keep the test's refusal assertion. To reproduce it, stall the stream after its first chunk, as a loaded runner does ([section 11](../../../docs/pages/11-flakes.md#cause-symptom-fix)).
 
 ## What only the deployed platform shows
 
 Local workerd and CI's containers don't prove the platform's limits. In the source repo:
 
-- 1.4 s of module start-up passed local CPU caps of 10, 100 and 5,000 ms, so a local cap didn't bind where the platform's would; a rule also ran past its 2 s deadline while its caller stayed alive. Watch start-up time from deploy logs, well before the platform's hard limit ([guide section 16](../../../../../docs/pages/16-standing-automations.md)).
+- 1.4 s of module start-up passed local CPU caps of 10, 100 and 5,000 ms, so a local cap didn't bind where the platform's would; a rule also ran past its 2 s deadline while its caller stayed alive. Watch start-up time from deploy logs, well before the platform's hard limit ([guide section 16](../../../docs/pages/16-standing-automations.md)).
 - A 147 MiB Wasm check passed in fresh isolates, but most later checks, in warm ones, exceeded memory. A warm small container also lost the CPU speed its first seconds suggested.
 - Probes on the platform found four networking differences local Docker hid, including servers crashing on a 64-character hostname.
 - The deployed end-to-end run found five bugs that CI and probes had missed.

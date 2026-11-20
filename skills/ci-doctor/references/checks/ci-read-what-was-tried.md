@@ -53,6 +53,6 @@ In the source repo, the move to Blacksmith tried several of these rows in one da
 
 - [`ci-workflows`](../ci-workflows/TOPIC.md), before changing the workflow.
 - [`ci-workflows`](../ci-workflows/references/change-checks.md), before you design a change.
-- [`speed-up-tests`](../speed-up-tests/references/campaign.md), before planning a campaign, and when one ends.
+- [`speed-up-tests`](../../../speed-up-tests/references/campaign.md), before planning a campaign, and when one ends.
 - The repo's `.agents/repo/ci.md`, its Tried and dropped section, which names the register.
 - [guide section 18](../../../../docs/pages/18-tried-and-dropped.md), which draws the lessons.

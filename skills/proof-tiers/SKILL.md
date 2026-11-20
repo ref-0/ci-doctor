@@ -38,7 +38,7 @@ Follow [the tiers](../ci-doctor/references/ci-workflows/references/tiers.md). Ke
 
 ## Related
 
-- [`speed-up-tests`](../ci-doctor/references/speed-up-tests/TOPIC.md): a slow proof's waits.
+- [`speed-up-tests`](../speed-up-tests/SKILL.md): a slow proof's waits.
 - [How CI runs them](references/properties.md#how-ci-runs-them): seeds on a PR and in the sweep.
 - [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if the repo adopted it: reading a property failure in a PR's run.
 - [`test-audit`](../test-audit/SKILL.md), if the repo adopted it: whether a test is worth keeping.
