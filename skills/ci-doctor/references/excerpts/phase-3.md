@@ -10,31 +10,31 @@ From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../..
 
 ### Choosing a provider and runners
 
-**Applies when:** The plan picks a provider, or sizes or resizes runners, on any CI platform. **Skip when:** The baseline shows neither runner cost nor runner size bearing on the limiter.
+**Applies when:** The plan picks a provider, or sizes or resizes runners, on any CI platform. **Skip when:** The baseline shows neither runner cost nor runner size affecting the bottleneck.
 
-- **Size each job from its work.** The plan and bookkeeping need little; static checks some more; test shards and type-aware lint the most. A provider that offers a size per job, and bills by it, lets each job take only what it uses. Resize only from measured CPU, when three runs agree (section 7).
-- **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job at 2:01 costs the same as one at 2:59. That's why we aim for two minutes elapsed or less per shard, including setup (section 7). Find whether your provider prices per runner or per vCPU, and per job or per run.
-- **Architecture and OS change the price and the speed.** At the list prices we checked, arm64 was cheaper per minute than x64 and macOS several times dearer than Linux; check your provider's current prices. A cheaper minute isn't a cheaper run until the same tests are measured on it (section 7).
-- **A warm setup matters as much as the runner.** Each job pays for its own install, so a snapshot of main's install keyed by the manifests (section 6), on a persistent disk or in the Actions cache, decides how much of a short job is setup.
-- **You need per-job CPU and cost.** Without them, sizing is a guess. Some providers report both; elsewhere, sample CPU in the job and price minutes from runner labels ([`skills/ci-doctor/references/ci-runners/`](../ci-runners/TOPIC.md)).
-- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-doctor/references/ci-runners/references/providers.md`](../ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../../../templates/github/README.md#runner-labels) maps the templates' labels to each.
+- **Size each job to its actual work.** Planning and bookkeeping need very little; static checks need somewhat more; test shards and type-aware lint need the most. A provider that offers per-job sizing and bills accordingly lets each job take only what it uses. Resize only from measured CPU, and only when at least three runs agree (section 7).
+- **Know how minutes round.** The providers we used bill each job's *started* minutes, so a job finishing at 2:01 costs the same as one finishing at 2:59. That's why we aim for two minutes elapsed or less per shard, setup included (section 7). Check whether your provider prices per runner or per vCPU, and per job or per run.
+- **Architecture and OS change both price and speed.** At the list prices we checked, arm64 was cheaper per minute than x64, and macOS was several times more expensive than Linux—verify your provider's current rates. A cheaper minute isn't a cheaper run until you measure the same tests on it (section 7).
+- **Warm setup matters as much as runner speed.** Because each job pays for its own install, keeping a snapshot of `main`'s install keyed by the manifests (section 6)—on a persistent disk or in the Actions cache—often decides how much of a short job is lost to setup.
+- **Measure per-job CPU and cost.** Without both, runner sizing is guesswork. Some providers report them directly; elsewhere, sample CPU inside the job and price minutes from runner labels ([`skills/ci-doctor/references/ci-runners/`](../ci-runners/TOPIC.md)).
+- **The options:** Blacksmith, GitHub-hosted standard and larger runners, self-hosted runners or Actions Runner Controller, and other drop-in providers. [`skills/ci-doctor/references/ci-runners/references/providers.md`](../ci-runners/references/providers.md) compares them, and [`templates/github/README.md`](../../../../templates/github/README.md#runner-labels) maps the templates' runner labels to each.
 
 ### When jobs wait to start
 
-**Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time is a large share of the PR wait. **Skip when:** Queue time is seconds, as on most repos.
+**Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time makes up a large share of PR wait time. **Skip when:** Queue time is only seconds, as on most repos.
 
-A job's queue time runs from when it's created to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos it's seconds. When the slowest tenth of jobs wait minutes, people wait on capacity, not on tests, and faster tests won't help.
+A job's queue time runs from creation to when a runner picks it up (`started_at` minus `created_at` in the jobs API). On most repos this is seconds. When the slowest tenth of jobs wait minutes, engineers are waiting on capacity rather than tests, and faster tests won't fix it.
 
-- **Measure it first,** at p50 and p90, by runner label, over a normal week. Compare it with the PR wait: a queue that's a large share of the wait is the first thing to fix.
-- **The usual cause is the runners themselves.** GitHub-hosted runners can take minutes to start at busy times, even with few jobs running. That's what moved us off them to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Tell it from the other causes by when it happens:
-  - **Long even when few jobs run:** the provider. Price a move as the plan's runner recommendation (section 7 for the measured comparison), and propose it.
-  - **Grows with the number of jobs running at once:** the account's concurrency cap (larger and macOS runners have their own, lower caps; check the plan's current limits), or fan-out, where each push starts many jobs and every push starts them again.
-  - **Only on some labels:** a self-hosted pool that's too small, or a label no idle runner carries.
-- **Fixes:**
-  - **For the provider:** move to one that starts jobs in seconds; we recommend Blacksmith. Measure queue time on both before deciding, as with any runner change.
-  - **For the cap or fan-out:** cancel superseded runs and skip drafts (section 4), start fewer jobs per push (merge tiny jobs, size shards from measured time, section 7, and move broad checks to a sweep, section 5), then raise the cap if it's still the limit.
-  - **For self-hosted:** add or autoscale runners, and check the labels match.
-- **Check it moved:** queue time at p90 again, over the same kind of week.
+- **Measure it first:** compute p50 and p90 queue time by runner label over a normal week, and compare it against total PR wait time. If queueing is a large share of the wait, fix it first.
+- **Diagnose the cause by when it happens:**
+  - **Long waits even when few jobs are running:** the provider itself. GitHub-hosted runners can take minutes to start during busy periods even under light load; this is what moved us to Blacksmith ([below](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith)). Price a provider move as the plan's runner recommendation (see section 7 for the measured comparison) and propose it.
+  - **Waits grow with the number of concurrent jobs:** either your account's concurrency cap (larger and macOS runners have separate, lower caps—check your plan's current limits) or fan-out, where every push spawns many jobs and each new push spawns them all over again.
+  - **Waits occur only on specific labels:** an undersized self-hosted pool, or a label no idle runner carries.
+- **Apply the matching fix:**
+  - **Provider latency:** move to a provider that starts jobs in seconds (we recommend Blacksmith). Measure queue time on both providers before deciding, just as with any runner change.
+  - **Concurrency cap or fan-out:** cancel superseded runs and skip drafts (section 4), start fewer jobs per push (merge tiny jobs, size shards from measured time in section 7, and move broad checks to a sweep in section 5), then raise the cap if it's still the bottleneck.
+  - **Self-hosted pools:** add or autoscale runners, and verify label matching.
+- **Verify the fix:** re-measure p90 queue time over a comparable week.
 
 ## Shards: splitting tests by measured time
 
@@ -61,53 +61,58 @@ From [docs/pages/06-reuse-work-by-its-real-inputs.md](../../../../docs/pages/06-
 
 ### Checking a cache on another task runner
 
-**Applies when:** Replays come from a runner with declared inputs, such as Turborepo, Nx, Bazel or Gradle. **Skip when:** The runner tracks what each task reads, as Vite+ does, or nothing is cached.
+**Applies when:** Replays come from a runner with declared inputs (Turborepo, Nx, Bazel, or Gradle). **Skip when:** The runner tracks actual file reads (like Vite+), or nothing is cached.
 
-Our checks below come from Vite+, which tracks what each task reads. A runner with declared inputs can replay a pass with an input left out, or fail to restore an output it was never told about. Before you rely on its replays, for each cached task:
+Our checks below originated with Vite+, which tracks what each task actually reads. A runner with *declared* inputs can replay a stale pass when an input is omitted, or fail to restore an undeclared output. Before trusting replays, verify each cached task:
 
-1. **Read its key.** For Turborepo, the task's `dependsOn`, `inputs`, `outputs`, `globalDependencies`, `env` and `globalEnv`; for the others, the rows above. Check what the declarations miss: another language's lockfile and config (`pyproject.toml`, a Python lockfile, `conftest.py`), generated files, and the interpreter or platform.
-2. **Compare planned hashes.** With the repo's pinned runner, plan a base and a probe change without running anything (`turbo run <task> --dry=json`), and compare the tasks and hashes.
-3. **Probe invalidation with remote activity off** (`--cache=local:rw` for Turborepo): add, delete, modify, and make present a missing relevant file. Each must miss.
-4. **Run fresh with both caches off** (`--cache=local:`) and compare with the replay.
-5. **Restore on a clean checkout.** From a second clean checkout, read the remote and check that the restored outputs exist and work.
-6. **Keep nondeterministic tests uncached,** and count hits apart from executions.
+1. **Audit its key.** For Turborepo, inspect `dependsOn`, `inputs`, `outputs`, `globalDependencies`, `env`, and `globalEnv` (for other runners, see the table above). Look for undeclared inputs: another language's lockfile or config (`pyproject.toml`, a Python lockfile, `conftest.py`), generated files, and the interpreter or platform.
+2. **Compare planned hashes.** Using the repo's pinned runner, plan a base and a probe change without executing (`turbo run <task> --dry=json`) and compare tasks and hashes.
+3. **Probe invalidation with remote activity off** (`--cache=local:rw` for Turborepo): add, delete, modify, and create a previously missing relevant file. Every probe must miss.
+4. **Run fresh with both caches off** (`--cache=local:`) and compare against the replayed result.
+5. **Restore on a clean checkout.** From a second clean checkout, read from the remote cache and verify restored outputs exist and work.
+6. **Keep nondeterministic tests uncached,** and always count cache hits separately from real executions.
 
 ## 16. Standing automations
 
 From [docs/pages/16-standing-automations.md](../../../../docs/pages/16-standing-automations.md). The automations table, for the plan's automations step.
 
-**Applies when:** A repeated, read-only or deterministic follow-up would otherwise be done by hand, and the user says yes to its schedule. **Skip when:** The user hasn't said yes: a manual, read-only follow-up is the default.
+**Applies when:** A recurring read-only or deterministic follow-up would otherwise be run by hand, and the user approves its schedule. **Skip when:** The user hasn't approved a schedule—a manual, read-only follow-up is the default.
 
-Each row says how it runs, because these are four different things: *CI* is a script-only GitHub Actions cron or dispatch, with no model; *agent* is a scheduled agent task in a harness, a cloud job or a session loop, which spends model usage as well as any runner minutes; *machine* is a timer or service on a host. Prefer a script for anything deterministic. Every schedule is opt-in and needs the user's yes; until then, a manual read-only follow-up is the default. For each one, name who checks its first eligible result and what happens if no run starts.
+Each row below labels how it runs, because the four mechanisms have very different costs and trust boundaries:
+- **CI:** a script-only GitHub Actions cron or dispatch (no model usage);
+- **agent:** a scheduled agent task in a harness, cloud job, or session loop (spends model usage plus any runner minutes);
+- **machine:** a timer or service running on a host.
+
+Prefer a plain script for anything deterministic. Every schedule is opt-in and requires user approval; until then, default to manual read-only checks. For every scheduled job you enable, name who reviews its first eligible result and what happens if it fails to start.
 
 | Cadence | Job | What it does |
 |---|---|---|
-| Daily (CI) | Health report | Budgets, shard balance, slow files, retries and spend projection, kept in one issue |
-| Daily or weekly (agent) | **Runner review** | Each job's CPU and memory over its runs since the last review, against its runner's size. Proposes a smaller runner for a job that stays well under its CPU, a bigger one for a job near its memory limit or CPU-bound on the critical path, and a shard-count change when the runner changes. Daily when PRs land often enough that each job has a fair sample every day; weekly otherwise. It only proposes: a resize needs the user's yes. [`ci-runners`' sizing](../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule) |
-| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for late cron. |
-| Daily (CI) | Latest external tools | The newest versions of external tools we integrate with, run against our latest release, without packing a snapshot. One compatibility issue. |
-| Daily (CI) | Infra drift | Read-only diff of production resources against applied state. One issue per stage, closed only when all are in sync. |
-| Every 2 h (CI) | Startup watch | Worker startup time from build logs, warning well before the platform's hard limit |
-| Weekly (CI) | Load baseline | Runs only if the deployed server changed since the last passing baseline |
-| Three times a week (agent) | **Slow tests and flakes** | The campaign in section 15, end to end. Its guardrails are below. |
+| Daily (CI) | Health report | Budgets, shard balance, slow files, retries, and spend projection, updated in a single issue |
+| Daily or weekly (agent) | **Runner review** | Compares each job's CPU and memory since the last review against its runner size. Proposes downsizing underutilized runners, upsizing jobs near memory limits or CPU-bound on the critical path, and adjusting shard counts when runner sizes change. Run daily when PR volume yields a fair sample each day; weekly otherwise. Proposes only—every resize needs user approval ([`ci-runners` sizing](../ci-runners/references/sizing.md#reviewing-sizes-on-a-schedule)). |
+| Daily (CI) | Main sweep + 3 server runs | Section 5. Merges make up for missed or late cron runs. |
+| Daily (CI) | Latest external tools | Tests the newest versions of integrated external tools against our latest release without packing a snapshot, tracked in one compatibility issue |
+| Daily (CI) | Infra drift | Read-only diff of production resources against applied state; one issue per stage, closed only when fully in sync |
+| Every 2 h (CI) | Startup watch | Reads Worker startup time from build logs and warns well before the platform's hard limit |
+| Weekly (CI) | Load baseline | Runs only when the deployed server changed since the last passing baseline |
+| Three times a week (agent) | **Slow tests and flakes** | Runs the end-to-end campaign from section 15, within the guardrails below |
 | Every 2 weeks (agent) | **Docs drift sweep** | Section 17 |
-| Weekly (agent) | PR-time re-measure | Where engineers' PR time actually goes, using Phase 2's delivery-interval fields. CI waits were a small share of PR-hours; questions and approvals were far larger, so we optimize the real constraint. |
-| Weekly (agent) | Review-value check-in | Review escapes ("Caused by #n" PRs) and whether the cut-down review still catches enough |
-| Weekly (agent) | Skills/memories review | Agent memories get folded into skills or deleted |
+| Weekly (agent) | PR-time re-measure | Tracks where engineers' PR time actually goes using Phase 2's delivery-interval fields. Because CI waits were a small share of PR-hours compared to questions and approvals, this keeps us optimizing the real bottleneck. |
+| Weekly (agent) | Review-value check-in | Audits review escapes ("Caused by #n" PRs) to verify the streamlined review still catches enough |
+| Weekly (agent) | Skills/memories review | Folds useful agent memories into skills and deletes stale ones |
 | Nightly (machine timer) | CI-records collector | Section 13 |
 | Weekly / every 6 h (machine timers) | Rust target sweep, temp sweep | Section 14 |
 | Always on (machine service) | Spend watcher | Section 12 |
-| One-off, at merge (agent) | Follow-up check | Every change that only main can exercise (a new cron, a sweep-only proof, a cache) gets a check scheduled for the time of its first run, to read the result |
-| Daily, optional (agent) | Agent-spend audit | Coding and review model usage, tracked separately from CI-provider spend |
-| Monthly, optional (agent) | Merged-PR throughput | Merged PRs per day, compared over matched reporting windows |
+| One-off, at merge (agent) | Follow-up check | Any change exercised only on `main` (new cron, sweep-only proof, cache) gets a one-off check scheduled at its first run to inspect the result |
+| Daily, optional (agent) | Agent-spend audit | Tracks coding and review model spend separately from CI-provider spend |
+| Monthly, optional (agent) | Merged-PR throughput | Tracks merged PRs per day across matched reporting windows |
 
-We also ran a **weekly CI audit** for a while. It covered spend by job against last week, shard files over 90 s, runner CPU over 3+ runs, which PR runs selected everything and why, sweep failures the PR run should have caught, failed-then-passed tests, and monthly co-change pairs. It's paused now that the health report, the campaign and the runner review cover it.
+We also ran a **weekly CI audit** for a while—covering spend by job vs. the prior week, shard files over 90 s, runner CPU across 3+ runs, PR runs that selected everything and why, sweep failures PRs should have caught, failed-then-passed tests, and monthly co-change pairs. It is paused now that the health report, slow-tests campaign, and runner review cover the same ground.
 
-**The slow-tests run's guardrails:**
+**Guardrails for the slow-tests agent:**
 
-- *May,* within the plan the user approved: speed up tests, split files, turn test-only waits into settings, fix flakes and the bugs they reveal, carry out tier and selection changes the user already approved, update the skills and file issues.
-- *Never, but propose:* new tier or coverage changes (moving a test to covered-only or the sweep, narrowing selection), new recurring CI spend or scheduled jobs, enabling macOS, re-enabling a workflow the spend watcher disabled, deleting data, touching production or tokens, widening a production API for a test. Stop at the first action outside the approved scope.
-- *Never at all:* retries, timeout-only fixes or skipped tests. No Docker or full local CI.
+- **May (within the user-approved plan):** speed up tests, split files, turn test-only waits into settings, fix flakes and the bugs they expose, execute already-approved tier and selection changes, update skills, and file issues.
+- **Never do—only propose:** new tier or coverage changes (moving tests to covered-only or sweeps, narrowing selection), new recurring CI spend or scheduled jobs, enabling macOS, re-enabling a workflow disabled by the spend watcher, deleting data, touching production or tokens, or widening a production API for a test. Stop immediately at the first action outside approved scope.
+- **Never at all:** add retries, apply timeout-only fixes, skip tests, or run Docker or full local CI.
 
 ## 10. Slow tests: the method
 
@@ -115,44 +120,44 @@ From [docs/pages/10-slow-tests-the-method.md](../../../../docs/pages/10-slow-tes
 
 ### Name the wait before changing anything
 
-**Applies when:** A file past 10 s, or one that ends its shard, is on the inventory. **Skip when:** The inventory is empty.
+**Applies when:** A file past 10 s—or a shard-ending file—is on the inventory. **Skip when:** The inventory is empty.
 
-Give each file a verdict: **slow for a wrong reason** (which), **real work**, or **unknown** (with what to measure). Then look for *shared* causes; one helper's poll can reach a hundred files. Reconcile the reviewed population against the sum of its verdicts. When the record doesn't account for every file, keep an explicit unclassified group rather than changing the denominator to make the categories add up. One of our reviews covered 198 files: 119 slow for a wrong reason, 47 real work and 24 needing measurement, which leaves 8 unclassified.
+Classify every file on the list as **slow for a wrong reason** (naming the wait), **real work**, or **unknown** (naming what to measure). Then look for *shared* root causes—a single helper's poll interval can affect a hundred files. Always reconcile the reviewed population against the sum of its verdicts: if the record doesn't account for every file, keep an explicit *unclassified* bucket rather than altering the denominator. In one of our reviews covering 198 files, 119 were slow for a wrong reason, 47 were real work, and 24 needed measurement, leaving 8 unclassified.
 
 | Kind of wait | Fix that worked |
 |---|---|
-| A production period or retry the test inherits | Make it a **setting**: production's value deployed, a shorter one in the test harness. Keep the attempt count, doubling and final error, and shrink only the first period. Pick the test value from the window other tests need, not the smallest that passes (100 ms, not 50). Keep one test on production's value with a test clock. |
-| A sleep that arranges a race | **Hold the operation the race turns on** in the fake and release it once the other side is ready. Scope the hold to the identity of the operation the assertion is about, signal that exactly that operation reached it (after any durable state it needs exists), then start the other side, and assert which call consumed it. A hold on "the next call" can be stolen by background work, and one placed too early leaves the real race unordered. Prove it: delay the other side on purpose, and the test must pass with the hold and fail without it. |
-| A poll | Shorter default interval for test waits, **same ceiling**. Find every helper that overrides the default. Don't sleep one more interval after the job ends. |
-| A pace or floor in production code | Find *why* it was added (`git log -S`) first. Keep it where it protects something, as a setting. Delete it where it only delays. A floor that prevents spinning stays above zero. |
-| A rate limit | Test the behaviour, never the delay: the fake answers 429 when asked. Count in-flight work with holds. |
-| A wall-clock window (a limiter's minute) | Count with a windowless stand-in, and keep one test on the real binding. |
-| A fake clock | Fake only the APIs the waited code uses: faking `setImmediate` stopped React's and Effect's schedulers. Step it in small slices. Don't fake time around Web Crypto: the clock outran the crypto work and the test timed out on a fake 15 s before its request was sent. |
-| A long file | Split by subject past ~90 s. Stop when the next split costs a harness start (measure yours) for a few seconds of tests. After splitting, replay representative production edits through both the local and CI selectors: a new file that imports only shared helpers may have no production edge. Add an explicit coverage mapping and a selector test that the relevant source edit selects it; a green direct run doesn't prove future selection. Then update proof references and timing estimates. |
-| An expensive prerequisite | Cache it keyed by everything it reads. Build expensive fixtures lazily inside the suite: a skipped suite still runs its file's top-level code. |
-| Transport overhead | Sending a test's SQL over one socket instead of a request per statement took 19 files from 309 to 158 test-seconds, measured locally. Preserve the caller's statement-completion and transaction-visibility semantics: our socket kept synchronous completion because clock-driven tests relied on it (section 18). |
-| Real work at the size it proves | Leave it, or move it to a later tier with its covered paths. |
+| A production period or retry inherited by tests | Turn it into a **setting**: deploy production's value, pass a shorter one in the test harness. Keep the attempt count, backoff doubling, and final error; shrink only the initial period. Size the test value from the window other tests need rather than the razor-thin minimum that passes (e.g., 100 ms, not 50). Keep one test exercising production's value under a test clock. |
+| A sleep used to arrange a race | **Hold the specific operation the race turns on** inside the fake and release it once the other side is ready. Scope the hold to the identity of the operation under test, signal only after that exact operation reaches it (and any durable state it needs exists), start the other side, and assert which call consumed the hold. A generic "next call" hold can be stolen by background work, and a hold placed too early leaves the real race unordered. Prove it: delay the other side on purpose—the test must pass with the hold and fail without it. |
+| A polling loop | Lower the default poll interval for test waits while keeping the **same timeout ceiling**. Audit every helper that overrides the default, and never sleep one extra interval after the condition is already met. |
+| A pace or floor in production code | Check *why* it exists first (`git log -S`). Where it protects real behavior, make it a setting; where it only delays, delete it. Keep any spin-prevention floor above zero. |
+| A rate limit | Test the behavior, never the wall-clock delay: have the fake return `429` on demand, and count in-flight work with holds. |
+| A wall-clock window (e.g., a per-minute limiter) | Count with a windowless stand-in, keeping one test on the real binding. |
+| A fake clock | Fake only the APIs the waited code actually uses—faking `setImmediate` broke React's and Effect's schedulers. Advance in small slices. Never fake time around Web Crypto: the fake clock outran the crypto work and timed out at a fake 15 s before the request was even sent. |
+| A long file | Split by subject once past ~90 s, stopping when another split would pay a full harness start (measure yours) for only a few seconds of tests. After splitting, replay representative production edits through both local and CI selectors: a new file importing only shared helpers may lose its production graph edge. Add an explicit coverage mapping and a selector test proving relevant edits select it (a green direct run proves nothing about future selection), then update proof references and timing estimates. |
+| An expensive prerequisite | Cache it keyed by everything it reads, and construct expensive fixtures lazily inside the suite—skipped suites still execute file top-level code. |
+| Transport overhead | Sending test SQL over a single socket instead of one HTTP request per statement cut 19 files from 309 to 158 test-seconds (measured locally). Preserve statement-completion and transaction-visibility semantics: our socket kept synchronous completion because clock-driven tests depended on it (section 18). |
+| Real work at the scale it proves | Leave it alone, or move it to a later tier with explicit covered paths. |
 
-A wait can hide behind another: a server retry *and* an SDK's own retry loop both waited out the same outage. Trace every layer.
+Watch for stacked waits: in one case, both a server retry loop *and* an SDK retry loop waited out the same outage. Trace every layer.
 
 ## 17. Keeping agent knowledge from going stale
 
 From [docs/pages/17-keeping-agent-knowledge-from-going-stale.md](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md). Where agent knowledge lives and what keeps it fresh, for the plan's agent-knowledge step.
 
-People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill accumulating stale advice?". No, and like this:
+People often ask two things: *"Does all of this go into `AGENTS.md`?"* and *"How do you stop skills from accumulating stale advice?"* The short answers are **no**, and **like this**:
 
 ### Where knowledge lives
 
-**Applies when:** Agents work in the repo and the plan's findings go into their instructions. **Skip when:** No agents work in the repo.
+**Applies when:** Agents work in the repo and the plan's findings need to live in their instructions. **Skip when:** No agents work in the repo.
 
-- **`AGENTS.md` is a short map:** repo layout, the commands, and a few rules. Ours includes *"When docs and code disagree, the code is right. Fix the doc in the same change."* It's size-budgeted in CI.
-- **Skills** (agent instruction folders) hold the method.
-  - `SKILL.md` has only what every use needs.
-  - **`references/` by topic** holds the detail, read when needed. For example, the hub's speed-up-tests topic has `fixes.md`, `measuring.md`, `flakes.md`, `fakes.md` and `campaign.md`.
-  - `scripts/` holds the mechanics.
-  - The `description` says when to use it and which sibling skill owns the neighbouring work, so no two skills claim one trigger. This repo's [`skills/`](../../../README.md): `ci-doctor` for CI work, with workflows, runners, Blacksmith, slow tests and flakes, evidence and the plan as its topics, since an agent calls all of those CI; `test-audit` for whether a test is worth keeping; `review-gate` for the review before a PR's one run; `ci-merge-workflow` for the run and the merge; `proof-tiers` for models and property tests.
-  - **Stack-specific detail gets its own reference page,** linked with "if your stack uses X", so the general text reads correctly without it: Rust in `ci-workflows`, Workers and Effect in `speed-up-tests`.
-- **Checks** are one rule per small document. Each has the moment it applies, yes/no questions, the commands that answer them, and the **incident and numbers that motivated it**. Skills link checks rather than copying them. Examples:
+- **`AGENTS.md` is a short map:** repo layout, core commands, and a few invariant rules—including *"When docs and code disagree, the code is right. Fix the doc in the same change."* Its size is budgeted in CI.
+- **Skills** (agent instruction folders) hold the method:
+  - `SKILL.md` contains only what every invocation needs;
+  - **`references/` by topic** holds deeper detail loaded on demand (for instance, the hub's speed-up-tests topic splits into `fixes.md`, `measuring.md`, `flakes.md`, `fakes.md`, and `campaign.md`);
+  - `scripts/` holds deterministic mechanics;
+  - each skill's `description` states both when to trigger it and which sibling owns adjacent work so triggers never overlap. In this repo's [`skills/`](../../../README.md): `ci-doctor` owns CI work (covering workflows, runners, Blacksmith, slow tests and flakes, evidence, and planning as topics, since agents treat all of those as CI); `test-audit` evaluates whether a test is worth keeping; `review-gate` handles the review gate before a PR's single run; `ci-merge-workflow` handles the run and merge; and `proof-tiers` covers models and property tests;
+  - **stack-specific detail lives on its own reference page**, linked with *"if your stack uses X"* so general guidance stays clean without it (Rust in `ci-workflows`; Workers and Effect in `speed-up-tests`).
+- **Checks** isolate one rule per short document—stating when it applies, yes/no questions, commands that answer them, and the **incident and numbers that motivated it**. Skills link to checks instead of duplicating them. Examples:
   - wait for the effect;
   - keep slow files out of the shards;
   - measure CI before changing it;
@@ -160,23 +165,23 @@ People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill acc
   - check what CI ran;
   - size a runner by its CPU;
   - budget CI at list price.
-- **Shared skills, per-repo facts.** Our skills live in one shared repo, linked into every checkout's `.agents/skills/`. That's how we share them, not how a harness finds them: each harness reads its own folder and instruction file (`AGENTS.md`, `CLAUDE.md` and so on), so point the harness you use at the skills as its docs say, and put the top-level map in the file it actually loads. Each repo keeps its own facts in `.agents/repo/*.md`: its commands, CI tiers, settings, holds and fakes. The skill gives the procedure; the repo gives the values that change. Agent docs have no release cycle: an edit reaches every linked worktree immediately.
+- **Separate shared skills from per-repo facts.** Our shared skills live in one repo and are linked into every checkout's `.agents/skills/`. That is how we share them, not how every harness discovers them: each harness reads its own skills folder and startup file (`AGENTS.md`, `CLAUDE.md`, etc.), so configure your harness per its docs and put the top-level map in the file it loads. Each repo keeps its local facts in `.agents/repo/*.md`—commands, CI tiers, settings, holds, and fakes. The skill provides the procedure; the repo provides the values that change. Agent docs have no release cycle: an edit reaches every linked worktree immediately.
 
 ### What keeps it fresh
 
-**Applies when:** The repo keeps lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
+**Applies when:** The repo maintains lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
 
-- **Every lesson carries its date and PR,** so an agent can check whether the code it describes still exists.
-- **Code wins.** The rule above lives in `AGENTS.md`, and agents read live values from code and config, never from prose.
-- **Scripts do the mechanical work.** Collecting, ranking, grouping, budgets and flake filing are code with tests, so the docs describe judgement, not steps that drift.
-- **"What was tried."** One register lists every measured-and-dropped idea with when it was tried, its numbers, its evidence (the PR or run, or why there's none) and what would have to change to retry it. Ours is section 18. Name yours in `.agents/repo/ci.md`'s Tried and dropped section; the [`ci-read-what-was-tried`](../checks/ci-read-what-was-tried.md) check reads it from there. A later run may propose one again only with new numbers. Some dropped ideas did come back once conditions changed, which is why each row says when.
-- **Docs drift sweep, every 2 weeks.** Three read-only reviewer agents each take one slice: top-level docs, process skills, code skills. They flag rules stated twice in different words, claims the code no longer matches, and skills that contradict each other. Each finding is a `path:line | dup/conflict/stale | evidence | change` line. A person checks findings before anything changes. Duplicates keep one owner, and the other copy becomes a link.
-- **A size budget enforced in CI:** skill descriptions ≤ 320 chars; for the instruction files we own, `SKILL.md` ≤ 10 KB, root `AGENTS.md` ≤ 12 KB, and dated history lines ("Changed on…") rejected, since history belongs in git. Recognized vendored skill bodies are exempt from the body-size and history checks; every description, upstream copies included, stays within 320 characters. Other agent and rules files and the glossary have their own limits, which [`scripts/docs/`](../../../../scripts/docs/)'s checker defines. The budget forces *cutting* rather than *moving* text.
-- **Generalize, don't append.** The standing campaign's last step asks each engineer for lessons:
-  - A rule any repo could use goes into the shared skill, with the example kept but repo paths removed.
-  - A repo fact goes into the repo's facts file.
-  - Wrong or stale advice is fixed or deleted.
-  - A rule that a lint, check or script now enforces is **removed**.
-  - A run that learned nothing general changes nothing.
-- **Memories graduate or die.** Agent memories that a skill now covers are deleted in the weekly review.
-- **Upstream skills are pinned.** Third-party skills have a lockfile. A weekly job updates them in a throwaway checkout, reapplies the documented local edits, diffs only the locked folders and the lockfile, and opens or comments on one issue. It never saves the update or auto-merges. A skill you've edited locally is compared with its recorded upstream baseline instead of being overwritten. [`tools/upstream-sync/`](../../../../tools/upstream-sync/README.md) has the opt-in workflow and the helper that reapplies local edits.
+- **Tag every lesson with its date and PR** so an agent can verify whether the referenced code still exists.
+- **Code wins.** Enforced in `AGENTS.md`: agents read live values from code and config, never from prose.
+- **Put mechanics in tested scripts.** Collecting, ranking, grouping, budgets, and flake filing are code with tests, leaving docs to capture judgement rather than fragile step-by-step instructions.
+- **Maintain a "What was tried" register.** One register lists every measured-and-dropped idea with when it was tried, the numbers observed, the evidence (PR/run, or why none exists), and what would have to change to revisit it. Ours is section 18; place yours in `.agents/repo/ci.md`'s *Tried and dropped* section so [`ci-read-what-was-tried`](../checks/ci-read-what-was-tried.md) can read it. Dropped ideas only return with new numbers—and some *did* return once conditions changed, which is why the "retry when" column matters.
+- **Run a docs drift sweep every 2 weeks.** Three read-only reviewer agents each audit a slice—top-level docs, process skills, and code skills—flagging duplicated rules phrased differently, claims that no longer match code, and conflicting skills. Each finding uses the format `path:line | dup/conflict/stale | evidence | change`. A human reviews findings before edits land; duplicates keep a single owner while the other copy becomes a link.
+- **Enforce a size budget in CI:** skill descriptions ≤ 320 characters; for owned instruction files, `SKILL.md` ≤ 10 KB and root `AGENTS.md` ≤ 12 KB, rejecting dated changelog lines (`Changed on…`) since history belongs in git. Recognized vendored skill bodies are exempt from body-size and history checks, though every description—upstream copies included—stays within 320 characters. Other agent/rules files and the glossary have limits defined in [`scripts/docs/`](../../../../scripts/docs/)'s checker. A hard budget forces *cutting* bloat instead of merely *moving* it.
+- **Generalize—don't append.** The standing campaign's final step asks every engineer for lessons:
+  - rules useful to any repo go into the shared skill (keeping the example, stripping repo-specific paths);
+  - repo-specific facts go into the repo's facts file;
+  - wrong or stale advice is corrected or deleted;
+  - any rule now enforced by a lint, check, or script is **removed** from prose;
+  - a run that uncovered nothing general makes no doc changes.
+- **Memories graduate or expire.** In the weekly review, agent memories now captured in a skill are deleted.
+- **Pin upstream skills.** Third-party skills use a lockfile. A weekly job updates them in a throwaway checkout, reapplies documented local edits, diffs only locked folders and the lockfile, and opens or updates one issue—never saving updates or auto-merging. Locally edited skills diff against their recorded upstream baseline rather than being overwritten. [`tools/upstream-sync/`](../../../../tools/upstream-sync/README.md) provides the opt-in workflow and reapply helper.

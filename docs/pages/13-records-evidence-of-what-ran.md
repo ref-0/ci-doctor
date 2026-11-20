@@ -2,30 +2,30 @@
 
 # 13. Records: evidence of what ran
 
-**Applies when:** CI can't show which test files ran, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its time on each run.
+**Applies when:** CI cannot prove which test files actually executed, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its duration on each run.
 
-A green check can hide a file that never ran. So:
+A green check can easily hide a file that never ran. To prevent blind spots:
 
-- **The plan logs** its selected inputs and tests.
-- **A Vitest reporter logs** structured lines for every file that actually executed. The per-file time it stores is Vitest's module duration, with collection reported separately; it isn't the whole file's wall-clock time. Records go to **logs, not artifacts**, so they don't count against the artifact quota.
-  - The built-in JSON reporter lacked retry information, hence the custom reporter.
-  - Cached tasks emit only fresh records: replays never count as runs.
-- **A nightly collector** on the maintainers' machine pulls those log lines into **one compressed JSON-lines file per ISO week**.
-  - It reads one log archive per attempt and uses 6 concurrent readers. A night's collection spends from a 1,500-call budget, counted from the calls each invocation reports it made, retries included, and keeps 1,000 of the hour's calls in reserve for everything else.
-  - It resumes where it left off. A log it couldn't read, a log that has expired, and a day that hit the API's result cap are incomplete, not quiet: mark them, retry them on the next approved collection, and leave them out of clean-run and timing claims.
-  - **Agents don't bulk-collect records:** a week's backfill once exhausted the 5,000/hour API quota every agent shares. A bounded, one-time, read-only sample for a baseline is different (below); bulk backfill and standing collection need the user's yes.
-- **Check the collector before believing a quiet week.** A copied script missing a new import silently stopped collection for days.
-- **Count fresh runs as fresh.** Shard count doesn't prove a run selected everything: compare the plan's selected inventory with the eligible inventory at that commit, separately for ordinary, heavy and container tests, and report selected, executed and replayed counts. A sweep that mostly replays leaves few fresh timings. Rank timings only from successful, complete file executions, carry each observation's SHA and attempt, and flag files with fewer than three observations.
-- **Small cross-job records go through the Actions cache:** shard claims, flake files, timing files. Artifact quota had filled twice and failed *passing* shards while they saved bookkeeping. A missing key means no record, but a transport failure is an error, not a miss. A job's verdict that another workflow reads can travel as a notice annotation instead of an artifact. GitHub recounts artifact storage only every 6 to 12 hours, so deleting artifacts doesn't unblock CI at once: warn at a share of the quota before uploads are refused.
-- **Retention follows usefulness:** CI binaries pass between jobs through the Actions cache, and release binaries are artifacts kept 1 day; pass artifacts 2 days, proof diagnostics 7 days and uploaded only on failure, financial receipts 90 days. Trusted pass provenance and these retained artifacts still depend on artifact quota.
+- **The plan logs** its selected inputs and test files on every run.
+- **A custom Vitest reporter logs** structured lines for every file that actually executes. Its per-file timing is Vitest's module duration (with collection time reported separately), not whole-command wall time. Records write to **logs rather than artifacts** so they never consume artifact quota:
+  - we built a custom reporter because Vitest's built-in JSON reporter omitted retry details;
+  - cached tasks emit only fresh records—replays never count as executions.
+- **A nightly collector** on the maintainers' machine harvests those log lines into **one compressed JSON-lines file per ISO week**:
+  - it reads one log archive per attempt across 6 concurrent readers, spending from a 1,500-call nightly budget (counted from each invocation's reported calls, retries included) while keeping 1,000 calls/hour in reserve for other work;
+  - it resumes cleanly from where it left off. Unreadable logs, expired logs, and days hitting the API result cap are marked *incomplete*—never quiet—retried on the next approved collection, and excluded from clean-run and timing claims;
+  - **agents never bulk-collect records:** a week-long backfill once exhausted the shared 5,000/hour API quota for every agent. A bounded, one-time, read-only baseline sample is fine (below); bulk backfills and standing collection require explicit user approval.
+- **Verify the collector before trusting a quiet week.** A copied script missing a new import once halted collection silently for days.
+- **Count fresh runs separately from replays.** Shard count alone doesn't prove full coverage: compare the plan's selected inventory against the full eligible inventory at that commit—separately for ordinary, heavy, and container tests—and report selected, executed, and replayed counts. A sweep that mostly replays yields very few fresh timings. Rank durations only from successful, complete file executions, tag every observation with its SHA and attempt, and flag files with fewer than three observations.
+- **Move small cross-job records to the Actions cache** (shard claims, flake files, timing files). Artifact quota filled twice and failed *passing* shards while uploading bookkeeping. Treat a missing cache key as "no record," but treat a transport error as a real failure, not a miss. Verdicts read by another workflow can travel as notice annotations instead of artifacts. Because GitHub recalculates artifact storage only every 6–12 hours, deleting artifacts won't immediately unblock CI—alert on a percentage of quota well before uploads fail.
+- **Match retention to usefulness:** pass CI binaries between jobs via the Actions cache; keep release binary artifacts for 1 day, pass artifacts for 2 days, proof diagnostics for 7 days (uploaded on failure only), and financial receipts for 90 days. Note that trusted pass provenance and these retained artifacts still depend on artifact quota.
 
 ## Collecting from the API without losing runs
 
-**Applies when:** A baseline, audit or report is built from the provider's API. **Skip when:** The evidence comes only from the repo's own records.
+**Applies when:** Building a baseline, audit, or report from the CI provider's API. **Skip when:** All evidence comes from the repo's own records.
 
-Any baseline, audit or report you build from the provider's API (Phase 2) follows the completeness and estimator contract in [`skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md`](../../skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md). In short: split search windows below the API's caps and page every list; keep every attempt; join runs to PRs by explicit relations, not branch names; keep main's and release costs apart; name the quantile estimator and the timestamps used; pair deploys by build identity; and count what you didn't read. An unread outcome is never a zero wait, a zero cost or a success.
+Any baseline, audit, or report pulled from the provider's API (Phase 2) follows the completeness and estimator contract in [`skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md`](../../skills/ci-doctor/references/speed-up-tests/references/ci-history-data.md). In brief: split search windows below API result caps and paginate every list; include every attempt; join runs to PRs by explicit relations rather than branch names; separate `main` and release costs; state the quantile estimator and timestamps used; pair deploys by build identity; and explicitly count unread data. An unread outcome is never a zero wait, a zero cost, or a success.
 
-A read-only baseline on GitHub Actions, run with the access you already have, into a scratch folder:
+Here is a read-only GitHub Actions baseline using your existing access, writing into a scratch folder:
 
 ```sh
 gh auth status                                  # who you are; ask for a missing scope, never a token
@@ -42,4 +42,4 @@ gh api --paginate "repos/$slug/pulls?state=all&per_page=100"
 gh api --paginate "repos/$slug/issues/$pr/timeline?per_page=100"
 ```
 
-Repeat the run query without `event=` for spend, which counts pushes, schedules and dispatches too. Note partial reruns, expired logs and anything you were denied, with how much it covers. If the user's access can't read something, ask for that exact permission or an export they redact; don't widen tokens or archive unfiltered logs. Sources: GitHub's [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs) and [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs) APIs.
+Repeat the workflow-runs query without `event=` when measuring spend so pushes, schedules, and dispatches are included. Document partial reruns, expired logs, and any denied endpoints along with how much of the window they cover. If current access can't read a resource, ask for that exact scope or a user-redacted export—never widen tokens or archive unfiltered logs. Sources: GitHub's [workflow runs](https://docs.github.com/en/rest/actions/workflow-runs) and [workflow jobs](https://docs.github.com/en/rest/actions/workflow-jobs) APIs.

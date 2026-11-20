@@ -2,20 +2,20 @@
 
 # 17. Keeping agent knowledge from going stale
 
-People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill accumulating stale advice?". No, and like this:
+People often ask two things: *"Does all of this go into `AGENTS.md`?"* and *"How do you stop skills from accumulating stale advice?"* The short answers are **no**, and **like this**:
 
 ## Where knowledge lives
 
-**Applies when:** Agents work in the repo and the plan's findings go into their instructions. **Skip when:** No agents work in the repo.
+**Applies when:** Agents work in the repo and the plan's findings need to live in their instructions. **Skip when:** No agents work in the repo.
 
-- **`AGENTS.md` is a short map:** repo layout, the commands, and a few rules. Ours includes *"When docs and code disagree, the code is right. Fix the doc in the same change."* It's size-budgeted in CI.
-- **Skills** (agent instruction folders) hold the method.
-  - `SKILL.md` has only what every use needs.
-  - **`references/` by topic** holds the detail, read when needed. For example, the hub's speed-up-tests topic has `fixes.md`, `measuring.md`, `flakes.md`, `fakes.md` and `campaign.md`.
-  - `scripts/` holds the mechanics.
-  - The `description` says when to use it and which sibling skill owns the neighbouring work, so no two skills claim one trigger. This repo's [`skills/`](../../skills/README.md): `ci-doctor` for CI work, with workflows, runners, Blacksmith, slow tests and flakes, evidence and the plan as its topics, since an agent calls all of those CI; `test-audit` for whether a test is worth keeping; `review-gate` for the review before a PR's one run; `ci-merge-workflow` for the run and the merge; `proof-tiers` for models and property tests.
-  - **Stack-specific detail gets its own reference page,** linked with "if your stack uses X", so the general text reads correctly without it: Rust in `ci-workflows`, Workers and Effect in `speed-up-tests`.
-- **Checks** are one rule per small document. Each has the moment it applies, yes/no questions, the commands that answer them, and the **incident and numbers that motivated it**. Skills link checks rather than copying them. Examples:
+- **`AGENTS.md` is a short map:** repo layout, core commands, and a few invariant rules—including *"When docs and code disagree, the code is right. Fix the doc in the same change."* Its size is budgeted in CI.
+- **Skills** (agent instruction folders) hold the method:
+  - `SKILL.md` contains only what every invocation needs;
+  - **`references/` by topic** holds deeper detail loaded on demand (for instance, the hub's speed-up-tests topic splits into `fixes.md`, `measuring.md`, `flakes.md`, `fakes.md`, and `campaign.md`);
+  - `scripts/` holds deterministic mechanics;
+  - each skill's `description` states both when to trigger it and which sibling owns adjacent work so triggers never overlap. In this repo's [`skills/`](../../skills/README.md): `ci-doctor` owns CI work (covering workflows, runners, Blacksmith, slow tests and flakes, evidence, and planning as topics, since agents treat all of those as CI); `test-audit` evaluates whether a test is worth keeping; `review-gate` handles the review gate before a PR's single run; `ci-merge-workflow` handles the run and merge; and `proof-tiers` covers models and property tests;
+  - **stack-specific detail lives on its own reference page**, linked with *"if your stack uses X"* so general guidance stays clean without it (Rust in `ci-workflows`; Workers and Effect in `speed-up-tests`).
+- **Checks** isolate one rule per short document—stating when it applies, yes/no questions, commands that answer them, and the **incident and numbers that motivated it**. Skills link to checks instead of duplicating them. Examples:
   - wait for the effect;
   - keep slow files out of the shards;
   - measure CI before changing it;
@@ -23,23 +23,23 @@ People ask "does all that go into `AGENTS.md`?" and "how do you stop a skill acc
   - check what CI ran;
   - size a runner by its CPU;
   - budget CI at list price.
-- **Shared skills, per-repo facts.** Our skills live in one shared repo, linked into every checkout's `.agents/skills/`. That's how we share them, not how a harness finds them: each harness reads its own folder and instruction file (`AGENTS.md`, `CLAUDE.md` and so on), so point the harness you use at the skills as its docs say, and put the top-level map in the file it actually loads. Each repo keeps its own facts in `.agents/repo/*.md`: its commands, CI tiers, settings, holds and fakes. The skill gives the procedure; the repo gives the values that change. Agent docs have no release cycle: an edit reaches every linked worktree immediately.
+- **Separate shared skills from per-repo facts.** Our shared skills live in one repo and are linked into every checkout's `.agents/skills/`. That is how we share them, not how every harness discovers them: each harness reads its own skills folder and startup file (`AGENTS.md`, `CLAUDE.md`, etc.), so configure your harness per its docs and put the top-level map in the file it loads. Each repo keeps its local facts in `.agents/repo/*.md`—commands, CI tiers, settings, holds, and fakes. The skill provides the procedure; the repo provides the values that change. Agent docs have no release cycle: an edit reaches every linked worktree immediately.
 
 ## What keeps it fresh
 
-**Applies when:** The repo keeps lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
+**Applies when:** The repo maintains lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
 
-- **Every lesson carries its date and PR,** so an agent can check whether the code it describes still exists.
-- **Code wins.** The rule above lives in `AGENTS.md`, and agents read live values from code and config, never from prose.
-- **Scripts do the mechanical work.** Collecting, ranking, grouping, budgets and flake filing are code with tests, so the docs describe judgement, not steps that drift.
-- **"What was tried."** One register lists every measured-and-dropped idea with when it was tried, its numbers, its evidence (the PR or run, or why there's none) and what would have to change to retry it. Ours is section 18. Name yours in `.agents/repo/ci.md`'s Tried and dropped section; the [`ci-read-what-was-tried`](../../skills/ci-doctor/references/checks/ci-read-what-was-tried.md) check reads it from there. A later run may propose one again only with new numbers. Some dropped ideas did come back once conditions changed, which is why each row says when.
-- **Docs drift sweep, every 2 weeks.** Three read-only reviewer agents each take one slice: top-level docs, process skills, code skills. They flag rules stated twice in different words, claims the code no longer matches, and skills that contradict each other. Each finding is a `path:line | dup/conflict/stale | evidence | change` line. A person checks findings before anything changes. Duplicates keep one owner, and the other copy becomes a link.
-- **A size budget enforced in CI:** skill descriptions ≤ 320 chars; for the instruction files we own, `SKILL.md` ≤ 10 KB, root `AGENTS.md` ≤ 12 KB, and dated history lines ("Changed on…") rejected, since history belongs in git. Recognized vendored skill bodies are exempt from the body-size and history checks; every description, upstream copies included, stays within 320 characters. Other agent and rules files and the glossary have their own limits, which [`scripts/docs/`](../../scripts/docs/)'s checker defines. The budget forces *cutting* rather than *moving* text.
-- **Generalize, don't append.** The standing campaign's last step asks each engineer for lessons:
-  - A rule any repo could use goes into the shared skill, with the example kept but repo paths removed.
-  - A repo fact goes into the repo's facts file.
-  - Wrong or stale advice is fixed or deleted.
-  - A rule that a lint, check or script now enforces is **removed**.
-  - A run that learned nothing general changes nothing.
-- **Memories graduate or die.** Agent memories that a skill now covers are deleted in the weekly review.
-- **Upstream skills are pinned.** Third-party skills have a lockfile. A weekly job updates them in a throwaway checkout, reapplies the documented local edits, diffs only the locked folders and the lockfile, and opens or comments on one issue. It never saves the update or auto-merges. A skill you've edited locally is compared with its recorded upstream baseline instead of being overwritten. [`tools/upstream-sync/`](../../tools/upstream-sync/README.md) has the opt-in workflow and the helper that reapplies local edits.
+- **Tag every lesson with its date and PR** so an agent can verify whether the referenced code still exists.
+- **Code wins.** Enforced in `AGENTS.md`: agents read live values from code and config, never from prose.
+- **Put mechanics in tested scripts.** Collecting, ranking, grouping, budgets, and flake filing are code with tests, leaving docs to capture judgement rather than fragile step-by-step instructions.
+- **Maintain a "What was tried" register.** One register lists every measured-and-dropped idea with when it was tried, the numbers observed, the evidence (PR/run, or why none exists), and what would have to change to revisit it. Ours is section 18; place yours in `.agents/repo/ci.md`'s *Tried and dropped* section so [`ci-read-what-was-tried`](../../skills/ci-doctor/references/checks/ci-read-what-was-tried.md) can read it. Dropped ideas only return with new numbers—and some *did* return once conditions changed, which is why the "retry when" column matters.
+- **Run a docs drift sweep every 2 weeks.** Three read-only reviewer agents each audit a slice—top-level docs, process skills, and code skills—flagging duplicated rules phrased differently, claims that no longer match code, and conflicting skills. Each finding uses the format `path:line | dup/conflict/stale | evidence | change`. A human reviews findings before edits land; duplicates keep a single owner while the other copy becomes a link.
+- **Enforce a size budget in CI:** skill descriptions ≤ 320 characters; for owned instruction files, `SKILL.md` ≤ 10 KB and root `AGENTS.md` ≤ 12 KB, rejecting dated changelog lines (`Changed on…`) since history belongs in git. Recognized vendored skill bodies are exempt from body-size and history checks, though every description—upstream copies included—stays within 320 characters. Other agent/rules files and the glossary have limits defined in [`scripts/docs/`](../../scripts/docs/)'s checker. A hard budget forces *cutting* bloat instead of merely *moving* it.
+- **Generalize—don't append.** The standing campaign's final step asks every engineer for lessons:
+  - rules useful to any repo go into the shared skill (keeping the example, stripping repo-specific paths);
+  - repo-specific facts go into the repo's facts file;
+  - wrong or stale advice is corrected or deleted;
+  - any rule now enforced by a lint, check, or script is **removed** from prose;
+  - a run that uncovered nothing general makes no doc changes.
+- **Memories graduate or expire.** In the weekly review, agent memories now captured in a skill are deleted.
+- **Pin upstream skills.** Third-party skills use a lockfile. A weekly job updates them in a throwaway checkout, reapplies documented local edits, diffs only locked folders and the lockfile, and opens or updates one issue—never saving updates or auto-merging. Locally edited skills diff against their recorded upstream baseline rather than being overwritten. [`tools/upstream-sync/`](../../tools/upstream-sync/README.md) provides the opt-in workflow and reapply helper.

@@ -2,17 +2,19 @@
 
 This is a field report from a TypeScript and Rust monorepo:
 
-- pnpm workspaces, Vitest and Cloudflare Workers, with a Rust background service;
+- pnpm workspaces, Vitest, and Cloudflare Workers, alongside a Rust background service;
 - CI on GitHub Actions running on [Blacksmith](https://blacksmith.sh) runners;
 - most of the code written by AI coding agents running in parallel on one shared machine.
 
-Over about six weeks we reshaped CI around one idea: **pay for a check only where it can change a decision, and never make a test faster by making it prove less.** We kept to that apart from one tradeoff we made on purpose and recorded: dropping a debug-profile Rust run ([section 7](pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores)).
+Over about six weeks, we reshaped CI around a single rule: **pay for a check only where it can change a decision, and never make a test faster by making it prove less.** We held to that rule throughout, with one deliberate, recorded tradeoff: dropping a debug-profile Rust run ([section 7](pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores)).
 
-**Our stack is an example, not a requirement.** Effect, Cloudflare Workers, Vite+, the Rust service and our Git-oracle tests are what *we* had. The techniques generalize, and the details may not fit your stack. An agent applying this decides what's relevant.
+**Our stack is an example, not a requirement.** Effect, Cloudflare Workers, Vite+, the Rust service, and our Git-oracle tests happen to be what *we* had. The techniques generalize even where the details don't fit your stack; an agent applying this guide decides what's relevant.
 
-It's long on purpose. Each section says what we do, how it works, and why. **About the numbers:** counts, percentages and configured thresholds are real. Our CI timings are given as relative changes ("about half", "a quarter faster"), with one exception: the labelled example median and p90 in section 19. Local measurements from a development machine are labelled *local*; they aren't CI numbers. Treat all of them as **examples of effect** in one workload, not benchmarks or targets for yours: most come from history and replays, not controlled comparisons. Anything we tried and dropped is at the end, so you don't repeat it.
+This guide is long on purpose. Each section explains what we do, how it works, and why.
 
-> **Want your agent to apply this?** Point it at the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill. It maps each technique to your repo, measures your CI, and writes a **plan for you to review** before it changes anything.
+**About the numbers:** Counts, percentages, and configured thresholds are real. CI timings are reported as relative changes ("about half", "a quarter faster"), with one exception: the labelled example median and p90 in section 19. Measurements taken on a development machine are labelled *local* and are not CI numbers. Treat all numbers as **examples of effect** in one workload, not benchmarks or targets for yours—most come from run history and replays rather than controlled experiments. Everything we tried and dropped is collected at the end so you don't repeat it.
+
+> **Want your agent to apply this?** Point it at the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill. It maps each technique to your repo, measures your CI, and writes a **plan for you to review** before changing anything.
 
 ## Contents
 
@@ -37,4 +39,4 @@ It's long on purpose. Each section says what we do, how it works, and why. **Abo
 19. [How we got here](pages/19-how-we-got-here.md)
 20. [Thresholds cheat sheet](pages/20-thresholds-cheat-sheet.md)
 
-Also: [harnesses](harnesses.md), for parallel agents and schedules in each harness, and [the agent's phases](../skills/ci-doctor/references/phases/), which the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill starts.
+Also see [harnesses](harnesses.md) for running parallel agents and schedules in each harness, and [the agent's phases](../skills/ci-doctor/references/phases/), which the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill orchestrates.

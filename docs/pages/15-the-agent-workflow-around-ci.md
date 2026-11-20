@@ -2,59 +2,59 @@
 
 # 15. The agent workflow around CI
 
-**Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
+**Applies when:** Agents open, mark ready, and merge the repo's PRs. **Skip when:** Humans run the PR workflow—keep the repo's existing trigger and merge policy until the user approves a change.
 
-- **Draft until done.** This is our merge policy: engineers open drafts, and a manager agent marks them ready and merges, so each PR aims at one CI run. On another repo, keep its trigger and merge policy (base branch, required checks, allowed merge method, approvals, reviews dismissed on push, merge queue) until the user approves a change, and test the current required ref, including the merge queue's commit where there is one.
-  - Asking engineers for "after" timings once made two of them dispatch ~15 draft runs. Take after-times from the ready run instead.
-  - Running a draft's tests by hand doubles its cost, because the ready run repeats them.
-- **Before merging, read the run's logs:** the plan chose the changed files, they ran, and their times match. Then post a short `Verification:` comment: head SHA, tested base, jobs and totals, review status.
-- **Watch CI through events, not polling loops.** Three-second watchers drained the shared 5,000/hour API quota for everyone.
-- **Ready-after-push race:** `gh pr ready` straight after a push can start CI on the *old* head. Compare the remote head before trusting the run.
-- **Failed-job reruns keep the old merge ref.** To pick up main's fix, push.
-- **Type-check test-only changes too.** CI runs type-aware lint on every file.
-- **Review:**
-  - Changed tests, helpers or test config need a **test-focused reviewer** (a second model), apart from tiny low-risk changes (≤ 20 changed test lines). Speed work can silently weaken proof.
-  - Large production changes (for us, at least 300 net production lines, `largeChange` in [`review-record.ts`](../../skills/review-gate/scripts/review-record.ts)) need a code-quality review. The [`review-gate`](../../skills/review-gate/SKILL.md) skill holds the gate CI checks; [how we run a review](#how-we-run-a-review) is below.
-  - Rounds are capped.
-  - If only the review record was missing, a small workflow reruns **just the aggregate result job** once a valid record lands. It doesn't rerun everything else.
-- **Follow main after merging.** Main once stayed red for hours while agents watched only their own PRs. A green merge isn't a deploy, either: check the deploy.
+- **Keep PRs in draft until done.** Under our merge policy, engineer agents open draft PRs while a manager agent marks them ready and merges, so each PR aims for a single CI run. On another repo, preserve its existing trigger and merge policy (base branch, required checks, merge method, approvals, stale-review dismissal, merge queue) until the user approves a change, and always test the current required ref (including the merge-queue commit if applicable).
+  - Asking engineers for "after" timings once caused two agents to dispatch ~15 draft runs. Read after-timings from the ready run instead.
+  - Dispatching tests manually on a draft doubles CI spend because marking the PR ready reruns them.
+- **Read the run's logs before merging.** Confirm the plan selected the right files, those files actually ran, and their timings make sense. Post a concise `Verification:` comment noting head SHA, tested base, jobs and totals, and review status.
+- **Watch CI via events, not polling loops.** Three-second polling loops drained our shared 5,000/hour GitHub API quota for everyone.
+- **Guard against the ready-after-push race:** running `gh pr ready` immediately after `git push` can start CI on the *previous* head. Compare the run's SHA against the remote head before trusting it.
+- **Remember that failed-job reruns keep the old merge ref.** Push a new commit to pick up a fix from `main`.
+- **Type-check test-only edits too.** CI runs type-aware lint across every file.
+- **Review discipline:**
+  - Any PR modifying tests, helpers, or test config gets a **test-focused reviewer** (a second model), except tiny low-risk changes (≤ 20 changed test lines), because speed work can silently weaken proof.
+  - Large production changes (≥ 300 net production lines for us—`largeChange` in [`review-record.ts`](../../skills/review-gate/scripts/review-record.ts)) get a code-quality review. The [`review-gate`](../../skills/review-gate/SKILL.md) skill defines the CI gate; [how we run a review](#how-we-run-a-review) is below.
+  - Cap review rounds.
+  - If a run failed *only* for a missing review record, a small workflow reruns **just the aggregate result job** once a valid record lands—never the whole pipeline.
+- **Watch `main` after merging.** `main` once stayed red for hours while every agent watched only its own PR. A green merge isn't a deploy either—verify the deploy.
 
 ## How we run a review
 
-**Applies when:** A repo adopts the review gate and has no review process of its own for what the gate requires. **Skip when:** The repo's own review already decides who reviews and how, or it doesn't gate CI on a review.
+**Applies when:** A repo adopts the review gate without an existing review process for what the gate requires. **Skip when:** The repo already defines who reviews and how, or doesn't gate CI on a review.
 
-The review gate checks that a record exists and is well formed. This is the review behind the record, as we ran it. Your repo's own review can replace it: review.md names who reviews, with which types, at what effort.
+The review gate verifies that a well-formed review record exists. Below is the review process we ran behind that record. Your repo's own process can replace it: `review.md` specifies who reviews, with which reviewer types, and at what effort.
 
-**What gets a review.** A system where a miss is a security hole, loses data or is hard to undo: sign-in, tokens, secrets and permissions; anything that writes the record of who did what; contracts at the repo's boundaries; stored state and migrations; a bounded model's rules, breaks and bounds; a spike's results when they decide what gets built. The review list names these paths.
+**What requires a review.** Changes touching areas where a miss creates a security hole, loses data, or is hard to reverse: sign-in, tokens, secrets, and permissions; audit or provenance writers; contracts at repo boundaries; stored state and migrations; bounded-model rules, breaks, and bounds; and spike results that decide what gets built. The review list names these paths.
 
-**Before starting,** name the session for the PR and the short commit it starts at, such as `<pr>-<head-sha>`, so it never reads an earlier session's output as its own. Check for collisions: `gh pr list --repo <org>/<repo> --search "<file>"` for each file, looking for the same lines, a heading this PR renames, or a table it reflows for one row. Narrow the change, stack on the other PR, or say which merges first.
+**Before starting:** Name the review session after the PR and short starting commit (e.g., `<pr>-<head-sha>`) so it can never mistake an earlier session's output for its own. Check for colliding PRs with `gh pr list --repo <org>/<repo> --search "<file>"` on each touched file—watching for overlapping lines, renamed headings, or reflowed tables—then narrow the diff, stack on the other PR, or record which merges first.
 
-**Plan the reviewers.** Read the diff, and give each area the change reaches a reviewer of the type that fits it: red team for a token, system design for a lease, storage for a migration, program design for a contract, fuzzing for a parser, bounded verification for a model's rules, stress test for inputs, experiment and skeptic for a spike's results, with the bar in the hub's [`verify-evidence`](../../skills/ci-doctor/references/verify-evidence/TOPIC.md). A type that reaches several areas gets one reviewer per area. We used 1 to 8 reviewers a round.
+**Plan the reviewers.** Read the diff and assign a matching reviewer type to each area the change touches: red team for tokens, system design for leases, storage for migrations, program design for contracts, fuzzing for parsers, bounded verification for model rules, stress test for inputs, and experiment + skeptic for spike results (using the evidence bar in [`verify-evidence`](../../skills/ci-doctor/references/verify-evidence/TOPIC.md)). If one type covers multiple distinct areas, assign one reviewer per area. We used 1 to 8 reviewers per round.
 
-**Rounds, at most three.** Keep the PR a draft, and keep a ledger of the reviewers, the types not run and why, and every finding, written before the first reviewer starts, so a restart can resume from it.
-- Round 1 runs every planned reviewer at once, each on its scope.
-- Round 2 runs again only the reviewers whose findings a fix answered, on those fixes alone, when a fix changed behaviour, added a step or touched code near a finding. Small local fixes, a word or a guard, the author checks. Tests and code quality reviewers get no round 2: tests check their fixes.
-- Round 3 runs only the reviewers that found a P0 or P1 in round 2, on those fixes alone. Nothing after it.
+**Cap at three rounds.** Keep the PR in draft and maintain a ledger listing planned reviewers, skipped types (with reasons), and every finding—written *before* the first reviewer starts so a restart can resume cleanly:
+- **Round 1:** Run every planned reviewer concurrently, each on its assigned scope.
+- **Round 2:** Re-run only reviewers whose findings were answered by fixes that changed behavior, added a step, or touched code near a finding—scoped strictly to those fixes. Small local fixes (wording or a simple guard) are verified by the author. Tests and code-quality reviewers skip round 2 because tests verify their fixes.
+- **Round 3:** Re-run only reviewers that reported a P0 or P1 in round 2, scoped to those fixes. Stop after round 3.
 
-**Check each finding.** Reproduce it with a failing test, a command or a code trace: agreement is not evidence, and without a real consumer and a reproduction it's dismissed. Untouched work goes in a follow-up issue. Rate it P0 to P3, then:
-- **Fixed** on the PR's branch, with a regression that fails before and passes after. Every in-scope P0 and P1 is fixed in the PR.
-- **Filed:** real but out of scope or below P1, as an issue linked from the PR.
-- **Kept:** retained on purpose by a brief or a decision, naming the reason and who decided.
-- **Dismissed:** wrong, unreproducible or unreachable, with a sentence of evidence.
-- **Question:** needs a person's decision; keep working and ask at the end.
+**Verify every finding.** Reproduce it with a failing test, command, or code trace—agreement isn't evidence, and any finding without a real consumer and reproduction is dismissed. Put unrelated pre-existing issues in a follow-up issue. Assign severity P0–P3 and one disposition:
+- **Fixed:** fixed on the PR branch with a regression test that fails before and passes after. Every in-scope P0 and P1 must be fixed in the PR.
+- **Filed:** real, but out of scope or below P1—tracked in a linked issue.
+- **Kept:** intentionally retained per a brief or decision, citing the reason and decision-maker.
+- **Dismissed:** wrong, unreproducible, or unreachable, with a one-sentence evidence note.
+- **Question:** requires a human decision—keep working on everything else and ask at the end.
 
-A finding reopens only with evidence its dismissal was wrong or its fix failed. Two reviewers reporting one defect get one row.
+A finding reopens only with new evidence that its dismissal was wrong or its fix failed. Multiple reviewers reporting the same defect merge into one row.
 
 ## Running a slow-test campaign with parallel agents
 
-**Applies when:** The slow-file inventory is long enough to split among agents, and the harness runs them in parallel, each in its own worktree. **Skip when:** The harness can't run parallel agents, or one agent can work the inventory.
+**Applies when:** The slow-file inventory is large enough to divide across agents, and your harness can run parallel agents in separate worktrees. **Skip when:** Your harness doesn't support parallel agents, or one agent can handle the list.
 
-1. **Collect records** since the last run, rank every file past 10 s, every file that ends a shard, every wide spread and every flake. That's the item list, plus open items from the ledger.
-2. **Review every item, slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` reading per file: what it waits for, how long, what it proves, the fix, and the proof to keep. Check the biggest claims yourself.
-3. **Merge findings by shared cause** into briefs. Each brief is a file with one finish line, CI's before-times, the proof to keep, the local command and the review requirement. Shared rules live in one README every brief links to.
-4. **One engineer per brief,** each in its own worktree. Cap concurrency per account and by machine load: on one day load climbed well past the core count and no more were started. Check for overlapping PRs (`gh pr list --search <file>`) before starting.
-5. **The manager marks ready and merges** on green, with resolved review and logs showing the files ran. A flaky failure reruns once; a second failure becomes an issue.
-6. **Write lessons back** into the skills (section 17).
-7. **Report and rewrite the ledger.** The ledger is a short (~120-line) file of what's open, owned, queued and decided, including every "leave as real work" verdict so it isn't re-reviewed unless its times change. Detail goes in dated reports.
-   - **Reconcile coverage.** The report maps every original actionable item to fixed, owned elsewhere, still open, reclassified with evidence, or deliberately deferred, and gives each unresolved item an owner or next action. It keeps modelled savings of merged work, observed post-merge savings and "not yet observed" apart, with counts and sample eligibility for both periods. Don't dispatch extra broad CI just to fill the report.
-   - **Epics:** each run opens an epic issue. Every issue and PR it touches becomes a sub-issue, and the epic closes when all sub-issues are closed, the original completion test holds, *and* the next run's records at like hours show the saving.
+1. **Collect records** since the last run and rank every file past 10 s, every shard-ending file, every wide spread, and every flake. Combine that list with open items from the ledger.
+2. **Triage slowest first.** A cheaper second model reads code in **batches by area** and returns a `file:line` report for each file: what it waits for, how long, what it proves, the proposed fix, and the proof to preserve. Spot-check the biggest claims yourself.
+3. **Group findings by shared root cause** into briefs. Each brief is a file specifying one finish line, CI before-timings, proof requirements, the local test command, and review requirements. Shared rules live in one README that every brief links to.
+4. **Assign one engineer per brief,** each in its own git worktree. Cap concurrency by account limits and machine load (on one day load climbed well past the core count, so we paused new starts). Check for overlapping PRs (`gh pr list --search <file>`) before launching work.
+5. **Manager marks ready and merges** once CI is green, review is resolved, and logs confirm the target files actually ran. Rerun a flaky failure once; a second failure becomes an issue.
+6. **Fold lessons back** into the skills (section 17).
+7. **Publish the report and refresh the ledger.** Keep the ledger concise (~120 lines) tracking what is open, owned, queued, and decided—including every "leave as real work" verdict so it isn't re-triaged unless its duration changes. Put detailed data in dated reports.
+   - **Reconcile every item:** map each original actionable finding to fixed, owned elsewhere, still open, reclassified with evidence, or deliberately deferred, with an owner or next action on every unresolved item. Keep modelled savings of merged work, observed post-merge savings, and "not yet observed" separate, reporting counts and sample eligibility for both windows. Never dispatch extra broad CI solely to populate the report.
+   - **Track under an epic:** each campaign opens an epic issue linking every touched issue and PR as a sub-issue. Close the epic only when all sub-issues are closed, the original completion criterion holds, *and* the next run's records at comparable hours confirm the saving.

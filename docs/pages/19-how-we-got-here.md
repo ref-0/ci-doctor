@@ -2,31 +2,33 @@
 
 # 19. How we got here
 
-1. **Week 1: CI moved to Blacksmith, with a plan job.** For a week before, checks had run only locally, with no recorded comparison. Then we packed fewer, fuller jobs: billed minutes more than halved for slightly more wall time. Sized each job from CPU use. Drafts stopped running CI.
-2. **Week 2: shared bundles and Postgres templates.** Added machine-wide test slots, and an explicit-input build cache with a lint rule enforcing complete inputs.
-3. **Weeks 2–3: sweeps instead of per-merge reruns.** Before, 33 merges had each rerun every sandbox file. Near selection, in replay, cut ordinary-test billed minutes ~65% and moved most PR runs from 3 shards to 1. Then macOS moved to release, and a merge-triggered fallback covered late cron.
+Here is the six-week sequence in which the system came together:
 
-   The sweep cadence moved several times. These steps are superseded; section 5 has today's tiers:
-   - Week 2: twice-daily broad sweeps replaced broad per-merge runs.
-   - Week 3: sweeps became two-hourly while PR selection narrowed.
-   - Week 4: indirect proofs and replay moved to four-hour sweeps.
-   - Later in week 4: a daily full sweep became the release gate.
-   - Week 5: three server slots between sweeps cut the delay to detect server regressions, with the merge-triggered fallback.
-4. **Week 4: cheap evidence.** Records in logs, the nightly collector and an API-call budget. Moved binaries out of artifact quota. Admission control for paid model calls. Restored the per-merge type check after two green PRs broke types together. Deterministic recording and replay stayed, and the staging-connected extension was removed; the available evidence doesn't say why.
-5. **Week 4 (~20 changes): the critical path.** In our run history, full PR runs fell to well under half their wall time, and small runs to about half. We kept no matched before-cohort, so read that as an observation, not a controlled comparison:
+1. **Week 1 — Move to Blacksmith and add a plan job.** After a week of running checks only locally (with no recorded comparison), we moved CI to Blacksmith, packed work into fewer, fuller jobs (more than halving billed minutes for slightly more wall time), sized each job from measured CPU, and stopped running CI on drafts.
+2. **Week 2 — Shared bundles, Postgres templates, and local slots.** We added shared server bundles, template-based Postgres databases, machine-wide local test slots, and an explicit-input build cache guarded by a lint rule enforcing complete inputs.
+3. **Weeks 2–3 — Sweeps instead of per-merge reruns.** Previously, 33 merges had each rerun every sandbox file. Near selection cut ordinary-test billed minutes by ~65% in replay and dropped most PR runs from 3 shards to 1. We then moved macOS to releases and added a merge-triggered fallback for late cron runs.
+
+   Our sweep cadence evolved several times (these steps are superseded—see section 5 for today's tiers):
+   - *Week 2:* twice-daily broad sweeps replaced broad per-merge runs.
+   - *Week 3:* sweeps moved to every two hours while PR selection narrowed.
+   - *Week 4:* indirect proofs and replays moved to four-hour sweeps.
+   - *Later in week 4:* a daily full sweep became the release gate.
+   - *Week 5:* three server slots between daily sweeps cut detection delay for server regressions, backed by the merge-triggered fallback.
+4. **Week 4 — Cheap evidence.** We moved test records into logs, added the nightly collector with an API-call budget, moved binaries out of artifact quota, added admission control for paid model API calls, and restored the per-merge type check after two green PRs broke types together. Deterministic recording and replay stayed, while the staging-connected extension was removed (the available evidence doesn't record why).
+5. **Week 4 (~20 changes) — Attack the critical path.** Across our run history, full PR runs dropped to well under half their prior wall time and small runs dropped to about half (we kept no matched before-cohort, so treat this as an observation rather than a controlled benchmark):
    - time-based shards and work stealing;
-   - Rust gating, pass reuse and promotion;
+   - Rust gating, pass reuse, and merge promotion;
    - sticky disks;
-   - split static and lint jobs;
+   - split static and type-aware lint jobs;
    - overlapped setup;
-   - the Rust allocator, tmpfs and core-dump fixes, and dropping the debug-profile Rust run (a recorded proof tradeoff, section 7);
-   - budgets and the health report;
+   - Rust allocator (`mimalloc`), `tmpfs`, and core-dump fixes, plus dropping the debug-profile Rust run (a recorded proof tradeoff, section 7);
+   - job budgets and the daily health report;
    - auto-filed flake issues;
-   - the release gate.
-6. **Week 5: tests as cached tasks.** The remote cache, then fixing every real-world miss: paths, salts, directory listings, env leaks. An early tiny-package cache (week 4) had no billing benefit. Broader caching became useful only after independent lanes and stable task identities, and its first full-run comparison failed our agreed speed criterion (section 6). Warm gains came with cold-path overhead, and the cold and warm results were separate observations under different load.
-7. **Week 5: restore missed coverage.** Fan-in selection, generated-SDK edges, covered-only proofs, the 6-hourly server tier.
-8. **Week 5: remove waits.** Holds instead of sleeps, retry periods as settings, a socket for test SQL that kept synchronous statement completion because clock-driven tests rely on it, alarm floors set after fixing ordering.
-9. **Weeks 5–6: harden the plumbing.** Bounded bisect, and the standing campaign three times a week.
-10. **Week 6: control records out of artifact quota.** Moving binary handoffs out of artifacts relieved the first quota outage. A later outage still failed passing shards while they saved control records, so claims, flakes and timings moved to the cache too. Trusted pass provenance and other retained artifacts remain separate quota dependencies.
+   - the sweep-backed release gate.
+6. **Week 5 — Tests as cached tasks.** We deployed the remote cache and fixed each real-world miss source: absolute paths, command salts, directory listings, and leaked env vars. An earlier tiny-package cache (week 4) had saved zero billed minutes. Broader caching became viable only after independent lanes and stable task identities—and even then, its first full-run comparison failed our speed criterion (section 6). Warm gains arrived alongside cold-path overhead, observed separately under different loads.
+7. **Week 5 — Restore missed coverage.** We added fan-in selection, generated-SDK edges, covered-only proofs, and the 6-hourly server tier.
+8. **Week 5 — Remove waits.** We replaced sleeps with targeted holds, turned retry periods into settings, moved test SQL onto a synchronous socket (preserving synchronous statement completion for clock-driven tests), and tuned alarm floors after fixing ordering bugs.
+9. **Weeks 5–6 — Harden the plumbing.** We added budget-bounded bisecting and the standing slow-tests campaign three times a week.
+10. **Week 6 — Move control records out of artifact quota.** Moving binary handoffs out of artifacts resolved our first quota outage, but a second outage still failed passing shards while uploading control records—so claims, flakes, and timings moved to the Actions cache as well. Trusted pass provenance and other retained artifacts remain separate quota dependencies.
 
-**Where it landed**, as an example: across 189 successful first-attempt runs of ready PRs over one week (skipped draft runs left out), wall time had a **median ~3.2 min and p90 ~4.5 min**. That's one cohort of successful first attempts: it doesn't show queue delay, failed-attempt latency or a change measured against a matched earlier cohort. Every test file is still covered on main daily before anything ships, as a fresh run or a verified cached pass, with heavy proofs running whenever their inputs changed.
+**Where it landed (example):** Across 189 successful first-attempt ready-PR runs over one week (excluding skipped draft runs), wall time had a **median of ~3.2 min and p90 of ~4.5 min**. Keep in mind this is a single cohort of successful first attempts—it does not capture queue delay, failed-attempt latency, or a matched before/after comparison. Every test file still runs on `main` daily before anything ships (either fresh or via a verified cached pass), and heavy proofs run on PRs whenever their inputs change.
