@@ -1,7 +1,7 @@
 {
   "name": "ci-doctor",
   "version": "0.1.0",
-  "description": "Make CI faster, cheaper and more trustworthy on any provider, with a plan your agent writes for you to approve: CI results, workflows, runners and the bill, slow and flaky tests, how far an edit reaches through a workspace's graphs, whether a speed-up, saving or fix holds up, review and merge gates, test value and proof tiers.",
+  "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, slow and flaky tests, runners and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
