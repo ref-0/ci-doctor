@@ -65,6 +65,16 @@ const graphqlThrottled = (stdout: string) => {
   }
 };
 
+/** A GraphQL answer that holds data, though gh exited 1 on its errors: some aliases were read and some weren't. */
+const partialGraphql = (stdout: string) => {
+  try {
+    const body = JSON.parse(stdout);
+    return body?.data !== undefined && body.data !== null && Array.isArray(body.errors) ? stdout : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const statusOf = (stderr: string) => Number(stderr.match(/HTTP (\d{3})/)?.[1]) || undefined;
 
 export class Gh {
@@ -110,9 +120,10 @@ export class Gh {
     }
 
     const body = this.fetch(path, options);
-    // An empty body is a 202 still being computed; keeping it would hide the real answer next time.
+    // An empty body is a 202 still being computed, and a partial GraphQL answer may be whole next time; keeping either
+    // would hide the real answer.
     if (body === undefined && !options.noCache) this.memo.set(key, undefined);
-    if (body !== undefined && body.trim() !== '' && !options.noCache) {
+    if (body !== undefined && body.trim() !== '' && !options.noCache && !(options.query !== undefined && partialGraphql(body))) {
       this.memo.set(key, body);
       this.cache?.set(this.scope + key, body);
     }
@@ -123,7 +134,10 @@ export class Gh {
     return this.parse(path, this.text(path, options));
   }
 
-  /** One GraphQL query's answer, cached and remembered as a GET is. GitHub counts these against their own hourly points. */
+  /**
+   * One GraphQL query's answer, cached and remembered as a GET is. GitHub counts these against their own hourly points.
+   * An answer with data and errors both comes back as it is, `{ data, errors }`, and isn't cached.
+   */
   graphql(query: string): any {
     return this.parse('graphql', this.text('graphql', { query }));
   }
@@ -212,6 +226,9 @@ export class Gh {
         const throttled = status === 429 || /rate limit/i.test(stderr) || graphqlThrottled(String(err.stdout ?? ''));
         const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '').replace(/\.$/, '') || `gh exited ${err.status}`;
         if (throttled) throw new RateLimitError(`Couldn't read ${path}: ${said}. GitHub's rate limit for this account ran out; ${this.resetsAt(path)}.`);
+        // Some aliases answered and some didn't: what was read is kept, and the errors say why the rest weren't.
+        const partial = options.query !== undefined ? partialGraphql(String(err.stdout ?? '')) : undefined;
+        if (partial) return partial;
         if (status !== undefined && options.absentOn?.includes(status)) return undefined;
         if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
 

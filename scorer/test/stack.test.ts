@@ -10,7 +10,7 @@ const tree = (files: Record<string, string>, { truncated = false, unreadable = [
   return {
     tree: { truncated, blobs: Object.keys(files).map((path) => ({ path, size: files[path]!.length })) },
     read,
-    readMany: (paths) => new Map(paths.flatMap((p) => (read(p) === undefined ? [] : [[p, read(p)!] as const]))),
+    readMany: (paths) => ({ texts: new Map(paths.flatMap((p) => (read(p) === undefined ? [] : [[p, read(p)!] as const]))), failed: new Map() }),
   };
 };
 
@@ -198,8 +198,17 @@ describe('stack: unknown is not none', () => {
 });
 
 describe('parseManifest', () => {
-  it("takes a broken package.json as naming nothing, rather than failing the report", () => {
-    assert.deepEqual(parseManifest('package.json', '{ not json')!.deps, []);
+  it("takes a broken package.json as naming nothing, and says why, rather than failing the report", () => {
+    const m = parseManifest('package.json', '{ not json')!;
+    assert.deepEqual(m.deps, []);
+    assert.equal(m.unparsed, "it isn't valid JSON");
+  });
+
+  it("leaves the graph's numbers unknown over a package.json that isn't JSON, with the reason, and lists the rest", () => {
+    const s = stack({ 'package.json': pkg({ name: 'root', workspaces: ['packages/*'] }), 'packages/a/package.json': '{ "name": "a", ' });
+    assert.deepEqual(s.graph.packages.map((p) => p.name), ['root']);
+    assert.deepEqual([s.graph.count, s.graph.edges, s.graph.cycles, s.graph.maxDepth, s.graph.topFanIn], [null, null, null, null, null]);
+    assert.ok(s.unknown.includes("1 manifest or task file in the tree couldn't be read, such as packages/a/package.json (it isn't valid JSON)"), s.unknown.join('\n'));
   });
 
   it('ignores files that are no manifest', () => assert.equal(parseManifest('README.md', ''), undefined));
