@@ -34,7 +34,7 @@ What the shared skills read about this repo's CI. Each workflow's header says ho
 
 ### Sweep cadence
 
-The user's choice, as the `ci-workflows` skill's tiers ask for it: `<after N merges or T hours, whichever comes first>`, chosen `<date>` from `sweep-cadence.ts`' options at `<merges a day>` merges (first-parent commits) a day: `<job-minutes>` a month, at most `<merges>` merges a missed break can hide (about `<steps>` bisect steps). The sweep's workflow sets T as its schedule and N as its merge count. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes. Shard times stay fresh apart from this, as the `ci-runners` skill's shards say.
+The user's choice, as the `ci-workflows` skill's tiers ask for it: the cron `<minute hour day month weekday>` (UTC, `<every 6 hours, daily, weekly…>`), chosen `<date>` from `sweep-cadence.ts`' schedules at `<merges a day>` merges (first-parent commits) a day: `<job-minutes>` a month, `<p90>` merges a missed break can hide at the 90th percentile and `<most>` at most (about `<steps>` bisect steps). The sweep's workflow runs it as its cron. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes. Shard times stay fresh apart from this, as the `ci-runners` skill's shards say.
 
 ### What a change selects
 

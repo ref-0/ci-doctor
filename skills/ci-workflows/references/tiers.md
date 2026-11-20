@@ -36,19 +36,20 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 
 ## Choosing the sweep's cadence
 
-How often the default branch's full sweep runs is recurring spend against how long a break can hide, so the user chooses it, from this repo's numbers. Never copy a cadence from a template or another repo.
+How often the default branch's full sweep runs is recurring spend against how long a break can hide, so the user chooses it, from this repo's numbers. Never copy a schedule from a template or another repo.
 
 1. **Measure, read-only.** Run [`sweep-cadence.ts`](../scripts/sweep-cadence.ts) from the repo's checkout, naming the sweep's runs and its test jobs as ci.md does: `node <skills-dir>/ci-workflows/scripts/sweep-cadence.ts --sweep-title '<the sweep's run title start>' --test-job '<the test jobs' name start>'`, or `--sweep-event push` where every push to the default branch runs everything. It reads, from `gh`:
-   - the merges a day, counted as first-parent commits: the unit the sweep's merge count and its bisect use, so a rebase-merged PR counts once per commit;
+   - the merges a day, counted as first-parent commits, the commits a bisect walks, so a rebase-merged PR counts once per commit;
    - a full sweep's job-minutes, from passing runs that ran a test job;
    - what a slot with nothing new costs, from passing runs that ran none;
    - a PR run's job-minutes against a sweep's;
-   - the releases.
+   - the releases;
+   - the slots' time of day, from the sweep workflow's `SWEEP_AT` or cron, or `--slot HH:MM` (UTC). It says which it used.
 
-   Give it at least 14 days, or twice the longest T you'll price: an option it can't observe twice is marked unavailable. With no passing sweep that ran tests in the window, it says there isn't enough evidence and prices nothing. Add `--option <merges>:<hours>` for each cadence worth pricing.
-2. **Show the user every option**, each as "after N merges or T hours, whichever comes first", with its monthly job-minutes (priced at list price where ci.md has prices), and the merges a missed break can hide behind it at the 90th percentile and at most, with the bisect steps, about log2 of that many. A slot with nothing new runs only its plan, so a short T costs little on a quiet repo. The replay runs each option as the sweep template does: fixed slots T hours apart, which an early sweep doesn't move, and an early sweep at the Nth merge since the newest sweep that ran, passed or failed.
-3. **Say what bounds it.** Where the sweep gates the release, a release waits for the next passing sweep, so a cadence longer than the release's delays it. The more PR selection skips, the more only the sweep checks, and the more a long cadence hides.
-4. **Let the user choose,** then record the choice, its date and its numbers in ci.md's Sweep cadence, and set it in the sweep's workflow: T as its schedule, N as its merge count, as the [sweep template](https://github.com/ref-0/ci-doctor/blob/next/templates/github/workflows/sweep.yml) does. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes.
+   It prices five crons at that time of day: every 6 hours, every 12 hours, daily, every 2 days and weekly. Add `--option '<cron>'` for another. Give it at least 14 days, twice the longest gap you'll price: a schedule it can't observe twice is marked unavailable. With no passing sweep that ran tests in the window, it says there isn't enough evidence and prices nothing.
+2. **Show the user every schedule** with its monthly job-minutes (priced at list price where ci.md has prices), and the merges a missed break can hide behind it at the 90th percentile and at most, with the bisect steps, about log2 of that many. A slot with nothing new runs only its plan, so a short schedule costs little on a quiet repo. A bursty repo's busy days hide the most: if its "most" is much more than its p90, a shorter schedule caps it.
+3. **Say what bounds it.** Where the sweep gates the release, a release waits for the next passing sweep, so a schedule longer than the release's delays it. The more PR selection skips, the more only the sweep checks, and the more a long schedule hides.
+4. **Let the user choose,** then record the cron, its date and its numbers in ci.md's Sweep cadence, and set it as the sweep's cron, as the [sweep template](https://github.com/ref-0/ci-doctor/blob/next/templates/github/workflows/sweep.yml)'s header says: its fallback for a missed cron finds the newest slot, so a schedule other than daily changes that step too. ci-doctor doesn't trigger a sweep by merge count, on purpose: a cron's cost and what it can hide are what's measured and chosen. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes.
 
 ## Sweep cadence and shard times are separate decisions
 
