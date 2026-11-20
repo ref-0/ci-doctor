@@ -18,7 +18,7 @@ Part of the [`speed-up-tests`](../SKILL.md) skill. Each check is one rule; these
 ## Before you quote a number
 
 - **[Measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).** Name the limiter from the job graph and step timestamps, model the change from those numbers before building it, and measure its own run the same way afterwards. Label every number observed, replayed or modelled.
-- **Judge the evidence,** as the hub's [`verify-evidence`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/verify-evidence/TOPIC.md) says: write the decision and the noise floor before measuring, compare like with like, interleave the runs, keep a control, and give every number its count, spread and limiter. [Measuring](measuring.md) has what's particular to tests.
+- **Judge the evidence,** as the [`prove-it`](https://github.com/ref-0/ci-doctor/blob/next/skills/prove-it/SKILL.md) skill says: write the decision and the noise floor before measuring, compare like with like, interleave the runs, keep a control, and give every number its count, spread and limiter. [Measuring](measuring.md) has what's particular to tests.
 
 ## Before you merge
 
