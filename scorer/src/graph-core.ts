@@ -1036,6 +1036,15 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
     const named = record(nx.namedInputs);
     const cacheable = stringOrList(record(record(record(nx.tasksRunnerOptions).default).options).cacheableOperations);
     if (Array.isArray(nx.plugins) && nx.plugins.length > 0) unread.push(`nx.json: ${nx.plugins.length} plugins infer targets this reader doesn't see`);
+    // Nx's order: the defaults keyed by the target's executor, else by its name, else by the longest glob matching its name.
+    const defaultGlobs = Object.keys(defaults).filter((k) => /[*?[{]/.test(k)).sort((a, b) => b.length - a.length);
+    const targetDefault = (name: string, target: Record<string, unknown>, script: boolean) => {
+      const executor = typeof target.executor === 'string' ? target.executor : typeof record(target.options).command === 'string' || target.command !== undefined ? 'nx:run-commands' : script ? 'nx:run-script' : undefined;
+      if (executor !== undefined && defaults[executor] !== undefined) return record(defaults[executor]);
+      if (defaults[name] !== undefined) return record(defaults[name]);
+      const glob = defaultGlobs.find((k) => globToRegExp(k).test(name));
+      return glob === undefined ? {} : record(defaults[glob]);
+    };
     const projects = new Map<string, { pkg: Package; targets: Record<string, unknown>; named: Record<string, unknown> }>();
     for (const path of [...files].filter((p) => /(^|\/)project\.json$/.test(p) && !p.includes('node_modules/'))) {
       const dir = path.slice(0, -'project.json'.length);
@@ -1057,7 +1066,8 @@ export const readTaskGraph = ({ paths, text, packages, owner, imports = [] }: Ta
       const root = pkg.dir.replace(/\/$/, '');
       const names = new Set([...Object.keys(targets), ...Object.keys(record(pkg.manifest.scripts)), ...Object.keys(record(record(pkg.manifest.nx).targets))]);
       for (const name of names) {
-        const config = { ...record(defaults[name]), ...record(record(record(pkg.manifest.nx).targets)[name]), ...record(targets[name]) };
+        const target = { ...record(record(record(pkg.manifest.nx).targets)[name]), ...record(targets[name]) };
+        const config = { ...targetDefault(name, target, name in record(pkg.manifest.scripts)), ...target };
         const deps: string[] = [];
         const globs: string[] = [];
         let other = 0;
