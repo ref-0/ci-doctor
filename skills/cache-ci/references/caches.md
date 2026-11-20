@@ -8,9 +8,9 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Caches
 
-Part of the [`ci-workflows`](../SKILL.md) skill. Read it when changing caches or image reuse. Each of the repo's own caches, its key and who writes it, and what's left uncached on purpose, are in `.agents/repo/ci.md`'s Caches. [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md) covers the remote task cache and setup caches.
+Part of the [`cache-ci`](../SKILL.md) skill: the rules in full. Read it when changing caches or image reuse. Each of the repo's own caches, its key and who writes it, and what's left uncached on purpose, are in `.agents/repo/ci.md`'s Caches. [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md) covers the remote task cache and setup caches.
 
-If you run on Blacksmith, its sticky disks, its Actions cache and its shared Docker disk are in [the blacksmith topic's disks and caches](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and the toolchain are in [Rust](rust.md).
+If you run on Blacksmith, its sticky disks, its Actions cache and its shared Docker disk are in [the blacksmith topic's disks and caches](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and the toolchain are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/references/rust.md).
 
 ## Who may write a cache
 

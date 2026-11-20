@@ -82,7 +82,7 @@ node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 ## Not here
 
 - A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/next/skills/fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
-- Shards, tiers and caches: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md); selection, [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/references/selection.md); runner size and cost, its [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md). How far an edit reaches through the workspace: `optimize-graphs`.
+- Shards and tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-workflows/SKILL.md); caches, [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/next/skills/cache-ci/SKILL.md); selection, [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/next/skills/optimize-graphs/references/selection.md); runner size and cost, its [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-doctor/references/ci-runners/TOPIC.md). How far an edit reaches through the workspace: `optimize-graphs`.
 - Whether a test is worth keeping at all: [`test-audit`](https://github.com/ref-0/ci-doctor/blob/next/skills/test-audit/SKILL.md); its authoring gate applies to any test you add.
 - Taking a PR through CI: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-merge-workflow/SKILL.md); [`review-gate`](https://github.com/ref-0/ci-doctor/blob/next/skills/review-gate/SKILL.md) for its tests reviewer.
 

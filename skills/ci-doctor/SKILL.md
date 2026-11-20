@@ -65,7 +65,8 @@ Day-to-day work outside the plan. Read the topic's `TOPIC.md` before you act.
 | Task | Topic |
 | --- | --- |
 | A PR's check failed or was cancelled: reading the run, telling a test failure from a flake or an infrastructure failure, whether the run counts | [triage](references/triage/TOPIC.md) |
-| Change or debug a workflow: the job graph, setup, tiers, caches, the checks for a CI change, a slow run's job order or setup | The [`ci-workflows`](../ci-workflows/SKILL.md) skill |
+| Change or debug a workflow: the job graph, tiers, the checks for a CI change, a slow run's job order | The [`ci-workflows`](../ci-workflows/SKILL.md) skill |
+| Setup that takes too long, adding a cache, a cache that never hits, cache keys | The [`cache-ci`](../cache-ci/SKILL.md) skill |
 | The bill and Actions minutes, runner size and architecture, packing against billing rounding, shards against runner size, the spend cap, pricing, queues, changing provider | [ci-runners](references/ci-runners/TOPIC.md) |
 | Blacksmith only: its CLI, labels, sticky disks, cache, billing, a move to it | [blacksmith](references/blacksmith/TOPIC.md) |
 | A flaky test: one that fails sometimes or passes only on a retry, its cause, its fix and the proof | The [`fix-flaky-test`](../fix-flaky-test/SKILL.md) skill |
@@ -81,7 +82,7 @@ The one-rule [checks](references/checks/README.md) the topics link to are here t
 - The review gate before a PR's CI run: `review-gate`, if the repo adopted it; otherwise the repo's own review process.
 - Readying, running by hand, merging and releasing a PR: `ci-merge-workflow`, if adopted.
 - Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
-- Editing a workflow, its jobs, tiers and caches, and a slow run: `ci-workflows`.
+- Editing a workflow, its jobs and tiers, and a slow run: `ci-workflows`. Caches and slow setup: `cache-ci`.
 - How far an edit reaches through packages, `exports`, folders, task inputs and jobs, and which checks a change selects: `optimize-graphs`.
 - A slow test or suite, in CI or locally: `speed-up-tests`. A test that fails sometimes: `fix-flaky-test`.
 - Whether a number, a before/after, a cost or a fix holds up: `prove-it`.

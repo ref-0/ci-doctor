@@ -29,6 +29,6 @@ A runner's size, the way its provider rounds minutes and the number of shards a 
 
 ## Related
 
-- [`ci-workflows`](../../../ci-workflows/SKILL.md): workflows, tiers and caches.
+- [`ci-workflows`](../../../ci-workflows/SKILL.md): workflows and tiers; [`cache-ci`](../../../cache-ci/SKILL.md): caches.
 - [`blacksmith`](../blacksmith/TOPIC.md): if you run on Blacksmith, its labels, CLI, sticky disks and billing specifics.
 - The [`prove-it`](../../../prove-it/SKILL.md) skill: before you quote a cost or a speed-up.
