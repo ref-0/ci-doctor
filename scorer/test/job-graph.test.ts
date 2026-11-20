@@ -287,6 +287,20 @@ describe("a wait the YAML can't see", () => {
   });
 });
 
+describe('the chain across runs', () => {
+  it('keys a chain by its jobs, so a job named like a chain is never taken for one', () => {
+    const yaml = 'jobs:\n  build: {}\n  test: { needs: build }\n';
+    // The second run's only job isn't in the YAML, and is named the way the first run's chain would be joined.
+    const g = jobGraphOf(() => yaml, [
+      { id: 1, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 1), job('test', 1, 1, 2)] },
+      { id: 2, path: '.github/workflows/ci.yml', jobs: [job('build → test', 0, 0, 1)] },
+      { id: 3, path: '.github/workflows/ci.yml', jobs: [job('build', 0, 0, 1), job('test', 1, 1, 3)] },
+    ])!;
+    assert.deepEqual(g.chain.map((l) => l.name), ['build', 'test']);
+    assert.equal(g.chainRuns, 2);
+  });
+});
+
 describe('across the sample', () => {
   const yaml = `jobs:
   build:

@@ -625,8 +625,9 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
     reusableCalls: graph.jobs.filter((j) => j.uses).length,
   };
 
-  // The chain by its graph jobs, so matrix instances that differ by run count as one chain.
-  const chainSig = (r: (typeof runs)[number]) => r.path.map((l) => l.key ?? l.name).join(' → ');
+  // The chain by its graph jobs, so matrix instances that differ by run count as one chain. A list, never a joined
+  // string: a job's name can hold any text, so one named "build → test" mustn't read as a chain of two.
+  const chainSig = (r: (typeof runs)[number]) => JSON.stringify(r.path.map((l) => (l.key === undefined ? ['name', l.name] : ['job', l.key])));
   const [topChain, chainRuns] = tally(runs.map(chainSig))[0]!;
   const withChain = runs.filter((r) => chainSig(r) === topChain);
   const chain = withChain[0]!.path.map((l, i) => ({
