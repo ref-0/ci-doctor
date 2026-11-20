@@ -8,7 +8,7 @@ Split tests into shards by measured time, size runners from the work and the bil
 
 **Applies when:** Tests run, or should run, across several shards, and each file's time on main is recorded. **Skip when:** There are no per-file times yet.
 
-Start simple. A fixed assignment per suite, from the files' recorded times, run as an exact list through the installed test runner, and checked against the collected inventory, gets most of the balance ([`scripts/shards/`](../../scripts/shards/README.md#start-simple-a-fixed-split)). Keep test families that share fixture state together, cap the matrix by your organization's concurrency limits, and split a file that dominates before tuning the layout. Work stealing and lanes, below, are later optimizations to measure on their own.
+Start simple. A fixed assignment per suite, from the files' recorded times, run as an exact list through the installed test runner, and checked against the collected inventory, gets most of the balance ([`ci-runners`' shards](../../skills/ci-runners/references/shards.md#start-simple-a-fixed-split), whose `scripts/` hold the code). Keep test families that share fixture state together, cap the matrix by your organization's concurrency limits, and split a file that dominates before tuning the layout. Work stealing and lanes, below, are later optimizations to measure on their own.
 
 Vitest's built-in split balances file *counts*; two shards once differed by about a quarter in test-seconds. The plan computes one split from **each file's newest timing on main** and hands it to every shard:
 

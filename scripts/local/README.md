@@ -163,4 +163,4 @@ This is for local machines. Use it in CI only if your own CI measurements justif
 | `<keep-globs>` | `TMP_SWEEP_KEEP`, section 4 | Space-separated name globs the temp sweep never deletes, added to the slot pool's `*-test-slots-*` |
 | `<absolute-sccache-path>`, `<cache-dir>`, `<size>` | Section 5 | Where `sccache` is, its cache folder and its size bound |
 
-Also set `LOCAL_EVERY`, `AREA_ROOTS` and `ownJob` in `near-tests.ts` to your layout, and keep `ownJob` in step with `LEFT_OUT` in `../shards/test-groups.ts`.
+Also set `LOCAL_EVERY`, `AREA_ROOTS` and `ownJob` in `near-tests.ts` to your layout, and keep `ownJob` in step with `LEFT_OUT` in `test-groups.ts`, the [`ci-runners`](../../skills/ci-runners/references/shards.md) skill's, copied to `scripts/shards/`.

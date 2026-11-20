@@ -111,7 +111,7 @@ Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method fo
 | [`docs/`](docs/) | The guide and harness notes |
 | [`skills/`](skills/README.md) | The plugin’s skills, as [Skills](#skills) lists |
 | [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
-| [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
+| [`scripts/`](scripts/README.md) | Timing, budgets, flakes, sweeps and local test slots. Shards are the `ci-runners` skill's |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
 | [`templates/`](templates/) | CI workflows and the selection planner |
 | [`cache/remote/`](cache/remote/README.md) | Vite+ remote cache on Cloudflare |
