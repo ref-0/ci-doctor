@@ -36,5 +36,6 @@ It's long on purpose. Each section says what we do, how it works, and why. **Abo
 18. [Tried and dropped](pages/18-tried-and-dropped.md)
 19. [How we got here](pages/19-how-we-got-here.md)
 20. [Thresholds cheat sheet](pages/20-thresholds-cheat-sheet.md)
+21. [Optimize all of your graphs](pages/21-optimize-all-of-your-graphs.md)
 
 Also: [harnesses](harnesses.md), for parallel agents and schedules in each harness, and [the agent's phases](../skills/ci-doctor/references/phases/), which the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill starts.

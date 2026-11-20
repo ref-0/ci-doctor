@@ -6,7 +6,7 @@ The workspace checks run on every agent's machine many times an hour, and in eve
 
 **Start from what the repo has.** On a plain TypeScript repo, keep the existing `tsc`, project graph and task-runner ordering, and its compiler, lint and generation steps as they are. Change one only when a named duplicate pass or a measured bottleneck justifies it, and adopt the commands below one at a time. The Oxlint, tsrs and Vite+ material is conditional: it applies only if you use those tools.
 
-The type driver and its cache, symbol search and the copy check, the export guard and the split lint config are ported in [`tools/workspace/`](../../tools/workspace/), with their tests and the type checker injectable: stock `tsc` by default, or any checker that keeps the contract in its README (for Effect, see [below](#if-you-use-effect)). Its README also gives the setup, the root scripts, and a command/input/output contract for each tool not ported (custom lint rules and the generation driver).
+The type driver and its cache, symbol search and the copy check, the export guard, the package-graph check and the split lint config are ported in [`tools/workspace/`](../../tools/workspace/), with their tests and the type checker injectable: stock `tsc` by default, or any checker that keeps the contract in its README (for Effect, see [below](#if-you-use-effect)). Its README also gives the setup, the root scripts, and a command/input/output contract for each tool not ported (custom lint rules and the generation driver).
 
 ## The commands
 
@@ -90,8 +90,8 @@ The type driver and its cache, symbol search and the copy check, the export guar
 
 - **Complete build inputs.** Production and staging build tasks must list transitive workspace source, manifests and tsconfigs. Before this rule, a deliberately broken dependency source *replayed a successful build*. We use explicit inputs because automatic read tracking hit `spawn EBUSY` on our dev platform.
 - **Seeded property tests.** Property tests must use the shared seeded options, so PR runs reproduce, while the sweep picks fresh seeds.
-- **Boundaries:** no undeclared package access, no forbidden layer imports, each sandbox or isolate entry's transitive import closure restricted to what that runtime permits, and environment access only at entry points. Find your restricted runtime entry points before applying the isolate rule; for us it covers code that runs inside a sandboxed isolate, not all Worker code.
-- **Hygiene:** re-export-only `index.ts` barrels, explicit entry re-exports, reasons on unsafe assertions, and no quadratic accumulator copies.
+- **Boundaries:** no undeclared package access, no forbidden layer imports (both from one declared graph, in [section 21](21-optimize-all-of-your-graphs.md#package-dependencies-declared-and-checked)), each sandbox or isolate entry's transitive import closure restricted to what that runtime permits, and environment access only at entry points. Find your restricted runtime entry points before applying the isolate rule; for us it covers code that runs inside a sandboxed isolate, not all Worker code.
+- **Hygiene:** re-export-only `index.ts` barrels, explicit entry re-exports ([section 21's export paths](21-optimize-all-of-your-graphs.md#export-paths-what-an-edit-triggers)), reasons on unsafe assertions, and no quadratic accumulator copies.
 - **Shared rules live in a published tool** that each repo consumes, with the repo's own domain rules on top. Its tests install the *packed tarball* into a temp consumer, which checks what users actually get.
 
 ## No build before checking or testing
