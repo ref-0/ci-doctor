@@ -52,7 +52,7 @@ Each of these is a choice a change could undo. Keep it, or measure first.
 
 - A slow run or a long test file: read [slow runs](references/performance.md). How many shards, how they split by measured time, and a runner's size: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/shards.md), which owns the shard scripts.
 - What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
-- Moving a test off pull requests, or adding a scheduled run: read [the tiers](references/tiers.md). To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/SKILL.md).
+- Moving a test off pull requests, choosing how often the sweep runs, or adding a scheduled run: read [the tiers](references/tiers.md). [`sweep-cadence.ts`](scripts/sweep-cadence.ts) prices sweep schedules, each a cron, from the repo's merges and a sweep's cost; the user chooses. To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/SKILL.md).
 - Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).
 - Draft, push, sweep, pack and proof behaviour: read the headers and job dependencies of the workflows ci.md names.
 
@@ -62,7 +62,7 @@ Tests that run the repo's code against real containers are the slowest, and thei
 
 ## The tools
 
-`ci-time.ts` and its test are in this skill's `scripts/`, and run on Node 24 with nothing installed, logged in to `gh`: `node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`. With `--bill blacksmith`, it looks for `blacksmith-bill.ts` among the installed skills; a skills-only install of this folder doesn't carry it, so clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point `--adapter-dir` at the adapter's folder:
+`ci-time.ts`, `sweep-cadence.ts` and their tests are in this skill's `scripts/`, and run on Node 24 with nothing installed, logged in to `gh`: `node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`. With `--bill blacksmith`, it looks for `blacksmith-bill.ts` among the installed skills; a skills-only install of this folder doesn't carry it, so clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point `--adapter-dir` at the adapter's folder:
 
 ```sh
 git clone --depth 1 --branch v0.2.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>

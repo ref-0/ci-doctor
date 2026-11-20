@@ -12,6 +12,7 @@ Pull requests run what a change can reach. A sweep on main runs everything on a 
 | `release-checked.test.ts` | `checkedBy` and `isRelease` on a throwaway git repo. | Anywhere |
 | `snapshot-pins.ts` | Refuses a run whose tracked manifests or lockfile name a `pkg.pr.new` snapshot, unless it's a run by hand naming exactly one file, in `heavy_file` or `test_paths`. Everything else needs released versions. | First step of CI's plan job |
 | `snapshot-pins.test.ts` | Tests for the pins, the refusal, and the command on a throwaway repo. | Anywhere |
+| `cron.ts`, in your repo only | Prints a cron's newest slot, so a merge after a missed cron starts that slot's sweep once, at any schedule. It's [`ci-workflows`' `scripts/cron.ts`](../../skills/ci-workflows/scripts/cron.ts), the cron reader `sweep-cadence.ts` prices schedules with; copy it here. | [`templates/github/workflows/sweep.yml`](../../templates/github/workflows/sweep.yml), both jobs |
 
 ## Wire it in
 
