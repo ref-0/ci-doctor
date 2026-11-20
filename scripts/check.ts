@@ -143,12 +143,6 @@ export const GUIDE_URL = `${ORIGIN}/${BASE}/`;
 export const GITHUB_URL = 'https://github.com/ref-0/ci-doctor/';
 export const GITHUB_REF = 'next';
 
-/**
- * Paths another open change adds, so a full link to one may not resolve yet. Remove each entry once its path exists.
- * The agent-knowledge skill holds the templates the other skills link to.
- */
-export const PENDING = ['skills/agent-knowledge/'];
-
 /** The repo path a full link to the guide site or to GitHub at GITHUB_REF names, or undefined for any other URL. */
 export const ownPath = (url: string): string | undefined => {
   const [base = ''] = url.split('#');
@@ -184,7 +178,6 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
           const [path = '', anchor = ''] = target.split('#');
           const own = ownPath(target);
           if (own !== undefined) {
-            if (PENDING.some((p) => own.startsWith(p))) continue;
             if (own === '' && target.startsWith(GUIDE_URL)) continue;
             const exists = existsSync(join(root, own.replace(/\/$/, '')));
             if (!exists) problems.push(`${at}: no ${own} in the repo`);
