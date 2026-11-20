@@ -1,6 +1,6 @@
 // Where files come from: GitHub's batches, read in-process against the gh stub, and a checkout on disk.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -81,6 +81,7 @@ describe('a read that fails costs those files alone', () => {
 
     const { texts, failed } = localSource(root).readMany(['a.json', 'b.json']);
     chmodSync(join(root, 'b.json'), 0o600);
+    rmSync(root, { recursive: true, force: true });
 
     assert.deepEqual([...texts.keys()], ['a.json']);
     assert.match(failed.get('b.json')!, /EACCES/);
