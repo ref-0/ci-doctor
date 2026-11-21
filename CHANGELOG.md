@@ -23,8 +23,13 @@ Under 1.0, a minor release carries what would be a major one.
 
 ### Skills
 
+- **`speed-up-tests` and `fix-flaky-test`:** a saving under a second a case read from the case's own times, not whole files on a loaded machine; and a test that fails only in deep checkouts, from a path filling a fixed-length stack trace.
 - **`ci-merge-workflow`'s releases:** an optional handoff of a checked release tarball to its publish job through the Actions cache, keyed and checked by its digest, for when artifact storage runs out.
 - **`speed-up-tests` and `fix-flaky-test`:** an emulator once a file with its state reset per test, a module's settled value, a throttle's remainder, every operation to its hold, a Linux process-kill proof, a rerun's checkout and a single-file job's controls.
+
+### The remote task cache
+
+- **An exact match answers `entries`, as Vite+ 1.7.0 reads it.** The Worker answered one entry's `value` and `blob_id` alone, which Vite+ 1.7.0 can't decode, so every hit printed `remote cache fetch failed` and ran the task while the job still passed. `src/cbor.ts` encodes the list, and `worker.test.ts` checks each reply as 1.7.0 decodes it. The README's pitfalls say to check a replay after moving Vite+. **Action:** if you deployed `cache/remote/`, take `vendor/.../src/fetch.ts` and `src/cbor.ts` and deploy; on a Vite+ older than 1.7.0, check which shape it decodes first.
 
 ### The scorer, `@ref0/ci-doctor`
 
