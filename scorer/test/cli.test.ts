@@ -163,6 +163,51 @@ describe('too little history', () => {
     assert.doesNotMatch(r.stdout, /<ci-report/);
   });
 
+  it("when bots made nearly every push, says so rather than that the main workflows didn't run", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { actor: { login: string } }[] };
+    for (const run of prRuns.workflow_runs) run.actor = { login: 'syncbot[bot]' };
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(json(r.stdout).unscored, '20 of 20 PR pushes in the window came from bots (syncbot[bot]), and only pushes people make are timed; 5 are needed.');
+  });
+
+  it('blames bots from four pushes in five, and not below', async () => {
+    const share = async (people: RegExp) => {
+      const routes = fakeRepo({ repo: PUBLIC });
+      const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { head_sha: string; actor: { login: string } }[] };
+      for (const run of prRuns.workflow_runs) run.actor = { login: people.test(run.head_sha) ? 'pip' : run.head_sha.endsWith('0') ? 'mirror[bot]' : 'syncbot[bot]' };
+      return json((await runCli(['--repo', PUBLIC, '--json'], { routes })).stdout).unscored;
+    };
+
+    assert.equal(await share(/-sha-1[6-9]$/), '16 of 20 PR pushes in the window came from bots (syncbot[bot], mirror[bot]), and only pushes people make are timed; 5 are needed.');
+    assert.equal(await share(/-sha-1[5-9]$/), undefined);
+  });
+
+  it('counts a bot\'s push whose runs were all skipped among the bots\' pushes', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { head_sha: string; conclusion: string; actor: { login: string } }[] };
+    for (const run of prRuns.workflow_runs) {
+      run.actor = { login: 'syncbot[bot]' };
+      if (/-sha-1?[0-4]$/.test(run.head_sha)) run.conclusion = 'skipped';
+    }
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(json(r.stdout).unscored, /^20 of 20 PR pushes in the window came from bots \(syncbot\[bot\]\)/);
+  });
+
+  it("with PR runs of no gating workflow, doesn't blame bots", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { name: string }[] };
+    for (const run of prRuns.workflow_runs) run.name = 'PR labeler';
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(json(r.stdout).unscored, 'Only 0 PR pushes in the window ran the main workflows; 5 are needed.');
+  });
+
   it('with no PR runs at all, says so', async () => {
     const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC, heads: 0 }) });
 
@@ -497,5 +542,41 @@ describe('agents skills', () => {
     assert.equal((await runCli(['agents'])).code, 2);
     assert.equal((await runCli(['score'])).code, 2);
     assert.equal((await runCli(['--nope'])).code, 2);
+  });
+});
+
+describe('runs that never ran', () => {
+  type FakeRun = { id: number; head_sha: string; conclusion: string; created_at: string; updated_at: string };
+  /** Pip's heads 7 to 9, stretched to 50 hours and failed, with or without jobs. */
+  const stretched = (withJobs: boolean) => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const prRuns = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: FakeRun[] };
+    for (const run of prRuns.workflow_runs.filter((each) => /-sha-[789]$/.test(each.head_sha))) {
+      run.conclusion = 'failure';
+      run.updated_at = new Date(Date.parse(run.created_at) + 50 * 3600e3).toISOString();
+      if (!withJobs) routes[`repos/${PUBLIC}/actions/runs/${run.id}/attempts/1/jobs?page=1`] = { status: 200, json: { total_count: 0, jobs: [] } };
+    }
+    return routes;
+  };
+
+  it("leaves a run that took hours with no jobs out of the wait and the red heads, as a fork's unapproved run closed later", async () => {
+    const plain = json((await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }) })).stdout).wait;
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: stretched(false) });
+
+    assert.equal(r.code, 0, r.stderr);
+    const wait = json(r.stdout).wait;
+    assert.equal(wait.neverRan, 3);
+    assert.ok(wait.p90 <= plain.p90, `p90 ${wait.p90} min, against ${plain.p90} without the stretched runs`);
+    assert.equal(wait.timed, plain.timed - 3);
+    assert.ok(wait.redRate <= plain.redRate);
+  });
+
+  it('keeps a run that took hours with jobs, which is CI time', async () => {
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: stretched(true) });
+
+    assert.equal(r.code, 0, r.stderr);
+    const wait = json(r.stdout).wait;
+    assert.equal(wait.neverRan, 0);
+    assert.ok(wait.p90 > 60 * 49, `p90 ${wait.p90} min`);
   });
 });
