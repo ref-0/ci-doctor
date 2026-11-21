@@ -11,6 +11,7 @@
  * `policy.test.ts` checks that one. Reference implementation from a production monorepo; adapt to your
  * repo.
  */
+import { encode } from 'cborg';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -43,6 +44,7 @@ import {
   bytes,
   type Claims,
   credentials,
+  decodeFetched,
   decodeResponse,
   endpoint,
   fixturePolicy,
@@ -145,10 +147,9 @@ describe('reads', () => {
     expect((await h.blob(blobId, null)).status).toBe(401);
 
     for (const authorization of [reader, writer]) {
-      expect(await decodeResponse(await h.fetch(bytes('A'), bytes('S'), authorization))).toEqual({
+      expect(await decodeFetched(await h.fetch(bytes('A'), bytes('S'), authorization))).toEqual({
         kind: 'exact',
-        value: bytes('V'),
-        blob_id: blobId,
+        entries: [{ value: bytes('V'), blob_id: blobId }],
       });
       expect(await (await h.blob(blobId, authorization)).text()).toBe('out');
     }
@@ -172,6 +173,46 @@ describe('reads', () => {
   });
 });
 
+// Each reply as Vite+ 1.7.0 reads it, vite-task cb1ea8d's `crates/vt_remote_cache/src/lib.rs`:
+// `fetch` decodes `Fetched`, `store` needs only a 200, and `download` streams a 200's body.
+describe("Vite+ 1.7.0's replies", () => {
+  it('answer an exact match with entries, and a fallback with its key', async () => {
+    const h = await started();
+    const stored = await h.store(bytes('A'), bytes('S'), bytes('V'), bytes('out'), writer);
+    const blobId = String((await decodeResponse(stored)).blob_id);
+    await h.store(bytes('B'), bytes('T'), bytes('W'), undefined, writer);
+
+    expect(await decodeFetched(await h.fetch(bytes('A'), bytes('S')))).toEqual({
+      kind: 'exact',
+      entries: [{ value: bytes('V'), blob_id: blobId }],
+    });
+    expect(await decodeFetched(await h.fetch(bytes('B'), bytes('T')))).toEqual({
+      kind: 'exact',
+      entries: [{ value: bytes('W'), blob_id: null }],
+    });
+    expect(await decodeFetched(await h.fetch(bytes('C'), bytes('S')))).toEqual({
+      kind: 'fallback',
+      key: bytes('A'),
+    });
+    // The pin's shape, which 1.7.0 refused: every exact match was a miss.
+    const before = new Response(encode({ kind: 'exact', value: bytes('V'), blob_id: blobId }));
+    await expect(decodeFetched(before)).rejects.toThrow('entries');
+  });
+
+  it("answer a blob with 200 and its bytes, which 1.7.0 streams into a task's outputs", async () => {
+    const h = await started();
+    const blob = new Uint8Array(1024).map((_, i) => i % 251);
+    const stored = await h.store(bytes('A'), bytes('S'), bytes('V'), blob, writer);
+    const answer = await decodeFetched(await h.fetch(bytes('A'), bytes('S')));
+    const blobId = answer.kind === 'exact' ? answer.entries[0]?.blob_id : undefined;
+
+    expect(blobId).toBe((await decodeResponse(stored)).blob_id);
+    const downloaded = await h.blob(String(blobId));
+    expect(downloaded.status).toBe(200);
+    expect(new Uint8Array(await downloaded.arrayBuffer())).toEqual(blob);
+  });
+});
+
 describe('a writer', () => {
   it('writes, and a reader may not', async () => {
     const h = await started();
@@ -179,7 +220,10 @@ describe('a writer', () => {
     expect((await h.store(bytes('A'), bytes('S'), bytes('V'), undefined, reader)).status).toBe(403);
     expect((await h.fetch(bytes('A'), bytes('S'))).status).toBe(404);
     expect((await h.store(bytes('A'), bytes('S'), bytes('V'), undefined, writer)).status).toBe(200);
-    expect((await decodeResponse(await h.fetch(bytes('A'), bytes('S')))).value).toEqual(bytes('V'));
+    expect(await decodeFetched(await h.fetch(bytes('A'), bytes('S')))).toEqual({
+      kind: 'exact',
+      entries: [{ value: bytes('V'), blob_id: null }],
+    });
   });
 
   it('writes nothing once writes are off', async () => {
@@ -394,7 +438,10 @@ describe("a store's buffers", () => {
 
     // R2 tags an object uploaded in parts with its count of them.
     expect((await r2.head(String(blob_object)))?.etag).toMatch(/-3$/u);
-    expect((await decodeResponse(await h.fetch(bytes('A'), bytes('S')))).value).toEqual(value);
+    expect(await decodeFetched(await h.fetch(bytes('A'), bytes('S')))).toEqual({
+      kind: 'exact',
+      entries: [{ value, blob_id: blobId }],
+    });
     expect(new Uint8Array(await (await h.blob(blobId)).arrayBuffer())).toEqual(blob);
   });
 
