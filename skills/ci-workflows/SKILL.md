@@ -6,7 +6,7 @@ metadata:
 ---
 
 <!--
-What: how to change CI without making it slower, costlier or less trustworthy, on any provider.
+What: how to change CI without making it slower, costlier or less reliable, on any provider.
 Where: read by a coding agent before it edits workflows, jobs, shards or tiers.
 Configure: write your repo's facts file, `.agents/repo/ci.md`, from the agent-knowledge skill's templates/repo-facts/ci.md;
 write `.agents/repo/ci-time.json` from repo-facts/ci-time.json for scripts/ci-time.ts.

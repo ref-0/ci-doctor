@@ -7,7 +7,7 @@ metadata:
 
 # ci-doctor
 
-Make CI faster, more trustworthy and cost less. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
+Make CI faster, more reliable and more efficient. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
 
 ## Pick up where the last session stopped
 
