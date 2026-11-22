@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 2. Runners, Blacksmith, and the cost of getting fast
+# Runners
 
 Choose runners for your CI, see when jobs wait in a queue to start, and know what getting fast costs before it pays back.
 

@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 4. Run only what a change can reach
+# Affected checks
 
 Use dependency graphs to run only the tests and jobs a change can reach, then verify the selector against full runs.
 

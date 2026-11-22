@@ -82,7 +82,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
   [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
-  [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "A faster test harness"'],
+  [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "Test harness"'],
 ];
 
 /** Files that may still name PROMPT.md as a path: the pointer itself, and the README's clone prompt. */

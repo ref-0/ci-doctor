@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 16. Standing automations
+# Automations
 
 Choose which repeated follow-ups run on a schedule, whether CI, an agent or a machine runs each, and what each may do.
 
