@@ -39,9 +39,9 @@
       "Why did this PR's CI check fail?",
       "Our Actions bill doubled last month. Find out why."
     ],
-    "brandColor": "#111111",
-    "composerIcon": "./assets/logo-light.svg",
-    "logo": "./assets/logo-light.svg",
+    "brandColor": "#0c0d0d",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg",
     "screenshots": []
   }
 }
