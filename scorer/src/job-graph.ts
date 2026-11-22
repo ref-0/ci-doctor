@@ -5,6 +5,8 @@
 // It reads no more of GitHub than the scorer already has: the workflow files `practices` read and the jobs of the
 // sampled runs, both remembered by Gh.
 
+import { runnerOf, vcpusOf } from './runners.ts';
+
 /** Steps that prepare a job rather than do its work. */
 export const SETUP_STEP =
   /^(set up job|complete job|post |checkout|run actions\/checkout)|checkout|setup|set up|install|cache|restore|download|toolchain|login|docker pull|pnpm i\b|npm ci|yarn( install)?$|bun install|uv sync|pip install/i;
@@ -408,6 +410,8 @@ export interface ApiJob {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  /** The runner labels the job asked for, as `runs-on` resolved them. */
+  labels?: string[];
   steps?: { name: string; started_at: string | null; completed_at: string | null; conclusion: string | null }[];
 }
 
@@ -428,6 +432,7 @@ export interface RunJob {
   queueMin: number;
   workMin: number;
   setupMin: number;
+  labels: string[];
 }
 
 export interface Link {
@@ -578,6 +583,7 @@ export const runGraph = (graph: Graph | undefined, all: ApiJob[]) => {
       queueMin: mins(queuedAt, start),
       workMin: mins(start, ms(j.completed_at!)),
       setupMin: setupOf(j),
+      labels: j.labels ?? [],
     };
   };
   const jobs = ran.map(timed);
@@ -727,7 +733,7 @@ export interface SampledRun {
  * It's asked only for the sampled runs' workflow files and the local workflows they call. A read that fails, such as
  * a 403, leaves that part of the graph unknown, with the reason; it never stops the report.
  */
-export const jobGraphOf = (read: (path: string) => string | undefined, sampled: SampledRun[]) => {
+export const jobGraphOf = (read: (path: string) => string | undefined, sampled: SampledRun[], isPrivate = false) => {
   const graphs = new Map<string, Graph | undefined>();
   const failures = new Map<string, string>();
   const graphFor = (path: string) => {
@@ -845,6 +851,8 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
         queueMin: r1(j.queueMin),
         workMin: r1(j.workMin),
         setupMin: r1(j.setupMin),
+        runner: runnerOf(j.labels),
+        vcpus: vcpusOf(j.labels, isPrivate),
       })),
     })),
   };

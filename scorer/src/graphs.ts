@@ -499,7 +499,7 @@ export type Graphs = ReturnType<typeof graphsOf>;
 const jobsGraph = (g: JobGraph | undefined) => {
   if (!g) return null;
   const run = g.perRun.find((r) => r.fits) ?? g.perRun[0];
-  const nodes = (run?.jobs ?? []).map((j) => ({ id: j.name, needs: j.needs, onPath: run!.path.includes(j.name), blockedMin: j.blockedMin, queueMin: j.queueMin, workMin: j.workMin }));
+  const nodes = (run?.jobs ?? []).map((j) => ({ id: j.name, needs: j.needs, onPath: run!.path.includes(j.name), blockedMin: j.blockedMin, queueMin: j.queueMin, workMin: j.workMin, runner: j.runner, vcpus: j.vcpus }));
   const edges = nodes.flatMap((n) => n.needs.map((to) => ({ from: n.id, to })));
   const flags: Flag[] = [];
   const b = heavyBlocker(g);
