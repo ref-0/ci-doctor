@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 7. Shards, runners and billing
+# Sharding
 
 Split tests into shards by measured time, size runners from the work and the bill, and shorten the critical path before buying cores.
 
