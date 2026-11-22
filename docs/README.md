@@ -1,4 +1,4 @@
-# Fast, trustworthy CI that costs less, with AI agents: everything we do
+# Fast, trustworthy CI that costs less
 
 This is a field report from a TypeScript and Rust monorepo:
 
