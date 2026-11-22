@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ci-doctor",
   "version": "0.2.0",
-  "description": "Skills that teach your coding agents to make CI faster and cheaper, and keep it that way.",
+  "description": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
