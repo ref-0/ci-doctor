@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 19. How we got here
+# History
 
 Follow our six weeks of CI changes week by week, with what each one measured and what it cost.
 
