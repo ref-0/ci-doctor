@@ -10,7 +10,7 @@
     {
       "name": "ci-doctor",
       "source": "./",
-      "description": "Skills that teach your coding agents to make CI faster and cheaper, and keep it that way.",
+      "description": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.",
       "keywords": [
         "ci",
         "github-actions",
