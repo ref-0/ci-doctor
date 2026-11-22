@@ -486,7 +486,19 @@ describe('across the sample', () => {
       queueMin: 0.1,
       workMin: 0.1,
       setupMin: 0,
+      runner: null,
+      vcpus: null,
     });
+  });
+
+  it("gives each replayed job its runner and that runner's vCPUs", () => {
+    const labelled = (labels: string[]): ApiJob => ({ ...job('gate', 0, 0.1, 1), labels });
+    const one = (labels: string[], isPrivate: boolean) =>
+      jobGraphOf(() => 'jobs:\n  gate: {}\n', [{ id: 9, path: '.github/workflows/ci.yml', jobs: [labelled(labels)] }], isPrivate)!.perRun[0]!.jobs[0]!;
+
+    assert.deepEqual([one(['ubuntu-latest'], false).runner, one(['ubuntu-latest'], false).vcpus], ['ubuntu-latest', 4]);
+    assert.equal(one(['ubuntu-latest'], true).vcpus, 2);
+    assert.equal(one(['self-hosted', 'big-box-16core'], false).vcpus, 16);
   });
 
   it('is undefined with no run that ran', () => assert.equal(jobGraphOf(() => yaml, []), undefined));
