@@ -844,7 +844,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     runners: jobs?.providers,
   });
   // The sampled runs' jobs and the workflow files are remembered from the reads above: no new calls.
-  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })));
+  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })), meta.private === true);
   // The entry files and task configs: GraphQL blob batches at the tree's ids, counted here.
   const callsBefore = gh.calls;
   const graphs = graphsOf({ source, stack, jobGraph });
