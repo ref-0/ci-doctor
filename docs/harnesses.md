@@ -1,4 +1,4 @@
-# Harnesses: parallel agents and recurring work
+# Harnesses
 
 How to run several agents at once, each in its own checkout, and how to schedule the standing work in [guide section 16](pages/16-standing-automations.md), in each harness we know. [Phase 0](../skills/ci-doctor/references/phases/phase-0-know-your-harness-and-your-helpers.md) asks you to find out which of these yours has; prefer what the user already uses. One agent and no schedule is a complete way to work: every schedule is opt-in, and the default follow-up is a manual, read-only check.
 

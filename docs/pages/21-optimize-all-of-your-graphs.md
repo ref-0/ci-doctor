@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 21. Optimize all of your graphs
+# Graphs
 
 Trace how an edit reaches packages, exports, folders, tasks and CI jobs, then measure what reruns or waits.
 

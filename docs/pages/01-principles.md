@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 1. Principles
+# Principles
 
 Learn the words the guide uses and the numbers to measure before changing CI, so every change can say which number it moved.
 

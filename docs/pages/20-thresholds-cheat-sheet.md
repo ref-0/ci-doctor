@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 20. Thresholds cheat sheet
+# Thresholds
 
 Look up the starting values we used for slow files, shards, budgets and flakes, as examples to derive your own from.
 

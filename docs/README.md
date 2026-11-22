@@ -1,4 +1,4 @@
-# Fast, trustworthy CI that costs less, with AI agents: everything we do
+# Guides
 
 This is a field report from a TypeScript and Rust monorepo:
 
@@ -17,25 +17,25 @@ It's long on purpose. Each section says what we do, how it works, and why. **Abo
 ## Contents
 
 1. [Principles](pages/01-principles.md)
-2. [Runners, Blacksmith, and the cost of getting fast](pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md)
-3. [Workflow anatomy](pages/03-workflow-anatomy.md)
-4. [Run only what a change can reach](pages/04-run-only-what-a-change-can-reach.md)
-5. [Tiers: what runs where](pages/05-tiers-what-runs-where.md)
-6. [Reuse work by its real inputs](pages/06-reuse-work-by-its-real-inputs.md)
-7. [Shards, runners and billing](pages/07-shards-runners-and-billing.md)
-8. [A faster test harness](pages/08-a-faster-test-harness.md)
+2. [Runners](pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md)
+3. [Workflows](pages/03-workflow-anatomy.md)
+4. [Affected checks](pages/04-run-only-what-a-change-can-reach.md)
+5. [Tiers](pages/05-tiers-what-runs-where.md)
+6. [Caching](pages/06-reuse-work-by-its-real-inputs.md)
+7. [Sharding](pages/07-shards-runners-and-billing.md)
+8. [Test harness](pages/08-a-faster-test-harness.md)
 9. [Workspace tooling](pages/09-workspace-tooling.md)
-10. [Slow tests: the method](pages/10-slow-tests-the-method.md)
+10. [Slow tests](pages/10-slow-tests-the-method.md)
 11. [Flakes](pages/11-flakes.md)
-12. [Budgets, health and spend](pages/12-budgets-health-and-spend.md)
-13. [Records: evidence of what ran](pages/13-records-evidence-of-what-ran.md)
-14. [Local speed, and many agents on one machine](pages/14-local-speed-and-many-agents-on-one-machine.md)
-15. [The agent workflow around CI](pages/15-the-agent-workflow-around-ci.md)
-16. [Standing automations](pages/16-standing-automations.md)
-17. [Keeping agent knowledge from going stale](pages/17-keeping-agent-knowledge-from-going-stale.md)
+12. [Budgets](pages/12-budgets-health-and-spend.md)
+13. [Records](pages/13-records-evidence-of-what-ran.md)
+14. [Local speed](pages/14-local-speed-and-many-agents-on-one-machine.md)
+15. [Agent workflow](pages/15-the-agent-workflow-around-ci.md)
+16. [Automations](pages/16-standing-automations.md)
+17. [Agent knowledge](pages/17-keeping-agent-knowledge-from-going-stale.md)
 18. [Tried and dropped](pages/18-tried-and-dropped.md)
-19. [How we got here](pages/19-how-we-got-here.md)
-20. [Thresholds cheat sheet](pages/20-thresholds-cheat-sheet.md)
-21. [Optimize all of your graphs](pages/21-optimize-all-of-your-graphs.md)
+19. [History](pages/19-how-we-got-here.md)
+20. [Thresholds](pages/20-thresholds-cheat-sheet.md)
+21. [Graphs](pages/21-optimize-all-of-your-graphs.md)
 
 Also: [harnesses](harnesses.md), for parallel agents and schedules in each harness, and [the agent's phases](../skills/ci-doctor/references/phases/), which the [`ci-doctor`](../skills/ci-doctor/SKILL.md) skill starts.
