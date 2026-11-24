@@ -169,6 +169,8 @@ const MEASURES: Record<string, string> = {
   'efficiency.setup': 'setup time',
   'efficiency.queue': 'queue time',
   'efficiency.shardIdle': 'shard balance',
+  'efficiency.path': 'how the jobs are wired',
+  'efficiency.graphs': 'the package and task graphs',
 };
 
 const list = (xs: string[], last = 'and') => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${last} ${xs.at(-1)}`);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { evidenceOf, outsideCiOf, outsideConfigs, type EvidenceInputs } from '../src/evidence.ts';
-import { scoreOf } from '../src/score.ts';
+import { expectedWait, flagCounts, LANGUAGE_WAIT, scoreOf } from '../src/score.ts';
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 10, 20, 10, minutes)).toISOString();
 const PUSHED = Date.parse(at(0));
@@ -142,11 +142,12 @@ describe('evidenceOf', () => {
   });
 
   it('withholds the score when none of a part could be measured, whichever part', () => {
-    const made = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN };
-    const noEfficiency = scoreOf({ ...made, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: NaN, queueP90Sec: NaN });
-    const shardsOnly = scoreOf({ ...made, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: NaN, queueP90Sec: NaN, shardIdleTail: 0.2 });
+    const made = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN, pathFlags: 0, graphFlags: NaN };
+    const noEfficiency = scoreOf({ ...made, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: NaN, queueP90Sec: NaN, pathFlags: NaN });
+    // Shard balance and the package graph's flags are known, and they don't stand for the part: only some repos have them.
+    const shardsOnly = scoreOf({ ...made, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: NaN, queueP90Sec: NaN, pathFlags: NaN, shardIdleTail: 0.2, graphFlags: 1 });
     const noReliability = scoreOf({ ...made, passedOnRerunRate: NaN, mainRedRate: NaN });
-    const reason = 'Too little of the score\'s efficiency part could be measured to score: none of vCPU-minutes per merged PR, runs per merged PR, setup time or queue time.';
+    const reason = 'Too little of the score\'s efficiency part could be measured to score: none of vCPU-minutes per merged PR, runs per merged PR, setup time, queue time or how the jobs are wired.';
 
     assert.equal(noEfficiency.measured, 0.8);
     assert.deepEqual([noEfficiency.empty, shardsOnly.empty, noReliability.empty, scoreOf(made).empty], [['efficiency'], ['efficiency'], ['reliability'], []]);
@@ -156,7 +157,7 @@ describe('evidenceOf', () => {
   });
 
   it('is less sure with few pushes, a measure missing or reruns unread, and says each', () => {
-    const { measured, missing, empty } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN });
+    const { measured, missing, empty } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN, pathFlags: 0, graphFlags: NaN });
     const { evidence } = evidenceOf({ ...whole, timed: 14, rerunsUnread: 2, measured, missing, empty });
 
     assert.deepEqual(missing, ['reliability.mainRed']);
@@ -166,8 +167,8 @@ describe('evidenceOf', () => {
   });
 
   it('is low under 80% measured, by the share itself and not its rounding', () => {
-    // Speed and flakes made; the default branch's red rate and both per-PR measures not: 79.9%.
-    const { measured, missing, empty } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN });
+    // Speed and flakes made; the default branch's red rate, vCPU-minutes, queue time and the job graph not: 79.7%.
+    const { measured, missing, empty } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: NaN, shardIdleTail: NaN, pathFlags: NaN, graphFlags: NaN });
     const { evidence } = evidenceOf({ ...whole, measured, missing, empty });
 
     assert.ok(measured < 0.8 && measured > 0.795, String(measured));
@@ -207,7 +208,7 @@ describe('evidenceOf', () => {
 });
 
 describe("scoreOf's measured share", () => {
-  const all = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN };
+  const all = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN, pathFlags: 0, graphFlags: NaN };
 
   it('is whole without shards, which only a repo that has them is measured on', () => {
     assert.deepEqual([scoreOf(all).measured, scoreOf(all).missing], [1, []]);
@@ -226,5 +227,94 @@ describe("scoreOf's measured share", () => {
 
     assert.equal(Math.round(measured * 100), 92);
     assert.deepEqual(missing, ['reliability.mainRed']);
+  });
+});
+
+describe("scoreOf's weights", () => {
+  const best = { p50: 2, p90: 4, linesOfCode: 40_000, passedOnRerunRate: 0, mainRedRate: 0, vcpuMinutesPerMergedPr: 10, runsPerMergedPr: 3, setupMinPerJob: 0.2, queueP90Sec: 5, shardIdleTail: NaN, pathFlags: 0, graphFlags: NaN };
+
+  it('weighs speed 60, reliability 20 and efficiency 20', () => {
+    const slow = scoreOf({ ...best, p50: 600, p90: 900 });
+    const flaky = scoreOf({ ...best, passedOnRerunRate: 0.5, mainRedRate: 0.9 });
+    const wasteful = scoreOf({ ...best, vcpuMinutesPerMergedPr: 1e6, runsPerMergedPr: 500, setupMinPerJob: 30, queueP90Sec: 3600, pathFlags: 3 });
+
+    assert.equal(scoreOf(best).score, 100);
+    assert.deepEqual([slow.parts.speed, slow.score], [0, 40]);
+    assert.deepEqual([flaky.parts.reliability, flaky.score], [0, 80]);
+    assert.deepEqual([wasteful.parts.efficiency, wasteful.score], [0, 80]);
+  });
+
+  it('takes a third off the job graph for each kind of flag, and counts it missing when unread', () => {
+    const path = (pathFlags: number) => scoreOf({ ...best, pathFlags }).detail.efficiency!.path;
+
+    assert.deepEqual([path(0), path(1), path(2), path(3)], [100, 67, 33, 0]);
+    assert.deepEqual(scoreOf({ ...best, pathFlags: NaN }).missing, ['efficiency.path']);
+  });
+
+  it('takes a quarter off the package and task graphs for each kind of flag, only for a repo that has them', () => {
+    const graphs = (graphFlags: number) => scoreOf({ ...best, graphFlags }).detail.efficiency!.graphs;
+
+    assert.deepEqual([graphs(0), graphs(1), graphs(2), graphs(4), graphs(7)], [100, 75, 50, 0, 0]);
+    assert.deepEqual([scoreOf(best).detail.efficiency!.graphs, scoreOf(best).missing, scoreOf(best).measured], [null, [], 1]);
+    assert.ok(scoreOf({ ...best, graphFlags: 2 }).score < 100);
+  });
+
+  it("is easier on a slow-building language's wait for its size, and harder on a quick one's", () => {
+    const forSize = (language?: string) => scoreOf({ ...best, p50: 12, language }).detail.speed!.forSize!;
+
+    assert.ok(forSize('C') > forSize() && forSize() > forSize('PHP'), `${forSize('C')}, ${forSize()}, ${forSize('PHP')}`);
+    assert.equal(forSize('Brainfuck'), forSize());
+    // A name every object has is no language's factor.
+    assert.equal(expectedWait(100_000, 'constructor'), expectedWait(100_000));
+    assert.equal(expectedWait(100_000, 'C'), expectedWait(100_000) * LANGUAGE_WAIT.C!);
+  });
+});
+
+describe('flagCounts', () => {
+  const section = (kinds: string[] = [], unknown: string[] = []) => ({ flags: kinds.map((kind) => ({ kind })), unknown });
+  type Section = ReturnType<typeof section>;
+  // runs: the sampled runs that fit today's workflows; undecided: entries unread, or that importers not seen could still flag.
+  const graphs = (o: { jobs?: Section | null; runs?: number; packages?: Section; exports?: Section; tasks?: Section; nodes?: number; undecided?: number; cached?: number; unknown?: string[] } = {}) => ({
+    jobs: o.jobs === null ? null : { ...(o.jobs ?? section()), count: { runs: o.runs ?? 3 } },
+    packages: { ...(o.packages ?? section()), count: { nodes: o.nodes ?? 5 } },
+    exports: { ...(o.exports ?? section()), count: { undecided: o.undecided ?? 0 } },
+    tasks: { ...(o.tasks ?? section()), count: { cached: o.cached ?? 0 } },
+    unknown: o.unknown ?? [],
+  });
+
+  it('counts kinds of flag, not flags', () => {
+    const found = flagCounts(graphs({ jobs: section(['top-blocker', 'setup-in-path']), exports: section(['root-barrel', 'root-barrel', 'overloaded-entry']), tasks: section(['no-inputs']) }));
+
+    assert.deepEqual(found, { pathFlags: 2, graphFlags: 3 });
+  });
+
+  it('is clean only where everything was read', () => {
+    assert.deepEqual(flagCounts(graphs()), { pathFlags: 0, graphFlags: 0 });
+    assert.deepEqual(flagCounts(graphs({ jobs: section([], ["a workflow file couldn't be read"]), undecided: 2 })), { pathFlags: NaN, graphFlags: NaN });
+    assert.deepEqual(flagCounts(graphs({ jobs: section(['hidden-wait'], ["a workflow file couldn't be read"]), exports: section(['root-barrel']), undecided: 2 })), { pathFlags: 1, graphFlags: 1 });
+    // No sampled run fits today's workflows: no flag could have been raised.
+    assert.ok(Number.isNaN(flagCounts(graphs({ runs: 0 })).pathFlags));
+    // The packages, the tasks, or the read as a whole partly unknown.
+    for (const partly of [{ packages: section([], ['a manifest was not read']) }, { tasks: section([], ['a task config was not read']) }, { unknown: ['Read the first 300 of 412 task config files'] }])
+      assert.ok(Number.isNaN(flagCounts(graphs(partly)).graphFlags), JSON.stringify(partly));
+  });
+
+  it("takes a note on the entries for unknown only when an entry is undecided", () => {
+    const bounded = section([], ['2 entries of 2 belong to packages with more than one entry']);
+
+    assert.equal(flagCounts(graphs({ exports: bounded })).graphFlags, 0);
+    assert.ok(Number.isNaN(flagCounts(graphs({ exports: bounded, undecided: 1 })).graphFlags));
+  });
+
+  it('ignores a kind of flag the score has no measure for', () => {
+    assert.deepEqual(flagCounts(graphs({ jobs: section(['a-new-kind']), tasks: section(['another-new-kind']) })), { pathFlags: 0, graphFlags: 0 });
+  });
+
+  it('has no job graph count without a job graph, and no other count for a repo with nothing to read', () => {
+    assert.ok(Number.isNaN(flagCounts(graphs({ jobs: null })).pathFlags));
+    assert.ok(Number.isNaN(flagCounts(graphs({ nodes: 1 })).graphFlags));
+    assert.equal(flagCounts(graphs({ nodes: 1, cached: 2 })).graphFlags, 0);
+    // A flag found counts even there: a single package's uncached scripts can still form a cycle.
+    assert.equal(flagCounts(graphs({ nodes: 1, tasks: section(['task-cycle']) })).graphFlags, 1);
   });
 });
