@@ -89,14 +89,26 @@ describe('--submit', () => {
     assert.doesNotMatch(r.stdout, /Sending/);
   });
 
-  it('submits an unscored report: its reason is the result', async () => {
+  it("refuses an unscored report after printing it, with the scorer's reason, and sends nothing", async () => {
     const r = await runCli(['--repo', REPO, '--submit', '--json'], { routes: { ...fakeRepo({ repo: REPO, heads: 3 }), ...dataRepo() } });
 
-    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.code, 2);
     assert.equal(JSON.parse(r.stdout).score, null, 'stdout holds only the JSON');
-    assert.match(r.stderr, new RegExp(`Opened ${PR}`));
-    const file = JSON.parse(Buffer.from(bodyOf(writes(r.calls)[1]!).content, 'base64').toString('utf8'));
-    assert.match(file.unscored, /^Only \d PR pushes/);
+    assert.match(r.stderr, /Not submitted: there's no score, so there's nothing to submit\. Only \d PR pushes in the window/);
+    assert.deepEqual(writes(r.calls), []);
+    assert.ok(!r.calls.some((c) => c.at(-1)!.includes('ci-doctor-db')), 'asks ci-doctor-db nothing');
+  });
+
+  it('files the report under the name as GitHub spells it', async () => {
+    const routes = { ...fakeRepo({ repo: REPO }), ...dataRepo() };
+    routes['repos/Pip/Garden'] = routes[`repos/${REPO}`]!;
+    const r = await runCli(['--repo', 'Pip/Garden', '--submit'], { routes });
+
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^pip\/garden: score/);
+    const put = r.calls.find((c) => callOf(c).startsWith('PUT '))!;
+    assert.equal(callOf(put), `PUT repos/pip/ci-doctor-db/contents/${path()}`);
+    assert.equal(JSON.parse(Buffer.from(bodyOf(put).content, 'base64').toString('utf8')).repo, REPO);
   });
 
   it('refuses a private repo before reading the rest, and points to --standing', async () => {
@@ -143,9 +155,18 @@ describe('smokeCheck', () => {
   };
   const check = (text: string, at = path()) => smokeCheck(text, { path: at });
 
-  it('passes a fresh report, scored or not', () => {
+  it('passes a fresh scored report, and fails an unscored one: there is nothing to submit', () => {
     assert.deepEqual(check(good), []);
-    assert.deepEqual(check(unscored), []);
+    assert.match(check(unscored).join(), /^It has no score, so there's nothing to submit\. The scorer said: `Only\d+PRpushes/);
+  });
+
+  it('1. holds only strings and keys that are safe to show, and not too long', () => {
+    for (const bad of ['two\nlines', 'a\ttab', 'right\u202eto left', 'an \u2066isolate', 'end </CI-Report> here', 'a ``` fence'])
+      assert.deepEqual(check(edit((r) => (r.fixes[0].text = bad))), ['`fixes.0.text` holds a string with a control character, a bidi override, a code fence or `</ci-report`.'], bad);
+    assert.deepEqual(check(edit((r) => (r.stack['bad\nkey'] = 1))), ['`stack` holds a key with a control character, a bidi override, a code fence or `</ci-report`.']);
+    assert.deepEqual(check(edit((r) => (r.notes[0].text = 'x'.repeat(401)))), ['`notes.0.text` holds a string of 401 characters; at most 400.']);
+    // A package cycle is named whole, so its fields may run longer.
+    assert.deepEqual(check(edit((r) => (r.graphs.packages.chain = ['p'.repeat(5000)]))), []);
   });
 
   it('1. takes JSON under the size limit, with the fields that are read, of their types', () => {
@@ -158,26 +179,38 @@ describe('smokeCheck', () => {
   });
 
   it('2. matches its path, and is from today or yesterday, UTC', () => {
-    assert.deepEqual(check(good, 'reports/mo__garden/2026-01-01.json'), [`The file is at reports/mo__garden/2026-01-01.json, but a report of ${REPO} for ${today()} goes at ${path()}.`]);
+    assert.deepEqual(check(good, 'reports/mo__garden/2026-01-01.json'), [`The file is at \`reports/mo__garden/2026-01-01.json\`, but a report of \`${REPO}\` for \`${today()}\` goes at \`${path()}\`.`]);
     const old = edit((r) => (r.date = '2026-01-01'));
-    assert.match(check(old, submissionPath(REPO, '2026-01-01')).join('\n'), /^The report is dated 2026-01-01; a submission is from today or yesterday/);
+    assert.match(check(old, submissionPath(REPO, '2026-01-01')).join('\n'), /^The report is dated `2026-01-01`; a submission is from today or yesterday/);
     const yesterday = new Date(Date.now() - 24 * 3600e3).toISOString().slice(0, 10);
     assert.deepEqual(check(edit((r) => (r.date = yesterday)), submissionPath(REPO, yesterday)), []);
   });
 
   it('3. comes from the current release', () => {
-    assert.deepEqual(smokeCheck(good, { path: path(), version: '9.0.0' }), [`It was made by ci-doctor ${VERSION}, and submissions come from the current release, 9.0.0. Update and run again: \`npx @ref0/ci-doctor@latest --submit\`.`]);
+    assert.deepEqual(smokeCheck(good, { path: path(), version: '9.0.0' }), [`It was made by ci-doctor \`${VERSION}\`, and submissions come from the current release, 9.0.0. Update and run again: \`npx @ref0/ci-doctor@latest --submit\`.`]);
     assert.match(check(edit((r) => delete r.scorerVersion)).join(), /doesn't say which scorer made it/);
     assert.match(smokeCheck(good, { path: path(), version: '0.0.1' }).join(), /newer than the 0\.0\.1 this check runs/);
+  });
+
+  it('4. keeps numbers in order, and links only into the guide', () => {
+    assert.deepEqual(check(edit((r) => (r.wait.p75 = r.wait.p90 + 1))), [`wait.p75 is ${JSON.parse(good).wait.p90 + 1}, more than wait.p90, ${JSON.parse(good).wait.p90}.`]);
+    assert.deepEqual(check(edit((r) => (r.wait.timed = r.wait.heads + 1))), [`wait.timed is ${JSON.parse(good).wait.heads + 1}, more than wait.heads, ${JSON.parse(good).wait.heads}.`]);
+    assert.deepEqual(check(edit((r) => (r.fixes[0].guide = 'https://example.com/docs/pages/x.md'))), ["fixes[0].guide isn't a link into ci-doctor's guide, https://github.com/ref-0/ci-doctor/blob/main/docs/pages/."]);
+  });
+
+  it('never repeats a string from the file but in a safe form', () => {
+    const lines = check(edit((r) => ((r.submitted.by = 'Mo <img src=x onerror=alert(1)> [click](https://evil.example)'), (r.scorerVersion = '9.9.9 `rm -rf` ' + 'y'.repeat(80)))));
+    for (const line of lines) assert.doesNotMatch(line, /[<>\[\]() ]img|onerror=|\(https|rm -rf/, line);
+    assert.ok(lines.some((l) => l.startsWith('submitted.by `Moimgsrcxonerroralert1clickhttps://evil.example` ')));
+    assert.ok(lines.some((l) => /`9\.9\.9rm-rfy{50}…`/.test(l)));
   });
 
   it('4. keeps numbers in range', () => {
     assert.deepEqual(check(edit((r) => (r.score = 120))), ['score is 120; scores run 0 to 100.']);
     assert.deepEqual(check(edit((r) => (r.wait.redRate = 1.5))), ['wait.redRate is 1.5; a share runs 0 to 1.']);
     assert.deepEqual(check(edit((r) => (r.wait.p50 = -1))), ["wait.p50 is -1; it can't be negative."]);
-    assert.deepEqual(check(good.replace(/"p75": [\d.]+/, '"p75": 1e999')), ["wait.p75 isn't a finite number."]);
+    assert.deepEqual(check(good.replace(/"p75": [\d.]+/, '"p75": 1e999')), ["`wait.p75` isn't a finite number."]);
     assert.deepEqual(check(edit((r) => (r.wait.timed = 3))), ["It's scored on 3 timed PR pushes; a score needs 5."]);
-    assert.deepEqual(check(edit((r) => delete r.unscored, unscored)), ["It has no score and doesn't say why: an unscored report gives its reason in unscored."]);
   });
 
   it('5. holds the score, grade and parts its own measures give', () => {
@@ -185,8 +218,16 @@ describe('smokeCheck', () => {
     assert.deepEqual(check(edit((x) => ((x.score = 97), (x.grade = grade(97)), (x.band = band(97))))), [`score is 97, but its own measures give ${r.score}.`]);
     assert.deepEqual(check(edit((x) => (x.parts.speed = 99))), [`parts.speed is 99, but its own measures give ${r.parts.speed}.`]);
     assert.deepEqual(check(edit((x) => (x.score += 1))), [], 'a point either way is rounding');
-    assert.deepEqual(check(edit((x) => (x.grade = 'A+'))), [`grade is A+, but a score of ${r.score} is ${r.grade}.`]);
+    assert.deepEqual(check(edit((x) => (x.grade = 'A+'))), [`grade is \`A+\`, but a score of ${r.score} is ${r.grade}.`]);
+    assert.deepEqual(check(edit((x) => (x.detail.speed.wait = 0))), [`detail.speed.wait is 0, but its own measures give ${r.detail.speed.wait}.`]);
+    assert.deepEqual(check(edit((x) => (x.size = 'large'))), [`size is \`large\`, but ${r.headsPerWeek} PR pushes a week and ${r.profile.linesOfCode} lines are ${r.size}.`]);
+    // Nulling the measures that hurt and keeping the score: the part is empty, which the scorer never scores.
+    const nulled = check(edit((x) => ((x.wait.p50 = null), (x.wait.p90 = null), (x.detail.speed = { wait: null, forSize: null, tail: null }))));
+    assert.ok(nulled.includes("None of its speed part's measures are there, and the scorer gives no score without them."), nulled.join('\n'));
+    // A measure missing that drops the measured weight under the scorer's bar for low confidence, with confidence kept high.
+    const thin = check(edit((x) => ((x.jobs.setupMinPerJob = null), (x.jobs.queueP90Sec = null), (x.profile.runsPerMergedPr = null), (x.efficiency.vcpuMinutesPerMergedPr = null), (x.main.redRate = null), (x.wait.passedOnRerunRate = null))));
+    assert.ok(thin.some((l) => /^Only \d+% of the score's weight was measured, which the scorer calls low confidence, but evidence\.confidence is `(high|medium)`\.$/.test(l)), thin.join('\n'));
     // Faster waits than measured give a different score.
-    assert.match(check(edit((x) => ((x.wait.p50 = 1), (x.wait.p90 = 1)))).join(), /^score is \d+, but its own measures give \d+\./);
+    assert.match(check(edit((x) => ((x.wait.p50 = 1), (x.wait.p75 = 1), (x.wait.p90 = 1)))).join(), /^score is \d+, but its own measures give \d+\./);
   });
 });

@@ -1,8 +1,9 @@
 // The checks a submitted report must pass before ci-doctor-db takes it. `--submit` runs them before sending, and the
 // data repo's workflow runs the same function on the file a pull request adds. They catch nonsense and hand-edited
 // scores, and nothing more: they read no API, and they don't measure the repo again.
+import { MEASURED_LOW } from './evidence.ts';
 import { isRepoName } from './repo.ts';
-import { band, grade, MIN_TIMED, scoreOf, type Inputs } from './score.ts';
+import { band, grade, GUIDE, MIN_TIMED, scoreOf, sizeClass, type Inputs } from './score.ts';
 import { VERSION } from './version.ts';
 
 /** A submitted file's size limit, in bytes: GitHub's contents API gives a file's content inline up to 1 MB. Stored reports run 10 to 210 KB. */
@@ -75,7 +76,17 @@ const FIELDS: [string, string][] = [
   ['fixes', 'array'],
   ['notes', 'array'],
   ['apiCalls', 'number'],
+  ['evidence', 'object'],
+  ['evidence.confidence', 'string|null'],
 ];
+
+/** The longest string or key a report holds, in characters. Stored reports' longest outside the fields below is about 300. */
+export const MAX_STRING = 400;
+// A package cycle is named whole, one package after another: 4,920 characters on the biggest real one.
+const LONG_STRINGS: Record<string, number> = { 'fixes[].text': 8000, 'graphs.packages.flags[].subject': 8000, 'graphs.packages.chain[]': 8000 };
+// Control characters (newline and tab too), bidi overrides and isolates, the report block's closing tag and a code fence:
+// each could change what a page or an agent's prompt shows around the text.
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]|<\/ci-report|```/i;
 
 // Shares, 0 to 1, and waits, minutes and counts, never negative. A field left out or null isn't checked.
 const RATES = ['wait.redRate', 'wait.passedOnRerunRate', 'wait.rerunRate', 'wait.cancelledRate', 'main.redRate', 'botRunShare', 'jobs.setupShare', 'efficiency.sizedShare'];
@@ -96,10 +107,31 @@ const newer = (a: string, b: string) => {
   return false;
 };
 
-/** Every number anywhere in the report that isn't finite, by path. JSON can't hold NaN, but `1e999` parses to Infinity. */
-const nonFinite = (x: unknown, path: string, out: string[]) => {
-  if (typeof x === 'number' && !Number.isFinite(x)) out.push(path);
-  else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) nonFinite(v, path ? `${path}.${k}` : k, out);
+/**
+ * A value from the file, safe to print in a problem line, which the data repo's check posts as a comment: only
+ * `[\w./:@+-]`, at most 60 characters, in backticks. Numbers and booleans print as they are.
+ */
+export const shown = (x: unknown) => {
+  if (typeof x === 'number' || typeof x === 'boolean' || x === null || x === undefined) return String(x);
+  const s = String(typeof x === 'object' ? JSON.stringify(x) : x).replace(/[^\w./:@+-]/g, '');
+  return `\`${s.length > 60 ? `${s.slice(0, 60)}…` : s}\``;
+};
+
+/** One walk over the report: each number that isn't finite (`1e999` parses to Infinity), and each string or key that's unsafe or too long. */
+const walk = (x: unknown, path: string, out: { nonFinite: string[]; strings: string[] }) => {
+  const field = path.replace(/\.\d+(?=\.|$)/g, '[]');
+  const look = (s: string, where: string, what: string) => {
+    if (UNSAFE.test(s)) out.strings.push(`${where} holds ${what} with a control character, a bidi override, a code fence or \`</ci-report\`.`);
+    const cap = LONG_STRINGS[field] ?? MAX_STRING;
+    if (s.length > cap) out.strings.push(`${where} holds ${what} of ${s.length} characters; at most ${cap}.`);
+  };
+  if (typeof x === 'number' && !Number.isFinite(x)) out.nonFinite.push(path);
+  else if (typeof x === 'string') look(x, shown(path), 'a string');
+  else if (x && typeof x === 'object')
+    for (const [k, v] of Object.entries(x)) {
+      look(k, path ? shown(path) : 'The report', 'a key');
+      walk(v, path ? `${path}.${k}` : k, out);
+    }
   return out;
 };
 
@@ -114,10 +146,10 @@ export interface SmokeOptions {
 
 /**
  * What's wrong with a submitted report file, in plain words; empty when it passes. `text` is the file as it would be
- * stored. It reads no API.
+ * stored. It reads no API, and a line never repeats a string from the file but through `shown`.
  */
 export const smokeCheck = (text: string, { path, now = Date.now(), version: release = VERSION }: SmokeOptions = {}): string[] => {
-  // 1. It parses, fits, and has the fields that are read, with their types.
+  // 1. It parses, fits, has the fields that are read, of their types, and holds only strings that are safe to show.
   const bytes = Buffer.byteLength(text);
   if (bytes > SUBMISSION_MAX_BYTES) return [`The file is ${Math.ceil(bytes / 1000)} KB; a report is at most ${SUBMISSION_MAX_BYTES / 1000} KB.`];
   let r: any;
@@ -130,44 +162,60 @@ export const smokeCheck = (text: string, { path, now = Date.now(), version: rele
   const wrong = FIELDS.filter(([field, types]) => !types.split('|').includes(kind(at(r, field))));
   if (wrong.length)
     return wrong.map(([field, types]) => `${field} is ${kind(at(r, field)) === 'undefined' ? 'missing' : `a ${kind(at(r, field))}`}; it should be ${types.replace(/\|undefined$/, '').replaceAll('|', ' or ')}.`);
+  const found = walk(r, '', { nonFinite: [], strings: [] });
+  if (found.strings.length) return found.strings;
+  // A report with no score adds nothing to compare, and its reason is free text: there's nothing to submit.
+  if (r.score === null) return [`It has no score, so there's nothing to submit. The scorer said: ${shown(r.unscored)}`];
 
   const problems: string[] = [];
 
   // 2. The repo and date match where it's filed, and the date is today's or yesterday's.
-  if (!isRepoName(r.repo)) problems.push(`repo "${r.repo}" isn't owner/name.`);
-  else if (path !== undefined && path !== submissionPath(r.repo, r.date)) problems.push(`The file is at ${path}, but a report of ${r.repo} for ${r.date} goes at ${submissionPath(r.repo, r.date)}.`);
+  if (!isRepoName(r.repo)) problems.push(`repo ${shown(r.repo)} isn't owner/name.`);
+  else if (path !== undefined && path !== submissionPath(r.repo, r.date)) problems.push(`The file is at ${shown(path)}, but a report of ${shown(r.repo)} for ${shown(r.date)} goes at ${shown(submissionPath(r.repo, r.date))}.`);
   const today = new Date(now).toISOString().slice(0, 10);
   const yesterday = new Date(now - DAY).toISOString().slice(0, 10);
-  if (r.date !== today && r.date !== yesterday) problems.push(`The report is dated ${r.date}; a submission is from today or yesterday (${today} or ${yesterday}, UTC). Score the repo again.`);
-  if (!/^[\w-]+$/.test(r.submitted.by)) problems.push(`submitted.by "${r.submitted.by}" isn't a GitHub login.`);
-  if (!Number.isFinite(Date.parse(r.submitted.at))) problems.push(`submitted.at "${r.submitted.at}" isn't a time.`);
+  if (r.date !== today && r.date !== yesterday) problems.push(`The report is dated ${shown(r.date)}; a submission is from today or yesterday (${today} or ${yesterday}, UTC). Score the repo again.`);
+  if (!/^[\w-]+$/.test(r.submitted.by)) problems.push(`submitted.by ${shown(r.submitted.by)} isn't a GitHub login.`);
+  if (!Number.isFinite(Date.parse(r.submitted.at))) problems.push(`submitted.at ${shown(r.submitted.at)} isn't a time.`);
 
   // 3. The current release made it.
   if (typeof r.scorerVersion !== 'string') problems.push(`It doesn't say which scorer made it, so an older one did. Update and run again: \`npx @ref0/ci-doctor@latest --submit\`.`);
-  else if (newer(r.scorerVersion, release)) problems.push(`It was made by ci-doctor ${r.scorerVersion}, newer than the ${release} this check runs. The check needs updating first, so it's left for a maintainer.`);
-  else if (r.scorerVersion !== release) problems.push(`It was made by ci-doctor ${r.scorerVersion}, and submissions come from the current release, ${release}. Update and run again: \`npx @ref0/ci-doctor@latest --submit\`.`);
+  else if (newer(r.scorerVersion, release)) problems.push(`It was made by ci-doctor ${shown(r.scorerVersion)}, newer than the ${release} this check runs. The check needs updating first, so it's left for a maintainer.`);
+  else if (r.scorerVersion !== release) problems.push(`It was made by ci-doctor ${shown(r.scorerVersion)}, and submissions come from the current release, ${release}. Update and run again: \`npx @ref0/ci-doctor@latest --submit\`.`);
 
-  // 4. Numbers in range.
-  for (const field of nonFinite(r, '', [])) problems.push(`${field} isn't a finite number.`);
-  const scored = r.score !== null;
+  // 4. Numbers in range and in order, and links only into the guide.
+  for (const field of found.nonFinite) problems.push(`${shown(field)} isn't a finite number.`);
   const scores = [['score', r.score], ...PARTS.map((p) => [`parts.${p}`, r.parts[p]])] as [string, unknown][];
   for (const [field, s] of scores) if (typeof s === 'number' && (s < 0 || s > 100)) problems.push(`${field} is ${s}; scores run 0 to 100.`);
   for (const field of RATES) if (typeof at(r, field) === 'number' && (at(r, field) < 0 || at(r, field) > 1)) problems.push(`${field} is ${at(r, field)}; a share runs 0 to 1.`);
   for (const field of NOT_NEGATIVE) if (typeof at(r, field) === 'number' && at(r, field) < 0) problems.push(`${field} is ${at(r, field)}; it can't be negative.`);
-  if (scored && r.wait.timed < MIN_TIMED) problems.push(`It's scored on ${r.wait.timed} timed PR pushes; a score needs ${MIN_TIMED}.`);
-  if (!scored && typeof r.unscored !== 'string') problems.push("It has no score and doesn't say why: an unscored report gives its reason in unscored.");
+  for (const [a, b] of [['wait.p50', 'wait.p75'], ['wait.p75', 'wait.p90'], ['main.p50', 'main.p90'], ['wait.timed', 'wait.heads']] as const)
+    if (Number.isFinite(at(r, a)) && Number.isFinite(at(r, b)) && at(r, a) > at(r, b)) problems.push(`${a} is ${at(r, a)}, more than ${b}, ${at(r, b)}.`);
+  if (r.wait.timed < MIN_TIMED) problems.push(`It's scored on ${r.wait.timed} timed PR pushes; a score needs ${MIN_TIMED}.`);
+  for (const list of ['fixes', 'notes'] as const)
+    r[list].forEach((x: any, i: number) => {
+      if (typeof x?.guide !== 'string' || !x.guide.startsWith(GUIDE)) problems.push(`${list}[${i}].guide isn't a link into ci-doctor's guide, ${GUIDE}.`);
+    });
   if (problems.length) return problems;
 
-  // 5. The score, grade and parts are what its own measures give, within a point for rounding.
-  if (!scored) {
-    if (r.grade !== null || r.band !== null) problems.push('It has no score, but has a grade or band.');
-    return problems;
-  }
+  // 5. The score, grade, parts, detail and size are what its own measures give, within a point for rounding, and the
+  // measures are enough to score on, by the rules `measure` applies.
   const again = scoreOf(inputsOf(r));
-  const near = (want: number | undefined, got: unknown) => typeof got === 'number' && Number.isFinite(want) && Math.abs(want! - got) <= 1;
-  if (!near(again.score, r.score)) problems.push(`score is ${r.score}, but its own measures give ${again.score}.`);
-  for (const p of PARTS) if (!near(again.parts[p], r.parts[p])) problems.push(`parts.${p} is ${r.parts[p] ?? 'missing'}, but its own measures give ${again.parts[p]}.`);
-  if (r.grade !== grade(r.score)) problems.push(`grade is ${r.grade}, but a score of ${r.score} is ${grade(r.score)}.`);
-  if (r.band !== band(r.score)) problems.push(`band is ${r.band}, but a score of ${r.score} is ${band(r.score)}.`);
+  const gives = (x: number | null | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x : 'none');
+  const near = (want: number | null | undefined, got: unknown) => typeof got === 'number' && typeof want === 'number' && Number.isFinite(want) && Math.abs(want - got) <= 1;
+  if (!near(again.score, r.score)) problems.push(`score is ${shown(r.score)}, but its own measures give ${gives(again.score)}.`);
+  for (const p of PARTS) if (!near(again.parts[p], r.parts[p])) problems.push(`parts.${p} is ${shown(r.parts[p])}, but its own measures give ${gives(again.parts[p])}.`);
+  for (const [part, measures] of Object.entries(again.detail))
+    for (const [m, want] of Object.entries(measures)) {
+      const got = r.detail[part]?.[m];
+      if (!(want === null ? got === null : near(want, got))) problems.push(`detail.${part}.${m} is ${shown(got)}, but its own measures give ${gives(want)}.`);
+    }
+  if (r.grade !== grade(r.score)) problems.push(`grade is ${shown(r.grade)}, but a score of ${r.score} is ${grade(r.score)}.`);
+  if (r.band !== band(r.score)) problems.push(`band is ${shown(r.band)}, but a score of ${r.score} is ${band(r.score)}.`);
+  // headsPerWeek is rounded, and the size was taken before it was.
+  const sizes = [sizeClass(r.headsPerWeek - 0.5, r.profile.linesOfCode), sizeClass(r.headsPerWeek + 0.5, r.profile.linesOfCode)];
+  if (!sizes.includes(r.size)) problems.push(`size is ${shown(r.size)}, but ${r.headsPerWeek} PR pushes a week and ${r.profile.linesOfCode} lines are ${sizes[0]}.`);
+  for (const part of again.empty) problems.push(`None of its ${part} part's measures are there, and the scorer gives no score without them.`);
+  if (again.measured < MEASURED_LOW && r.evidence.confidence !== 'low') problems.push(`Only ${Math.round(again.measured * 100)}% of the score's weight was measured, which the scorer calls low confidence, but evidence.confidence is ${shown(r.evidence.confidence)}.`);
   return problems;
 };
