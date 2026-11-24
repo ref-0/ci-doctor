@@ -8,7 +8,16 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
-## Unreleased
+## v0.4.0
+
+Released 24 November 2026. The scorer gives no score on thin evidence and says how sure a score is, weighs minutes by the runner's vCPUs and setup in minutes a job, counts the graphs' findings, fits the wait to the main language, and `--submit` adds a public repo's report to ci-doctor-db. Pull requests go to `main`.
+
+### Do first
+
+1. **Take a new baseline for your score.** The score's measures changed, so a score from 0.4.0 doesn't compare with one from 0.3.0, and a repo whose pull requests wait on another CI may now be unscored, with the reason. If you track the score over time, start again from a 0.4.0 run.
+2. **`scoreOf`'s inputs:** if you call it yourself, pass `vcpuMinutesPerMergedPr` and `setupMinPerJob` in place of `minutesPerMergedPr` and `setupShare`, and `pathFlags` and `graphFlags` from `flagCounts` (below, under the scorer).
+3. **The `next` branch is gone.** If a clone, pin or pull request of yours names `next`, point it at `main`, or at a tag.
+4. **Your skill copies:** every skill names 0.4.0 in its `metadata.version` and links this repo at `v0.4.0`. If you keep copies of the skills, copy them again.
 
 ### The scorer, `@ref0/ci-doctor`
 

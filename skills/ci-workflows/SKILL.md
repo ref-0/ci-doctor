@@ -2,7 +2,7 @@
 name: ci-workflows
 description: "Edits CI workflows, such as GitHub Actions YAML, without making them slower, costlier or less reliable. Use when asked to add or change a job, split CI into tiers, add a scheduled run, or make a slow job faster. Not for caching (cache-ci); which checks a change runs (optimize-graphs); runners and the bill (ci-runners)."
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 <!--
@@ -17,7 +17,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 A workflow change is easy to make and hard to see the cost of: a new job pays its setup on every run, a wait between jobs lengthens every run, and a step that can't fail hides what it stopped doing. This skill is for changing the workflow and keeping it fast, on whichever CI the repo runs: the checks for a change, the tiers, slow runs and jobs, Rust in CI, and [`ci-time.ts`](scripts/ci-time.ts), which prints where a run's time and minutes went. [Guide sections 3 to 7](https://ci-doctor.ref0.dev/guide/docs/pages/03-workflow-anatomy.md) explain the design.
 
-The rules hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/SKILL.md); if you run on Blacksmith, [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/blacksmith/SKILL.md) has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
+The rules hold on any provider. Where a rule turns on how runners are sized or billed, read [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/SKILL.md); if you run on Blacksmith, [`blacksmith`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/SKILL.md) has the CLI, labels, disks and bill. The [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md) assume GitHub Actions; on another CI the rules still apply, and the workflows need translating.
 
 ## Start here
 
@@ -36,11 +36,11 @@ A pull request that changes a workflow runs its own version, so its run is the t
 
 ## Measuring a run
 
-[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/references/ci-history-data.md) says.
+[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/ci-history-data.md) says.
 
-It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label. With `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [Blacksmith's adapter](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/blacksmith/scripts/blacksmith-bill.ts), found beside this skill or passed with `--adapter-dir`. Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/agent-knowledge/templates/repo-facts/ci-time.json)). Its tests run with this skill installed alone: `node --test ci-time.test.ts`, from `scripts/`.
+It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label. With `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [Blacksmith's adapter](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/scripts/blacksmith-bill.ts), found beside this skill or passed with `--adapter-dir`. Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/ci-time.json)). Its tests run with this skill installed alone: `node --test ci-time.test.ts`, from `scripts/`.
 
-Where CI's records are and how to read them is `speed-up-tests`' [measuring](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/references/measuring.md). Judging what a number means is the [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/prove-it/SKILL.md) skill.
+Where CI's records are and how to read them is `speed-up-tests`' [measuring](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/measuring.md). Judging what a number means is the [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/prove-it/SKILL.md) skill.
 
 ## Where each value lives
 
@@ -50,10 +50,10 @@ Read a value from its file; don't copy it here or into a plan. ci.md's Runners, 
 
 Each of these is a choice a change could undo. Keep it, or measure first.
 
-- A slow run or a long test file: read [slow runs](references/performance.md). How many shards, how they split by measured time, and a runner's size: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/shards.md), which owns the shard scripts.
-- What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
-- Moving a test off pull requests, choosing how often the sweep runs, or adding a scheduled run: read [the tiers](references/tiers.md). [`sweep-cadence.ts`](scripts/sweep-cadence.ts) prices sweep schedules, each a cron, from the repo's merges and a sweep's cost; the user chooses. To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/SKILL.md).
-- Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).
+- A slow run or a long test file: read [slow runs](references/performance.md). How many shards, how they split by measured time, and a runner's size: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/references/shards.md), which owns the shard scripts.
+- What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
+- Moving a test off pull requests, choosing how often the sweep runs, or adding a scheduled run: read [the tiers](references/tiers.md). [`sweep-cadence.ts`](scripts/sweep-cadence.ts) prices sweep schedules, each a cron, from the repo's merges and a sweep's cost; the user chooses. To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/SKILL.md).
+- Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).
 - Draft, push, sweep, pack and proof behaviour: read the headers and job dependencies of the workflows ci.md names.
 
 ## Tests against real containers
@@ -65,18 +65,18 @@ Tests that run the repo's code against real containers are the slowest, and thei
 `ci-time.ts`, `sweep-cadence.ts` and their tests are in this skill's `scripts/`, and run on Node 24 with nothing installed, logged in to `gh`: `node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`. With `--bill blacksmith`, it looks for `blacksmith-bill.ts` among the installed skills; a skills-only install of this folder doesn't carry it, so clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point `--adapter-dir` at the adapter's folder:
 
 ```sh
-git clone --depth 1 --branch v0.3.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 node <skills-dir>/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <ci-doctor>/skills/blacksmith/scripts
 ```
 
 ## Not here
 
-- Caches, their keys and who writes them, and setup that takes too long: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/cache-ci/SKILL.md).
-- Which checks a change selects, and how far an edit reaches through packages, `exports`, task inputs and the job graph: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/optimize-graphs/SKILL.md).
-- Runner size, packing against billing, the spend cap and choosing a provider, and Blacksmith: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/SKILL.md) hub. Why a PR's check failed is its triage too, and the whole CI plan its phases.
-- A slow test: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/SKILL.md). A flaky one: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/fix-flaky-test/SKILL.md). Model checks and property tests in CI: [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/proof-tiers/SKILL.md).
-- Reading a PR's result, running CI by hand and merging: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-merge-workflow/SKILL.md).
-- The repo's tried-and-dropped register, which ci.md names ([the check](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md)), and [guide section 18](https://ci-doctor.ref0.dev/guide/docs/pages/18-tried-and-dropped.md): what each earlier change measured.
+- Caches, their keys and who writes them, and setup that takes too long: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/cache-ci/SKILL.md).
+- Which checks a change selects, and how far an edit reaches through packages, `exports`, task inputs and the job graph: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md).
+- Runner size, packing against billing, the spend cap and choosing a provider, and Blacksmith: the [`ci-doctor`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/SKILL.md) hub. Why a PR's check failed is its triage too, and the whole CI plan its phases.
+- A slow test: [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/SKILL.md). A flaky one: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/fix-flaky-test/SKILL.md). Model checks and property tests in CI: [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/proof-tiers/SKILL.md).
+- Reading a PR's result, running CI by hand and merging: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-merge-workflow/SKILL.md).
+- The repo's tried-and-dropped register, which ci.md names ([the check](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md)), and [guide section 18](https://ci-doctor.ref0.dev/guide/docs/pages/18-tried-and-dropped.md): what each earlier change measured.
 
 ## Outside this skill
 
