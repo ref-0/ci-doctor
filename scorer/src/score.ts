@@ -8,6 +8,7 @@ import { evidenceOf, outsideConfigs, outsideOn } from './evidence.ts';
 import { ApiCache, Gh } from './gh.ts';
 import { graphsFixes, graphsOf } from './graphs.ts';
 import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts';
+import { vcpusOf } from './runners.ts';
 import { githubSource, localSource, remembered, type Source, type Tree } from './source.ts';
 import { ecosystemOf, stackOf } from './stack.ts';
 
@@ -313,13 +314,16 @@ const jobStats = (jobs: Job[]) => {
 
   let setup = 0;
   let work = 0;
-  for (const j of jobs)
-    for (const s of j.steps ?? []) {
-      if (!s.started_at || !s.completed_at) continue;
-      const t = seconds(s.started_at, s.completed_at);
+  let stepped = 0;
+  for (const j of jobs) {
+    const timed = (j.steps ?? []).filter((s) => s.started_at && s.completed_at);
+    if (timed.length) stepped++;
+    for (const s of timed) {
+      const t = seconds(s.started_at!, s.completed_at!);
       if (SETUP_STEP.test(s.name)) setup += t;
       else work += t;
     }
+  }
 
   // Shard groups: jobs whose names differ only by a shard index.
   const shardGroups = [...groupBy(jobs.filter((j) => SHARD.test(j.name)), (j) => j.name.replace(SHARD, '#'))]
@@ -346,6 +350,8 @@ const jobStats = (jobs: Job[]) => {
     subMinuteJobs: jobs.filter((j) => dur(j) < 1).length,
     queueSec: jobs.map((j) => seconds(j.created_at, j.started_at!)),
     setupShare: share(setup, setup + work),
+    // What a job spends before its own work, whatever that work takes: a share would call a fast job wasteful.
+    setupMinPerJob: share(setup / 60, stepped),
     critical: { name: critical.name, id: critical.id, minutes: dur(critical), shareOfSpan: dur(critical) / span },
     longest: { name: longest.name, id: longest.id, minutes: dur(longest) },
     providers: jobs.map((j) => provider(j.labels)),
@@ -642,19 +648,28 @@ export const sizeClass = (headsPerWeek: number, linesOfCode: number) => {
   return names[Math.max(byTraffic, byCode)]!;
 };
 
+/** A GitHub-hosted Linux runner's vCPUs on a public repo: what a runner of unknown size counts as. */
+export const STANDARD_VCPUS = 4;
+
 /**
  * PR CI job minutes in the window, across every workflow file: 3 sampled runs each, scaled by run count.
  * A workflow whose sampled runs ran no job has no minutes to stand for it, and with none measured the
- * minutes are unknown, not zero.
+ * minutes are unknown, not zero. The vCPU-minutes are each job's minutes times its runner's vCPUs, so a
+ * job that finishes in a quarter of the time on a runner four times the size has used the same.
  */
-const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
+const ciMinutes = (gh: Gh, repo: string, prRuns: Run[], isPrivate: boolean) => {
   const ran = prRuns.filter((r) => DONE.has(r.conclusion ?? '') || r.conclusion === 'cancelled');
   const byWorkflow = [...groupBy(ran, workflowOf)].sort((x, y) => y[1].length - x[1].length);
   const perRun: number[] = [];
   const billedPerRun: number[] = [];
+  const vcpuPerRun: number[] = [];
   let minutes = 0;
   let billed = 0;
+  let vcpu = 0;
+  let sampledMinutes = 0;
+  let sizedMinutes = 0;
   let sampledRuns = 0;
+  const sum = (js: Job[]) => js.reduce((acc, j) => acc + minutes_(j.started_at!, j.completed_at!), 0);
   const totals = new Map<string, number>();
   const names = new Map<string, string>();
   for (const [, rs] of byWorkflow.slice(0, 12)) {
@@ -672,19 +687,27 @@ const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
     const dur = (j: Job) => minutes_(j.started_at!, j.completed_at!);
     const m = median(jobs.map((js) => js.reduce((acc, j) => acc + dur(j), 0)));
     const bm = median(jobs.map((js) => js.reduce((acc, j) => acc + Math.max(1, Math.ceil(dur(j))), 0)));
+    const vm = median(jobs.map((js) => js.reduce((acc, j) => acc + dur(j) * (vcpusOf(j.labels, isPrivate) ?? STANDARD_VCPUS), 0)));
     // A cancelled run usually stopped partway: count it as half.
     const weight = rs.filter((r) => r.conclusion !== 'cancelled').length + rs.filter((r) => r.conclusion === 'cancelled').length / 2;
+    // How much of this workflow's minutes ran on runners of a known size, counted as the minutes are: by its runs.
+    const sized = share(sum(jobs.flat().filter((j) => vcpusOf(j.labels, isPrivate) !== null)), sum(jobs.flat()));
+    sampledMinutes += m * weight;
+    sizedMinutes += (Number.isFinite(sized) ? sized : 0) * m * weight;
     minutes += m * weight;
     totals.set(workflowOf(rs[0]!), m * weight);
     names.set(workflowOf(rs[0]!), rs[0]!.name);
     billed += bm * weight;
+    vcpu += vm * weight;
     perRun.push(m);
     billedPerRun.push(bm);
+    vcpuPerRun.push(vm);
   }
   // Workflows past the top 12: at the sampled median.
   const rest = ran.length - sampledRuns;
   minutes += rest * (median(perRun) || 0);
   billed += rest * (median(billedPerRun) || 0);
+  vcpu += rest * (median(vcpuPerRun) || 0);
   // The workflows that do the real work: the fewest that make up 80% of PR job-minutes.
   const heavy = new Set<string>();
   let covered = 0;
@@ -697,6 +720,9 @@ const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
   return {
     jobMinutes: measured ? minutes : NaN,
     billedMinutes: measured ? billed : NaN,
+    vcpuMinutes: measured ? vcpu : NaN,
+    /** The share of the sampled workflows' job minutes, each counted by its runs, whose runner's size is known; the rest count as standard runners. */
+    sizedShare: share(sizedMinutes, sampledMinutes),
     workflows: byWorkflow.length,
     heavy,
     heavyNames: [...new Set([...heavy].map((workflow) => names.get(workflow) ?? workflow))],
@@ -708,6 +734,8 @@ const minutes_ = (a: string, b: string) => minutes(a, b);
 // over 219 scored repos on 19 Nov (calibration.md). The fits are loose (r² 0.12 each): a fairness adjustment, not a prediction.
 export const expectedWait = (linesOfCode: number) => Math.max(2, 10.9 * (Math.max(linesOfCode, 1) / 100_000) ** 0.23);
 export const expectedMinutesPerMergedPr = (linesOfCode: number) => Math.max(10, 155 * (Math.max(linesOfCode, 1) / 100_000) ** 0.33);
+/** The same curve in vCPU-minutes: it was fitted on job minutes of repos that mostly ran standard runners. */
+export const expectedVcpuMinutesPerMergedPr = (linesOfCode: number) => STANDARD_VCPUS * expectedMinutesPerMergedPr(linesOfCode);
 
 export interface Inputs {
   p50: number;
@@ -715,9 +743,11 @@ export interface Inputs {
   linesOfCode: number;
   passedOnRerunRate: number;
   mainRedRate: number;
-  minutesPerMergedPr: number;
+  /** Each job's minutes times its runner's vCPUs, summed, for each merged PR. */
+  vcpuMinutesPerMergedPr: number;
   runsPerMergedPr: number;
-  setupShare: number;
+  /** Minutes a job spends on setup steps, the mean across a run's jobs. */
+  setupMinPerJob: number;
   queueP90Sec: number;
   shardIdleTail: number;
 }
@@ -748,9 +778,10 @@ export const scoreOf = (o: Inputs) => {
     efficiency: {
       w: 20,
       of: {
-        minutesPerPr: { w: 6, s: logScore(o.minutesPerMergedPr / expectedMinutesPerMergedPr(o.linesOfCode), 0.5, 4) },
+        minutesPerPr: { w: 6, s: logScore(o.vcpuMinutesPerMergedPr / expectedVcpuMinutesPerMergedPr(o.linesOfCode), 0.5, 4) },
         runsPerPr: { w: 4, s: logScore(o.runsPerMergedPr, 5, 60) },
-        setup: { w: 4, s: linScore(o.setupShare, 0.2, 0.7) },
+        // 30 seconds a job is full marks, 4 minutes is zero.
+        setup: { w: 4, s: logScore(o.setupMinPerJob, 0.5, 4) },
         queue: { w: 3, s: logScore(Math.max(o.queueP90Sec, 1), 10, 300) },
         // Only a repo with shards has this one: without them it isn't a measure that's missing.
         shardIdle: { w: 3, s: linScore(o.shardIdleTail, 0.1, 0.4), optional: true },
@@ -786,6 +817,9 @@ const stackNote = (language: string | undefined) =>
     ? [{ text: `ci-doctor's guides are strongest for TypeScript and Rust. For ${language} it applies the principles, without a ${language}-specific page`, guide: GUIDE + '01-principles.md' }]
     : [];
 
+/** Setup under this share of job time is no fix, however many minutes it is. */
+export const SETUP_SLIVER = 0.05;
+
 // A fix for a missing practice shows only when the practice is known to be absent (false), never when unknown (null).
 export const fixesOf = (o: any, pr: Practices) => {
   const fixes: { text: string; page: string; weight: number }[] = [];
@@ -795,7 +829,8 @@ export const fixesOf = (o: any, pr: Practices) => {
 
   add(slow && pr.affected === false && pr.pathFilters === false, 9, 'Run only what a change can reach: no path filters or affected-only selection on PR workflows', '04-run-only-what-a-change-can-reach.md');
   add(slow && pr.remoteCache === false && typeof pr.taskRunner === 'string', 8, () => `Share a remote cache for ${pr.taskRunner}: it has none in CI`, '06-reuse-work-by-its-real-inputs.md');
-  add(o.jobs?.setupShare > 0.35 && o.jobs.spanMin > 4, 7, () => `Setup is ${Math.round(o.jobs.setupShare * 100)}% of job time: cache dependencies and build once`, '06-reuse-work-by-its-real-inputs.md');
+  // Over a minute a job, unless that's a sliver of a long job: a 4-hour job's minute of setup isn't its problem.
+  add(o.jobs?.setupMinPerJob > 1 && !(o.jobs.setupShare < SETUP_SLIVER), 7, () => `Each job spends ${o.jobs.setupMinPerJob.toFixed(1)} minutes on setup: cache dependencies and build once`, '06-reuse-work-by-its-real-inputs.md');
   add(o.jobs?.shard && o.jobs.shard.maxOverMedian > 1.25, 7, () => `"${o.jobs.shard.name}": the slowest shard takes ${o.jobs.shard.maxOverMedian.toFixed(2)}× the median, ${Math.round(o.jobs.shard.idleTail * 100)}% idle; balance shards by measured time`, '07-shards-runners-and-billing.md');
   add(slow && !o.jobs?.shard && pr.shardsConfigured === false && o.jobs?.longest.minutes > 8, 6, () => `"${o.jobs?.longest.name}" runs ${Math.round(o.jobs?.longest.minutes)} min in one job: shard it`, '07-shards-runners-and-billing.md');
   add(o.tests?.over10s > 0, 6, () => `${o.tests?.over10s} test file${o.tests?.over10s === 1 ? ' takes' : 's take'} over 10 s; the slowest, ${o.tests?.top[0]?.file}, takes ${Math.round(o.tests?.top[0]?.sec)} s`, '10-slow-tests-the-method.md');
@@ -846,7 +881,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   const prRuns = runs.filter((r) => PR_EVENTS.has(r.event));
   const gating = prRuns.filter((r) => !NOT_A_CHECK.test(r.name));
   const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
-  const ci = ciMinutes(gh, repo, gating);
+  const ci = ciMinutes(gh, repo, gating, meta.private === true);
   const first = firstAttempts(gh, repo, 25);
   const ranAny = ranJobs(gh, repo, 60);
   const wait = waits(gating, first, ci.heavy, ranAny);
@@ -870,7 +905,9 @@ export const measure = (gh: Gh, repo: string, days: number) => {
         subMinuteJobs: Math.round(median(stats.map((s) => s.subMinuteJobs))),
         queueP50Sec: pct(stats.flatMap((s) => s.queueSec), 0.5),
         queueP90Sec: pct(stats.flatMap((s) => s.queueSec), 0.9),
-        setupShare: median(stats.map((s) => s.setupShare)),
+        // A run whose steps took no time, or had none timed, has no share or mean: it's left out, not the median.
+        setupShare: median(stats.map((s) => s.setupShare).filter(Number.isFinite)),
+        setupMinPerJob: median(stats.map((s) => s.setupMinPerJob).filter(Number.isFinite)),
         critical: count(stats, (s) => s.critical.name).slice(0, 1).map(([name]) => ({
           name,
           minutes: median(stats.filter((s) => s.critical.name === name).map((s) => s.critical.minutes)),
@@ -944,6 +981,10 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
     prBilledMinutesPerDay: r1(ci.billedMinutes / Math.max(covered, 0.5)),
     jobMinutesPerMergedPr: r1(ci.jobMinutes / mergedInWindow),
+    prVcpuMinutesPerDay: r1(ci.vcpuMinutes / Math.max(covered, 0.5)),
+    vcpuMinutesPerMergedPr: r1(ci.vcpuMinutes / mergedInWindow),
+    expectedVcpuMinutesPerMergedPr: r1(expectedVcpuMinutesPerMergedPr(profile.linesOfCode)),
+    sizedShare: Number.isFinite(ci.sizedShare) ? Math.round(ci.sizedShare * 100) / 100 : null,
     expectedMinutesPerMergedPr: r1(expectedMinutesPerMergedPr(profile.linesOfCode)),
     expectedWait: r1(expectedWait(profile.linesOfCode)),
     workflowsOnPrs: ci.workflows,
@@ -956,9 +997,9 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     linesOfCode: profile.linesOfCode,
     passedOnRerunRate: wait.passedOnRerunRate,
     mainRedRate: main.redRate,
-    minutesPerMergedPr: ci.jobMinutes / mergedInWindow,
+    vcpuMinutesPerMergedPr: ci.vcpuMinutes / mergedInWindow,
     runsPerMergedPr: profile.runsPerMergedPr ?? NaN,
-    setupShare: jobs?.setupShare ?? NaN,
+    setupMinPerJob: jobs?.setupMinPerJob ?? NaN,
     queueP90Sec: jobs?.queueP90Sec ?? NaN,
     shardIdleTail: jobs?.shard?.idleTail ?? NaN,
   });
@@ -975,6 +1016,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     measured,
     missing,
     empty,
+    sizedShare: ci.sizedShare,
     configs: outsideConfigs(source.tree.blobs.map((b) => b.path)),
     treeTruncated: source.tree.truncated,
     // Not asked when there's no score to rest on them: too few timed pushes, or a part with nothing measured.

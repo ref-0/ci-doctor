@@ -37,7 +37,7 @@ describe('the bare command in a checkout', () => {
 });
 
 describe('a private repo', () => {
-  it('scores the same as a public one with the same history', async () => {
+  it('is read as a public one is: the same waits, jobs, tests, practices and fixes', async () => {
     const pub = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
     const priv = await runCli(['--repo', PRIVATE, '--json'], { routes: fakeRepo({ repo: PRIVATE, private: true }), noNetwork: true });
     assert.equal(pub.code, 0, pub.stderr);
@@ -46,7 +46,9 @@ describe('a private repo', () => {
     const a = json(pub.stdout);
     const b = json(priv.stdout);
     assert.equal(typeof a.score, 'number');
-    for (const key of ['score', 'grade', 'parts', 'detail', 'size', 'practices', 'fixes', 'notes', 'wait', 'jobs', 'tests'])
+    assert.equal(typeof b.score, 'number');
+    // Not the score: a private repo's standard runner has half the vCPUs, so its minutes count half.
+    for (const key of ['size', 'practices', 'fixes', 'notes', 'wait', 'jobs', 'tests'])
       assert.deepEqual(b[key], a[key], key);
     assert.equal(b.practices.cancelInProgress, true);
   });
@@ -691,7 +693,7 @@ describe('what a score rests on', () => {
     const r = await report(routes);
 
     assert.equal(json(r.stdout).score, null);
-    assert.equal(json(r.stdout).unscored, "Too little of the score's efficiency part could be measured to score: none of minutes per merged PR, runs per merged PR, setup time or queue time.");
+    assert.equal(json(r.stdout).unscored, "Too little of the score's efficiency part could be measured to score: none of vCPU-minutes per merged PR, runs per merged PR, setup time or queue time.");
     assert.deepEqual(outsideCalls(r.calls), []);
   });
 
@@ -733,6 +735,132 @@ describe('what a score rests on', () => {
     assert.equal(json(r.stdout).score, null);
     assert.deepEqual(outsideCalls(r.calls), []);
     assert.equal(json(r.stdout).evidence.confidence, null);
+  });
+});
+
+describe('what efficiency is measured in', () => {
+  const report = async (routes: Routes, repo = PUBLIC) => {
+    const r = await runCli(['--repo', repo, '--json'], { routes });
+    assert.equal(r.code, 0, r.stderr);
+    return json(r.stdout);
+  };
+  const relabel = (routes: Routes, labels: string[]) => {
+    for (const [key, answer] of Object.entries(routes)) if (/\/attempts\/1\/jobs\?page=1$/.test(key)) for (const job of (answer.json as { jobs: { labels: string[] }[] }).jobs) job.labels = labels;
+    return routes;
+  };
+  const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) <= 0.011 * expected + 0.11, `${actual} isn't near ${expected}`);
+
+  it("weighs a job's minutes by its runner's vCPUs: 4 on a public repo's standard runner, 2 on a private one's", async () => {
+    const open = (await report(fakeRepo({ repo: PUBLIC }))).efficiency;
+    const closed = (await report(fakeRepo({ repo: PRIVATE, private: true }), PRIVATE)).efficiency;
+
+    near(open.vcpuMinutesPerMergedPr, 4 * open.jobMinutesPerMergedPr);
+    near(closed.vcpuMinutesPerMergedPr, 2 * closed.jobMinutesPerMergedPr);
+    assert.equal(open.sizedShare, 1);
+    near(open.expectedVcpuMinutesPerMergedPr, 4 * open.expectedMinutesPerMergedPr);
+  });
+
+  it('scores the same minutes lower on a runner 16 times the size', async () => {
+    const standard = await report(fakeRepo({ repo: PUBLIC }));
+    const large = await report(relabel(fakeRepo({ repo: PUBLIC }), ['ubuntu-24.04-64core']));
+
+    assert.equal(large.efficiency.jobMinutesPerMergedPr, standard.efficiency.jobMinutesPerMergedPr);
+    near(large.efficiency.vcpuMinutesPerMergedPr, 16 * standard.efficiency.vcpuMinutesPerMergedPr);
+    assert.ok(large.detail.efficiency.minutesPerPr < standard.detail.efficiency.minutesPerPr, `${large.detail.efficiency.minutesPerPr} against ${standard.detail.efficiency.minutesPerPr}`);
+  });
+
+  it("counts a runner of unknown size as a standard one, and says the score is less sure", async () => {
+    const standard = await report(fakeRepo({ repo: PUBLIC, heads: 30 }));
+    const own = await report(relabel(fakeRepo({ repo: PUBLIC, heads: 30 }), ['self-hosted', 'big-box']));
+
+    assert.equal(own.efficiency.vcpuMinutesPerMergedPr, standard.efficiency.vcpuMinutesPerMergedPr);
+    assert.equal(own.efficiency.sizedShare, 0);
+    assert.equal(own.evidence.confidence, 'medium');
+    assert.deepEqual(own.evidence.reasons, ["the runners' sizes are known for 0% of job minutes, and the rest count as standard runners"]);
+  });
+
+  it("counts the known-size share as the minutes are counted, by each workflow's runs", async () => {
+    const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
+    const runs = (routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { id: number; path: string; head_sha: string }[] }).workflow_runs;
+    // Two runs of a small workflow on a standard runner; every other run on a runner of no known size.
+    for (const run of runs) {
+      const small = /-sha-[01]$/.test(run.head_sha);
+      if (small) run.path = '.github/workflows/docs.yml';
+      for (const job of (routes[`repos/${PUBLIC}/actions/runs/${run.id}/attempts/1/jobs?page=1`]!.json as { jobs: { labels: string[] }[] }).jobs) job.labels = small ? ['ubuntu-latest'] : ['self-hosted', 'big-box'];
+    }
+    const r = await report(routes);
+
+    // 2 of the 5 sampled runs are sized, and about a tenth of the minutes.
+    assert.ok(r.efficiency.sizedShare > 0 && r.efficiency.sizedShare < 0.15, String(r.efficiency.sizedShare));
+    assert.match(r.evidence.reasons.join('; '), /the runners' sizes are known for \d% of job minutes/);
+  });
+
+  it('gives vCPU-minutes a day beside the minutes per merged PR', async () => {
+    const { efficiency } = await report(fakeRepo({ repo: PUBLIC }));
+
+    near(efficiency.prVcpuMinutesPerDay, 4 * efficiency.prJobMinutesPerDay);
+  });
+
+  const stretch = (routes: Routes, setupSeconds: number, jobSeconds: number) => {
+    for (const [key, answer] of Object.entries(routes)) {
+      if (!/\/attempts\/1\/jobs\?page=1$/.test(key)) continue;
+      for (const job of (answer.json as { jobs: { started_at: string; completed_at: string; steps: { started_at: string; completed_at: string }[] }[] }).jobs) {
+        const at = (seconds: number) => new Date(Date.parse(job.started_at) + seconds * 1e3).toISOString();
+        // "Set up job" keeps its 15 seconds; the install step takes the rest of the setup.
+        [job.steps[1]!.completed_at, job.steps[2]!.started_at, job.steps[2]!.completed_at, job.completed_at] = [at(setupSeconds), at(setupSeconds), at(jobSeconds), at(jobSeconds)];
+      }
+    }
+    return routes;
+  };
+  const setupFix = (r: { fixes: { text: string }[] }) => r.fixes.find((fix) => /on setup/.test(fix.text))?.text;
+
+  it('gives the setup fix over a minute a job, in minutes', async () => {
+    const r = await report(stretch(fakeRepo({ repo: PUBLIC }), 120, 360));
+
+    near(r.jobs.setupMinPerJob, 2);
+    assert.equal(setupFix(r), 'Each job spends 2.0 minutes on setup: cache dependencies and build once');
+  });
+
+  it("gives no setup fix when over a minute is a sliver of a long job", async () => {
+    const r = await report(stretch(fakeRepo({ repo: PUBLIC }), 90, 100 * 60));
+
+    near(r.jobs.setupMinPerJob, 1.5);
+    assert.ok(r.jobs.setupShare < 0.05, String(r.jobs.setupShare));
+    assert.equal(setupFix(r), undefined);
+  });
+
+  it('means setup over the jobs that timed their steps, and leaves a run with none out of the median', async () => {
+    const routes = stretch(fakeRepo({ repo: PUBLIC }), 120, 360);
+    let n = 0;
+    for (const [key, answer] of Object.entries(routes)) {
+      if (!/\/attempts\/1\/jobs\?page=1$/.test(key)) continue;
+      const { jobs } = answer.json as { jobs: { id: number; name: string; steps: unknown[] }[] };
+      // Every third run timed no step at all; the others have a second job that timed none.
+      if (n++ % 3 === 0) jobs[0]!.steps = [];
+      else jobs.push({ ...jobs[0]!, id: jobs[0]!.id + 1, name: 'lint', steps: [] });
+    }
+    const r = await report(routes);
+
+    near(r.jobs.setupMinPerJob, 2);
+    assert.equal(setupFix(r), 'Each job spends 2.0 minutes on setup: cache dependencies and build once');
+  });
+
+  it('measures setup in minutes a job, so a fast job with little else to do scores full marks', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    // Each job: 15 seconds to set up, 5 to install, 10 of tests. Setup is two thirds of it, and a third of a minute.
+    for (const [key, answer] of Object.entries(routes)) {
+      if (!/\/attempts\/1\/jobs\?page=1$/.test(key)) continue;
+      for (const job of (answer.json as { jobs: { started_at: string; completed_at: string; steps: { started_at: string; completed_at: string }[] }[] }).jobs) {
+        const at = (seconds: number) => new Date(Date.parse(job.started_at) + seconds * 1e3).toISOString();
+        [job.steps[0]!.completed_at, job.steps[1]!.started_at, job.steps[1]!.completed_at, job.steps[2]!.started_at, job.steps[2]!.completed_at, job.completed_at] = [at(15), at(15), at(20), at(20), at(30), at(30)];
+      }
+    }
+    const r = await report(routes);
+
+    near(r.jobs.setupMinPerJob, 1 / 3);
+    near(r.jobs.setupShare, 2 / 3);
+    assert.equal(r.detail.efficiency.setup, 100);
+    assert.ok(!r.fixes.some((fix: { text: string }) => /on setup/.test(fix.text)));
   });
 });
 
