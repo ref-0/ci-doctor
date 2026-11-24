@@ -179,6 +179,8 @@ export const smokeCheck = (text: string, { path, now = Date.now(), version: rele
   if (r.score === null) return [`It has no score, so there's nothing to submit. The scorer said: ${shown(r.unscored)}`];
 
   const problems: string[] = [];
+  // Each language is its name and its share of the code, as the import and the site read them.
+  if (!r.profile.languages.every((l: unknown) => Array.isArray(l) && typeof l[0] === 'string' && typeof l[1] === 'number')) problems.push("profile.languages holds an entry that isn't a language's name and its share.");
 
   // 2. The repo and date match where it's filed, and the date is today's or yesterday's.
   if (!isRepoName(r.repo)) problems.push(`repo ${shown(r.repo)} isn't owner/name.`);
