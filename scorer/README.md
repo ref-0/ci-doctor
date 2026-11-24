@@ -39,6 +39,22 @@ Another CI's minutes on a push run from the push to the latest end known of its 
 
 The score doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions. The report says so under every score.
 
+## How the score is made
+
+Three parts, each 0 to 100 from the measures of it that could be made, weighed into one score:
+
+| Part | Weight | Measures, by their weight inside the part |
+| --- | --- | --- |
+| Speed | 60 | The p50 wait (20), the p50 wait for the repo's size and main language (15), the p90 wait (5) |
+| Reliability | 20 | Pushes green only on a rerun (14), the default branch's red rate (10) |
+| Efficiency | 20 | vCPU-minutes for each merged PR, for the repo's size (6); runs for each merged PR (4); setup minutes a job (4); queue time (3); how the jobs are wired (3); shard balance (3) and the package and task graphs (3), each only for a repo that has them |
+
+- **How the jobs are wired** takes a third off for each kind of flag the job graph raises: a job that holds the rest, setup on the path that sets the wait, and a wait no job shows.
+- **The package and task graphs** take a quarter off for each kind of flag: a package cycle, an overloaded entry, a root barrel, a cached task with no inputs or with inputs over half the repo, a deep task chain, a task cycle. A repo with one package, no entries and no cached task has no such graph, and isn't measured on it. A graph that came back partly unknown with no flag is unknown, not clean.
+- **The wait for the size** compares the p50 wait with what's typical for a repo of that many lines, moved by the main language: `LANGUAGE_WAIT` holds each language's factor, such as 1.64 for C and 0.67 for PHP, and a language not listed is 1. The factors are each language's median wait against the size curve across the scored public repos of 23 Nov 2026, pulled toward 1 where a language has few repos.
+
+`detail` gives each measure's own 0 to 100, and null where it wasn't made.
+
 ## What efficiency is measured in
 
 - **vCPU-minutes for each merged PR.** A job's minutes times its runner's vCPUs, so a job that finishes in a quarter of the time on a runner four times the size has used the same. The size comes from the job's labels: one named in a label, such as `-16core`, or GitHub's own runners by their documented sizes: its standard ones, 4 on a public repo and 2 on a private one, and its larger macOS ones, 12 and 5. So a private repo's job on a standard runner counts half a public repo's. A runner whose size the labels don't say, such as a self-hosted one, counts as a standard runner's 4, which reads a bigger one too kindly and a smaller one too harshly. `efficiency.sizedShare` is the share of job minutes whose size was known, each workflow's counted by its runs: under half, the report says the score is less sure. `efficiency.jobMinutesPerMergedPr` still gives the plain job minutes.
