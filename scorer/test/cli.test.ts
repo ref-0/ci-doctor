@@ -582,6 +582,102 @@ describe('runs that never ran', () => {
   });
 });
 
+describe('what a score rests on', () => {
+  const report = async (routes: Routes, args: string[] = ['--json']) => {
+    const r = await runCli(['--repo', PUBLIC, ...args], { routes });
+    assert.equal(r.code, 0, r.stderr);
+    return r;
+  };
+  const checksAt = (i: number) => `repos/${PUBLIC}/commits/pull_request-sha-${i}/check-runs`;
+  const ran = (slug: string, sha: number, minutes: number) => {
+    const started = Date.now() - (sha * 3 + 1) * 3600e3;
+    return { status: 200, json: { check_runs: [{ status: 'completed', started_at: new Date(started).toISOString(), completed_at: new Date(started + minutes * 60e3).toISOString(), app: { slug } }] } };
+  };
+  const outsideCalls = (calls: string[][]) => paths(calls).filter((path) => /\/commits\/[^/]+\/(check-runs|statuses)/.test(path));
+
+  it('is sure of a repo whose pushes carry no other CI, and reads three pushes to know', async () => {
+    const r = await report(fakeRepo({ repo: PUBLIC, heads: 30 }));
+    const { evidence, score } = json(r.stdout);
+
+    assert.equal(typeof score, 'number');
+    assert.deepEqual(evidence, { confidence: 'high', reasons: [], measured: 1, missing: [], outsideCi: { sampled: 3, configs: [], pushes: [] } });
+    assert.deepEqual(outsideCalls(r.calls), [0, 1, 2].flatMap((i) => [`${checksAt(i)}?per_page=100`, `repos/${PUBLIC}/commits/pull_request-sha-${i}/statuses?per_page=100`]));
+  });
+
+  it('gives no score when another CI ran longer than the Actions checks on the sampled pushes', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    for (const i of [0, 1, 2]) routes[checksAt(i)] = ran('azure-pipelines', i, 70);
+    const r = json((await report(routes)).stdout);
+
+    assert.equal(r.score, null);
+    assert.equal(r.grade, null);
+    assert.deepEqual(r.parts, {});
+    assert.match(r.unscored, /^Pull requests here wait on Azure Pipelines, outside GitHub Actions: on 3 of 3 sampled pushes it ran longer than the Actions checks, 70 minutes against \d(\.\d)? minutes at the median\./);
+    assert.equal(r.evidence.confidence, null);
+    assert.deepEqual(r.evidence.outsideCi.pushes.map((push: { ci: unknown }) => push.ci), Array.from({ length: 3 }, () => [{ name: 'Azure Pipelines', minutes: 70 }]));
+  });
+
+  it('scores a repo whose other CI ran no longer than its Actions checks, and says the score is less sure', async () => {
+    const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
+    for (const i of [0, 1, 2]) routes[checksAt(i)] = ran('circleci-checks', i, 2);
+    const r = await report(routes, []);
+
+    assert.match(r.stdout, new RegExp(`^${PUBLIC}: score \\d+/100, grade `));
+    assert.match(r.stdout, /\nConfidence medium: CircleCI also ran on 3 of 3 sampled pushes, which the score doesn't read\.\nThe score reads GitHub Actions' history: .* It doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions\.\n/);
+    assert.match(r.stdout, /<ci-report [^\n]+\nScore [^\n]+\nConfidence medium: CircleCI also ran/);
+  });
+
+  it("scores a repo whose other checks it couldn't read, and says so", async () => {
+    const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
+    for (const key of Object.keys(routes)) if (/\/check-runs$/.test(key)) routes[key] = { status: 403, message: 'Resource not accessible by integration' };
+    const r = json((await report(routes)).stdout);
+
+    assert.equal(typeof r.score, 'number');
+    assert.equal(r.evidence.confidence, 'medium');
+    assert.deepEqual(r.evidence.reasons, ["checks from outside GitHub Actions couldn't be read"]);
+  });
+
+  it("gives no score when the repo keeps another CI's config and its Actions checks are small for its size", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const tree = routes[`repos/${PUBLIC}/git/trees/main`]!.json as { tree: { path: string; type: string; size: number; sha: string }[] };
+    tree.tree.push({ path: '.circleci/config.yml', type: 'blob', size: 300, sha: 'c'.repeat(40) });
+    const runs = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: { created_at: string; updated_at: string }[] };
+    for (const run of runs.workflow_runs) run.updated_at = new Date(Date.parse(run.created_at) + 20e3).toISOString();
+    const r = json((await report(routes)).stdout);
+
+    assert.equal(r.score, null);
+    assert.match(r.unscored, /^The repo keeps a config for CircleCI \(`\.circleci\/config\.yml`\), and its GitHub Actions checks on pull requests are small for its size: a wait of 0\.3 minutes, where about \d+(\.\d)? minutes is typical for 13,000 lines\./);
+    assert.deepEqual(r.evidence.outsideCi.configs, [{ ci: 'CircleCI', path: '.circleci/config.yml' }]);
+  });
+
+  it("reads people's newest pushes, whichever workflows they ran, not only the pushes it timed", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const runs = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { total_count: number; workflow_runs: Record<string, unknown>[] };
+    // A second workflow does most of the work, and runs only on the 10 oldest pushes: those are the ones timed.
+    for (const run of runs.workflow_runs.filter((each) => /-sha-1\d$/.test(each.head_sha as string))) {
+      const id = (run.id as number) + 5000;
+      const ended = new Date(Date.parse(run.created_at as string) + 3600e3).toISOString();
+      runs.workflow_runs.push({ ...run, id, name: 'Deep', path: '.github/workflows/deep.yml', conclusion: 'success', run_attempt: 1, updated_at: ended });
+      routes[`repos/${PUBLIC}/actions/runs/${id}/attempts/1/jobs?page=1`] = { status: 200, json: { jobs: [{ id: id * 10, name: 'deep', conclusion: 'success', created_at: run.created_at, started_at: run.run_started_at, completed_at: ended, labels: ['ubuntu-latest'], steps: [] }] } };
+    }
+    runs.total_count = runs.workflow_runs.length;
+    for (const i of [0, 1, 2]) routes[checksAt(i)] = ran('buildkite', i, 45);
+    const r = await report(routes);
+
+    assert.deepEqual(json(r.stdout).wait.heavyWorkflows, ['Deep']);
+    assert.deepEqual(outsideCalls(r.calls).filter((path) => /check-runs/.test(path)), [0, 1, 2].map((i) => `${checksAt(i)}?per_page=100`));
+    assert.match(json(r.stdout).unscored, /^Pull requests here wait on Buildkite, outside GitHub Actions: on 3 of 3 sampled pushes/);
+  });
+
+  it('reads no other checks for a repo with too few timed pushes to score', async () => {
+    const r = await report(fakeRepo({ repo: PUBLIC, heads: 3 }));
+
+    assert.equal(json(r.stdout).score, null);
+    assert.deepEqual(outsideCalls(r.calls), []);
+    assert.equal(json(r.stdout).evidence.confidence, null);
+  });
+});
+
 describe('what the measures count', () => {
   type FakeRun = { id: number; name: string; path: string; head_sha: string; conclusion: string; run_attempt: number; created_at: string; updated_at: string };
   const prKey = `repos/${PUBLIC}/actions/runs?event=pull_request&page=1`;

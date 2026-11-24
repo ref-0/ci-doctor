@@ -4,6 +4,7 @@
 // reading as empty, a practice that couldn't be checked is null (unknown) rather than false (absent), job logs are
 // read in memory and never kept, and nothing is written here: the CLI decides what, if anything, is saved.
 import { CliError } from './errors.ts';
+import { evidenceOf, outsideConfigs, outsideOn } from './evidence.ts';
 import { ApiCache, Gh } from './gh.ts';
 import { graphsFixes, graphsOf } from './graphs.ts';
 import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts';
@@ -163,6 +164,7 @@ const workflowOf = (r: Run) => r.path || r.name;
 const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () => undefined, heavy?: Set<string>, didRun: (run: Run) => boolean = () => true) => {
   const heads = groupBy(runs, (r) => r.head_sha);
   const clean: { sha: string; wait: number; last: Run; red: boolean }[] = [];
+  const newest: { sha: string; wait: number }[] = [];
   let ranHeads = 0;
   let rerunHeads = 0;
   let passedOnRerun = 0;
@@ -211,6 +213,10 @@ const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () 
       continue;
     }
     if (!counted.every((r) => DONE.has(r.conclusion ?? ''))) continue;
+    const lastRun = counted.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
+    const wait = minutes(startedAt, lastRun.updated_at);
+    // Any push a person made can show another CI at work, whichever workflows it ran here.
+    if (!byBot) newest.push({ sha, wait });
     // Time only pushes that ran the real work; a push that ran only quick checks says little.
     if (heavy?.size && !counted.some((r) => heavy.has(workflowOf(r)))) {
       lightHeads++;
@@ -221,9 +227,7 @@ const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () 
       botHeads++;
       continue;
     }
-    const start = startedAt;
-    const lastRun = counted.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
-    clean.push({ sha, wait: minutes(start, lastRun.updated_at), last: lastRun, red });
+    clean.push({ sha, wait, last: lastRun, red });
   }
   const w = clean.map((c) => c.wait);
   const lastToFinish = count(clean, (c) => workflowOf(c.last));
@@ -252,6 +256,8 @@ const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () 
     /** The file of the workflow that most often finishes last, which `lastToFinish` names. */
     lastWorkflow: lastToFinish[0]?.[0],
     redBy: count(redBy, (n) => n).slice(0, 3),
+    /** People's finished pushes, newest first, each with its wait here: the ones whose other checks are read. Not part of the report. */
+    newest,
   };
 };
 
@@ -746,20 +752,28 @@ export const scoreOf = (o: Inputs) => {
         runsPerPr: { w: 4, s: logScore(o.runsPerMergedPr, 5, 60) },
         setup: { w: 4, s: linScore(o.setupShare, 0.2, 0.7) },
         queue: { w: 3, s: logScore(Math.max(o.queueP90Sec, 1), 10, 300) },
-        shardIdle: { w: 3, s: linScore(o.shardIdleTail, 0.1, 0.4) },
+        // Only a repo with shards has this one: without them it isn't a measure that's missing.
+        shardIdle: { w: 3, s: linScore(o.shardIdleTail, 0.1, 0.4), optional: true },
       },
     },
   };
+  const sum = (xs: { w: number }[]) => xs.reduce((a, x) => a + x.w, 0);
   const weigh = (xs: { w: number; s: number }[]) => {
     const known = xs.filter((x) => Number.isFinite(x.s));
-    const w = known.reduce((a, x) => a + x.w, 0);
+    const w = sum(known);
     return w ? known.reduce((a, x) => a + x.w * x.s, 0) / w : NaN;
   };
+  // How much of the score was measured: each part's weight, by the share of its measures that were made.
+  const owed = (part: { of: Record<string, { w: number; s: number; optional?: boolean }> }) => Object.entries(part.of).filter(([, x]) => Number.isFinite(x.s) || !x.optional);
+  const measured = sum(Object.values(parts).map((part) => ({ w: (part.w * sum(owed(part).filter(([, x]) => Number.isFinite(x.s)).map(([, x]) => x))) / sum(owed(part).map(([, x]) => x)) }))) / sum(Object.values(parts));
   const scored = Object.fromEntries(Object.entries(parts).map(([k, part]) => [k, { w: part.w, s: weigh(Object.values(part.of)) }])) as Record<keyof typeof parts, { w: number; s: number }>;
   return {
     score: Math.round(weigh(Object.values(scored))),
     parts: Object.fromEntries(Object.entries(scored).map(([k, v]) => [k, Math.round(v.s)])),
     detail: Object.fromEntries(Object.entries(parts).map(([k, part]) => [k, Object.fromEntries(Object.entries(part.of).map(([n, x]) => [n, Number.isFinite(x.s) ? Math.round(x.s) : null]))])),
+    /** The share of the score's weight that was measured, 0 to 1, and each measure that wasn't, as `part.measure`. */
+    measured: Math.round(measured * 100) / 100,
+    missing: Object.entries(parts).flatMap(([k, part]) => owed(part).filter(([, x]) => !Number.isFinite(x.s)).map(([n]) => `${k}.${n}`)),
   };
 };
 
@@ -805,6 +819,8 @@ const notesOf = (pr: Practices, language: string | undefined) => [
   ...(pr.agentsMd?.length === 0 ? [{ text: 'No AGENTS.md: agents working here have no instructions, such as how to run one test', guide: GUIDE + '15-the-agent-workflow-around-ci.md' }] : []),
   ...stackNote(language),
 ];
+
+const shown = <T extends { newest: unknown }>({ newest: _, ...rest }: T) => rest;
 
 /** One repo's report through this Gh: what `scoreRepo` and the CLI return, without the `read` provenance. */
 export const measure = (gh: Gh, repo: string, days: number) => {
@@ -932,7 +948,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   };
 
   const outcomes = { wait, jobs, tests, jobGraph, graphs };
-  const { score, parts, detail } = scoreOf({
+  const { score, parts, detail, measured, missing } = scoreOf({
     p50: wait.p50,
     p90: wait.p90,
     linesOfCode: profile.linesOfCode,
@@ -946,9 +962,22 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   });
 
   // Too few timed pushes to say anything: no score, and the report says why.
-  const enough = wait.timed >= MIN_TIMED;
-  const unscored = enough
-    ? undefined
+  const timedEnough = wait.timed >= MIN_TIMED;
+  // Then what the score would rest on: other CIs' checks on people's newest pushes, and what went unmeasured.
+  const { thin, evidence } = evidenceOf({
+    timed: wait.timed,
+    p50: wait.p50,
+    rerunsUnread: wait.rerunsUnread,
+    expectedWait: expectedWait(profile.linesOfCode),
+    linesOfCode: profile.linesOfCode,
+    measured,
+    missing,
+    configs: outsideConfigs(source.tree.blobs.map((b) => b.path)),
+    outside: timedEnough ? outsideOn(gh, repo, wait.newest) : { read: 0, pushes: [] },
+  });
+  const enough = timedEnough && thin === undefined;
+  const unscored = timedEnough
+    ? thin
     : pr.workflows === 0 && !source.tree.truncated
       ? `There are no GitHub Actions workflows on ${meta.default_branch}, so there's no CI history to score.`
       : prRuns.length === 0
@@ -973,7 +1002,8 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     parts: enough ? parts : {},
     detail,
     efficiency,
-    wait: { ...wait, leftOut: left, heavyWorkflows: ci.heavyNames, allPushesP50: allPushes.p50 },
+    evidence: enough ? evidence : { ...evidence, confidence: null, reasons: [] },
+    wait: { ...shown(wait), leftOut: left, heavyWorkflows: ci.heavyNames, allPushesP50: allPushes.p50 },
     main: { heads: main.heads, p50: main.p50, p90: main.p90, redRate: main.redRate, redBy: main.redBy },
     botRunShare: bots,
     jobs,

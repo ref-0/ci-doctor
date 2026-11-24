@@ -17,6 +17,26 @@ A checkout with no GitHub remote has no Actions history to read. It then lists w
 
 A run that hit its time limit (`timed_out`) is a failed run: its push is red, and timed. The red, rerun and cancelled rates are shares of the pushes that ran something (`wait.ranHeads`), so a push whose runs were all skipped isn't in them. A rerun's first attempt is one call, and a report reads at most 25: past that, reruns count as green only on a rerun as often as the ones read did, and `wait.rerunsUnread` says how many. With none read, that rate is unknown. Rates a week, such as PR pushes and merged PRs, are over the days read: the whole window when every run in it was read, and from the oldest run read when GitHub had more than 1,000. `pull_request_target` runs are read back over the same days, and counted over them. Workflows are told apart by file, so two files with one name aren't one workflow. A workflow whose sampled runs ran no job adds no minutes, and when no workflow's did, the job minutes are unknown, not zero.
 
+## What a score rests on
+
+The score reads only GitHub Actions. So it's withheld, with the reason, when what Actions shows is too thin to stand for the repo's CI:
+
+- **Another CI decides the wait.** On at least 2 of the 3 pushes read, a CI outside Actions, such as Azure Pipelines, CircleCI, Buildkite or Jenkins, ran longer than the Actions checks did.
+- **The Actions checks are small and another CI's config is in the repo.** The p50 wait is under a tenth of what's typical for the repo's size, and the tree holds a file such as `azure-pipelines.yml` or `.circleci/config.yml`. If that file is a leftover, delete it.
+- **A whole part went unmeasured.** None of the reliability measures, or none of the efficiency ones, could be made.
+
+A scored report carries its confidence, in `evidence.confidence` and on a line under the score:
+
+| Confidence | When |
+| --- | --- |
+| `high` | 20 or more pushes timed, every measure made, no other CI seen |
+| `medium` | 10 to 19 pushes timed, a measure missing, reruns whose first attempt wasn't read, another CI seen running no longer than Actions, or the other checks unreadable with this sign-in |
+| `low` | under 10 pushes timed, or under 80% of the score's weight measured |
+
+`evidence.reasons` says which, `evidence.measured` is the share of the score's weight that was measured, `evidence.missing` names each measure that wasn't, and `evidence.outsideCi` holds the configs found and what ran on the pushes read. Shard balance counts only for a repo that has shards. Review bots, scanners, deploy previews and licence checks aren't CI, and a runner provider's jobs are Actions jobs.
+
+The score doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions. The report says so under every score.
+
 ## What it reads
 
 It computes everything on your machine. Every GitHub read goes through `gh api`, with your own sign-in, so a private repo scores the same as a public one:
@@ -27,7 +47,8 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - the default branch's file tree, its workflow files and its `package.json`, `nx.json`, `.github/dependabot.yml` and Renovate config;
 - for the stack, each package's manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or `Gemfile`), up to 500, and the root's task files, such as a `Makefile` or `justfile`, 100 files to a GraphQL query;
 - for the graphs, each npm package's entry files, from its `exports` (or `main` and `module`), the modules they re-export, and the task runners' configs (`turbo.json`, `nx.json`, `project.json`, Vite+'s `vite.config.*`), up to 1,000 files, in the same GraphQL batches;
-- merged and opened PRs from the same days, through GitHub's search.
+- merged and opened PRs from the same days, through GitHub's search;
+- the check runs and commit statuses on 3 of people's newest PR pushes, two calls each, to see whether another CI ran there.
 
 Every call names `github.com`, whatever `GH_HOST` says, and turns `gh`'s own telemetry off (`GH_TELEMETRY=false`). Any `gh` version with `gh api` works.
 
