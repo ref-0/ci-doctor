@@ -1,11 +1,12 @@
 // --submit and the smoke check ci-doctor-db runs on a submitted report, with the gh stub: no test opens a real fork or
 // pull request.
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { before, describe, it } from 'node:test';
-import { band, grade, smokeCheck, submissionOf, submissionPath } from '../src/index.ts';
+import { band, grade, GUIDE, smokeCheck, submissionOf, submissionPath } from '../src/index.ts';
 import { VERSION } from '../src/version.ts';
 import { fakeRepo, type Routes } from './fixtures.ts';
-import { checkout, runCli } from './helpers.ts';
+import { checkout, runCli, scratch } from './helpers.ts';
 
 const REPO = 'pip/garden';
 const DB = 'ref-0/ci-doctor-db';
@@ -119,6 +120,19 @@ describe('--submit', () => {
     assert.deepEqual(r.calls.map(callOf), ['user', 'repos/pip/shed']);
   });
 
+  it('asks GitHub whether the repo is private, whatever the cache holds', async () => {
+    const cacheDir = join(scratch(), 'cache');
+    const env = { CI_DOCTOR_CACHE_DIR: cacheDir };
+    const seeded = await runCli(['--repo', 'pip/shed', '--json', '--cache'], { routes: fakeRepo({ repo: 'pip/shed' }), env });
+    assert.equal(seeded.code, 0);
+
+    const r = await runCli(['--repo', 'pip/shed', '--submit', '--cache'], { routes: { ...fakeRepo({ repo: 'pip/shed', private: true }), ...dataRepo() }, env });
+
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /Not submitted: pip\/shed is private/);
+    assert.ok(!r.calls.map(callOf).some((c) => /^(POST|PUT) /.test(c)));
+  });
+
   it('refuses a checkout with no GitHub history, calling no gh', async () => {
     const r = await runCli(['--submit'], { cwd: checkout() });
 
@@ -195,13 +209,26 @@ describe('smokeCheck', () => {
   it('4. keeps numbers in order, and links only into the guide', () => {
     assert.deepEqual(check(edit((r) => (r.wait.p75 = r.wait.p90 + 1))), [`wait.p75 is ${JSON.parse(good).wait.p90 + 1}, more than wait.p90, ${JSON.parse(good).wait.p90}.`]);
     assert.deepEqual(check(edit((r) => (r.wait.timed = r.wait.heads + 1))), [`wait.timed is ${JSON.parse(good).wait.heads + 1}, more than wait.heads, ${JSON.parse(good).wait.heads}.`]);
-    assert.deepEqual(check(edit((r) => (r.fixes[0].guide = 'https://example.com/docs/pages/x.md'))), ["fixes[0].guide isn't a link into ci-doctor's guide, https://github.com/ref-0/ci-doctor/blob/main/docs/pages/."]);
+    const notAPage = ["fixes[0].guide isn't a page of ci-doctor's guide, https://github.com/ref-0/ci-doctor/blob/main/docs/pages/."];
+    assert.deepEqual(check(edit((r) => (r.fixes[0].guide = 'https://example.com/docs/pages/x.md'))), notAPage);
+    // A path that climbs out of the guide still starts with it.
+    assert.deepEqual(check(edit((r) => (r.fixes[0].guide = `${GUIDE}../../README.md`))), notAPage);
+    assert.deepEqual(check(edit((r) => (r.fixes[0].guide = `${GUIDE}06-reuse-work-by-its-real-inputs.md#the-key`))), []);
+    assert.deepEqual(check(edit((r) => (r.fixes[0].text = 'Get help at https://example.com/install'))), ["`fixes.0.text` holds a string with a link; a report's only links are its fixes' and notes' guides."]);
+  });
+
+  it("gives the long fields' room to those fields only, by where they are", () => {
+    assert.deepEqual(check(edit((r) => (r.fixes[0].text = 'x'.repeat(5000)))), []);
+    // A key that spells a long field's path isn't that field, and neither is a name every object has.
+    assert.deepEqual(check(edit((r) => (r['fixes.0.text'] = 'x'.repeat(5000)))), ['`fixes.0.text` holds a string of 5000 characters; at most 400.']);
+    assert.deepEqual(check(edit((r) => (r.constructor = 'x'.repeat(9000)))), ['`constructor` holds a string of 9000 characters; at most 400.']);
+    assert.deepEqual(check(edit((r) => (r.fixes[0].text = 'x'.repeat(9000)))), ['`fixes.0.text` holds a string of 9000 characters; at most 8000.']);
   });
 
   it('never repeats a string from the file but in a safe form', () => {
-    const lines = check(edit((r) => ((r.submitted.by = 'Mo <img src=x onerror=alert(1)> [click](https://evil.example)'), (r.scorerVersion = '9.9.9 `rm -rf` ' + 'y'.repeat(80)))));
-    for (const line of lines) assert.doesNotMatch(line, /[<>\[\]() ]img|onerror=|\(https|rm -rf/, line);
-    assert.ok(lines.some((l) => l.startsWith('submitted.by `Moimgsrcxonerroralert1clickhttps://evil.example` ')));
+    const lines = check(edit((r) => ((r.submitted.by = 'Mo <img src=x onerror=alert(1)> [click](evil.example)'), (r.scorerVersion = '9.9.9 `rm -rf` ' + 'y'.repeat(80)))));
+    for (const line of lines) assert.doesNotMatch(line, /[<>\[\]() ]img|onerror=|\(evil|rm -rf/, line);
+    assert.ok(lines.some((l) => l.startsWith('submitted.by `Moimgsrcxonerroralert1clickevil.example` ')));
     assert.ok(lines.some((l) => /`9\.9\.9rm-rfy{50}…`/.test(l)));
   });
 
