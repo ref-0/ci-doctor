@@ -190,6 +190,7 @@ describe('smokeCheck', () => {
     assert.deepEqual(check('{"repo":'), ["The file isn't JSON."]);
     assert.deepEqual(check(edit((r) => delete r.wait)), ['wait is missing; it should be object.', ...['heads', 'timed', 'p50', 'p75', 'p90', 'redRate', 'passedOnRerunRate'].map((k) => `wait.${k} is missing; it should be ${/heads|timed/.test(k) ? 'number' : 'number or null'}.`)]);
     assert.deepEqual(check(edit((r) => (r.score = '82'))), ['score is a string; it should be number or null.']);
+    assert.deepEqual(check(edit((r) => (r.profile.languages = ['TypeScript']))), ["profile.languages holds an entry that isn't a language's name and its share."]);
   });
 
   it('2. matches its path, and is from today or yesterday, UTC', () => {
