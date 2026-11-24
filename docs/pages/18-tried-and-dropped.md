@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 18. Tried and dropped
+# Tried and dropped
 
 See what we tried and dropped, the evidence that ruled each out, and what would have to change before it's worth trying again.
 

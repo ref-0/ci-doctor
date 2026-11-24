@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 9. Workspace tooling
+# Workspace tooling
 
 Make type checks, lint and generated files fast on every machine and in CI, by running each once and reusing it wherever it can be.
 

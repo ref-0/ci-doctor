@@ -5,7 +5,7 @@
 Work out, and record in the plan:
 
 1. **Which harness you are,** for example Claude Code, Codex CLI, Cursor, Copilot agent, T3 Code, or an IDE agent.
-2. **Parallel work and scheduling:** whether you can start subagents in separate git worktrees, use a second model for reading, and run recurring work. [The harness notes](../excerpts/phase-0.md#harnesses-parallel-agents-and-recurring-work) say how in each harness. Don't invent a feature your harness doesn't have; if you're unsure it exists, say so and offer the most portable option. Recurring work is all opt-in, and comes in four kinds:
+2. **Parallel work and scheduling:** whether you can start subagents in separate git worktrees, use a second model for reading, and run recurring work. [The harness notes](../excerpts/phase-0.md#harnesses) say how in each harness. Don't invent a feature your harness doesn't have; if you're unsure it exists, say so and offer the most portable option. Recurring work is all opt-in, and comes in four kinds:
    - an interactive session loop (stops with the session);
    - a cloud agent job (a fresh clone, its own identity and scoped credentials, and model usage);
    - a script-only GitHub Actions cron (runner minutes, no model);
