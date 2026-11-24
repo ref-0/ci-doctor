@@ -11,7 +11,7 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. Count before you move code, 
 
 ## The graph tool
 
-[`scripts/graph/`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/scripts/graph/README.md) reads a JavaScript or TypeScript workspace's committed trees with `git ls-tree` and `git cat-file`, never its working tree, so nothing in the repo runs. It needs Node 24 and `git`, and the repo's history as deep as the replay: a shallow clone needs `--depth` past `--commits`.
+[`scripts/graph/`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/scripts/graph/README.md) reads a JavaScript or TypeScript workspace's committed trees with `git ls-tree` and `git cat-file`, never its working tree, so nothing in the repo runs. It needs Node 24 and `git`, and the repo's history as deep as the replay: a shallow clone needs `--depth` past `--commits`.
 
 ```sh
 node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo> --commits 0     # the shape only
@@ -19,7 +19,7 @@ node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo>                 # 
 node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo> --json > graph.json
 ```
 
-- `--rev <ref>` measures another branch; `--tests <regex>` says what a test file's path looks like; `--conditions <a,b>` prefers `exports` conditions, such as the repo's source condition; `--layers <file.json>` checks declared layers instead of proposing them. [Its README](https://github.com/ref-0/ci-doctor/blob/v0.2.0/scripts/graph/README.md#run-it) has every option, and [its JSON](https://github.com/ref-0/ci-doctor/blob/v0.2.0/scripts/graph/README.md#json) every field.
+- `--rev <ref>` measures another branch; `--tests <regex>` says what a test file's path looks like; `--conditions <a,b>` prefers `exports` conditions, such as the repo's source condition; `--layers <file.json>` checks declared layers instead of proposing them. [Its README](https://github.com/ref-0/ci-doctor/blob/v0.3.0/scripts/graph/README.md#run-it) has every option, and [its JSON](https://github.com/ref-0/ci-doctor/blob/v0.3.0/scripts/graph/README.md#json) every field.
 - `<ci-doctor>` is a ci-doctor checkout, outside the user's repo. From a skills-only install, clone it at the release tag, as the [skill says](../SKILL.md#1-measure).
 - On a 206-package workspace of 2,666 files, the shape and a 200-commit replay took 23 seconds on one core.
 

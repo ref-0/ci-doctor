@@ -22,7 +22,7 @@ The code waits a period it needs in production: a retry's base, a container's st
 - **Measure that a test waits on it first.** Temporary timers in the candidates showed which periods cost time and which cost none.
 - **One test keeps production's value,** on a test clock, so the real number stays proved in milliseconds.
 - **A shared period reaches tests your run didn't select.** Find every test that reads the setting or default you shortened and run them: a shortened lane period raced a test its own pull request's run skipped.
-- **Helpers that run every due job change meaning.** Once a retry or wake period shrinks, a helper that runs all due work also runs jobs that used to stay pending. If the test concerns one job's decision while another must stay pending, drive the exact selected job through a trigger the test harness already owns; a proof of scheduling itself goes through the production scheduler, as [wait for the effect](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/wait-for-the-effect.md) says. Turn automatic scheduling off before releasing a hold when that order is part of the fixture. Recheck both the explicit-job and the automatic-wake proofs; never restore a delay to hide an ordering error.
+- **Helpers that run every due job change meaning.** Once a retry or wake period shrinks, a helper that runs all due work also runs jobs that used to stay pending. If the test concerns one job's decision while another must stay pending, drive the exact selected job through a trigger the test harness already owns; a proof of scheduling itself goes through the production scheduler, as [wait for the effect](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/wait-for-the-effect.md) says. Turn automatic scheduling off before releasing a hold when that order is part of the fixture. Recheck both the explicit-job and the automatic-wake proofs; never restore a delay to hide an ordering error.
 - **Outside a deployed service,** where there's no deploy config, the period is a parameter with production's default, or an injected dependency.
 - **A deadline the test only survives** is the same kind: a call deadline or a connect bound. Shorten it by setting, and keep a test on each side of it.
 
@@ -81,7 +81,7 @@ A rate limiter's minute, or a counter keyed by time, made a test wait for a fres
 
 ## A long file
 
-A shard can't end before its longest file. Split one past the shard cap ci.md names (about 90 s in the source repo) by what its tests are about, into files named for the source they test, without changing a test body, as the check [keep slow test files out of the shards](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/ci-keep-slow-files-out-of-the-shards.md) says. Stop where the next file would cost another harness start for a few seconds of tests. How the shards place the new files, and estimate them until they have times, is [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/shards.md)'.
+A shard can't end before its longest file. Split one past the shard cap ci.md names (about 90 s in the source repo) by what its tests are about, into files named for the source they test, without changing a test body, as the check [keep slow test files out of the shards](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-keep-slow-files-out-of-the-shards.md) says. Stop where the next file would cost another harness start for a few seconds of tests. How the shards place the new files, and estimate them until they have times, is [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/shards.md)'.
 
 After a split, replay representative production edits through both the local and the CI selector. A new file that imports only shared helpers may have no production edge to select it: add the explicit coverage mapping and a regression test that the relevant source edit selects it, keeping any intended difference between local and CI reach. Then update proof references and timing estimates. A green direct run doesn't prove later automatic selection.
 
@@ -132,11 +132,11 @@ With the same sessions, checks and end state, the proof step shrank by about a t
 
 ## Real work
 
-Many checks with full outputs, a large graph, a tree of tens of thousands of files: smaller would no longer prove the bound. Leave these, or move them to a later tier with the paths they cover ([guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md)), keeping them honest as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/proof-tiers/SKILL.md) says.
+Many checks with full outputs, a large graph, a tree of tens of thousands of files: smaller would no longer prove the bound. Leave these, or move them to a later tier with the paths they cover ([guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md)), keeping them honest as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/proof-tiers/SKILL.md) says.
 
 ## What not to build
 
-Measure before you build any of these, and add what you drop to [what was tried](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md):
+Measure before you build any of these, and add what you drop to [what was tried](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md):
 
 - a runtime shared between test files, or a watch-mode harness: they saved little a file and broke isolation;
 - a resident helper process, such as a kept bundler, that saves a little a file for a lot of memory;

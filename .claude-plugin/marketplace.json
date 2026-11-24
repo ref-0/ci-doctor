@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "ref0",
-  "description": "ref0's agent plugins for fast, trustworthy CI that costs less.",
+  "description": "ref0's agent plugins for fast, reliable and efficient CI.",
   "owner": {
     "name": "ref0",
     "url": "https://ref0.dev"
@@ -10,7 +10,7 @@
     {
       "name": "ci-doctor",
       "displayName": "ci-doctor",
-      "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, workflows that waste time, caches that miss, slow and flaky tests, runners on any provider or Blacksmith, their queues and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted, and agents' instructions kept short and true.",
+      "description": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.",
       "source": "./",
       "keywords": [
         "ci",

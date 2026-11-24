@@ -8,14 +8,14 @@ Part of the [`ci-doctor`](../../SKILL.md) hub. What [Phase 1](../phases/phase-1-
 
 Every technique in guide sections 2–17 and 21, by section, each with when it applies and when to skip it. Mark each that applies and bears on the measured limiter, and read its section only then.
 
-- **[2. Runners, Blacksmith, and the cost of getting fast](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md)**
+- **[Runners](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md)**
   - [Choosing a provider and runners](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#choosing-a-provider-and-runners): **Applies when:** The plan picks a provider, or sizes or resizes runners, on any CI platform. **Skip when:** The baseline shows neither runner cost nor runner size bearing on the limiter.
   - [When jobs wait to start](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#when-jobs-wait-to-start): **Applies when:** The slowest tenth of jobs wait minutes for a runner, or queue time is a large share of the PR wait. **Skip when:** Queue time is seconds, as on most repos.
   - [Why we recommend Blacksmith](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith): **Applies when:** The repo runs GitHub Actions on GitHub-hosted or self-hosted runners, and the baseline shows where queue, compute or setup time goes. **Skip when:** The repo is off GitHub Actions, or the user declines the move: the plan stays on the current runners.
   - [Setting up Blacksmith](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith): **Applies when:** The user approved a move to Blacksmith. **Skip when:** The plan stays on the current runners.
   - [Getting fast costs money and time first](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#getting-fast-costs-money-and-time-first): **Applies when:** The plan prices its own optimization period: sweeps, replays, measurement runs, bisects and debugging. **Skip when:** The plan changes nothing that runs in CI.
-- **[3. Workflow anatomy](../../../../docs/pages/03-workflow-anatomy.md)**: **Applies when:** The repo is on GitHub Actions and its workflow lacks a plan job that gates the others, or a single result job that checks them. **Skip when:** The workflow already gates every job on a plan and checks them in one result job.
-- **[4. Run only what a change can reach](../../../../docs/pages/04-run-only-what-a-change-can-reach.md)**
+- **[Workflows](../../../../docs/pages/03-workflow-anatomy.md)**: **Applies when:** The repo is on GitHub Actions and its workflow lacks a plan job that gates the others, or a single result job that checks them. **Skip when:** The workflow already gates every job on a plan and checks them in one result job.
+- **[Affected checks](../../../../docs/pages/04-run-only-what-a-change-can-reach.md)**
   - [Drafts and concurrency](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#drafts-and-concurrency): **Applies when:** PR workflows run while a PR is a draft, or a draft event or an old rerun can cancel the newest head's run. **Skip when:** Every job already skips drafts and concurrency groups keep ready PRs, drafts, reruns, manual runs and merges apart.
   - [A selector built from a real dependency graph](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#a-selector-built-from-a-real-dependency-graph): **Applies when:** A pnpm workspace's TypeScript tests, named `.test.ts` or `.test.tsx`, run in full on every PR. **Skip when:** Tests in other languages or named another way, whose jobs keep running in full until a selector maps them, and a Turborepo or Nx repo, which starts with its own affected run.
   - [Turborepo and Nx: their own affected runs first](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#turborepo-and-nx-their-own-affected-runs-first): **Applies when:** The repo uses Turborepo or Nx and selects nothing today. **Skip when:** The repo uses neither.
@@ -23,13 +23,13 @@ Every technique in guide sections 2–17 and 21, by section, each with when it a
   - [CI file changes run only the jobs they touch](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#ci-file-changes-run-only-the-jobs-they-touch): **Applies when:** A selector exists and a workflow or composite-action edit selects every job. **Skip when:** There is no selector yet, or CI file edits already run only the jobs they touch.
   - [Other narrowing](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#other-narrowing): **Applies when:** Real-container tests, packaging or a Rust service run on every PR whatever it changes. **Skip when:** None of those runs on every PR.
   - [Verify the selector like production code](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#verify-the-selector-like-production-code): **Applies when:** A selector, or a change to one, is proposed. **Skip when:** Selection isn't changing.
-- **[5. Tiers: what runs where](../../../../docs/pages/05-tiers-what-runs-where.md)**: **Applies when:** Checks too slow or costly for every PR could run on merges, on main's server runs or in a sweep instead. **Skip when:** No sweep has yet been shown to run every check it would take off PRs ("Releasing what the sweep checked", below).
+- **[Tiers](../../../../docs/pages/05-tiers-what-runs-where.md)**: **Applies when:** Checks too slow or costly for every PR could run on merges, on main's server runs or in a sweep instead. **Skip when:** No sweep has yet been shown to run every check it would take off PRs ("Releasing what the sweep checked", below).
   - [Moving heavy tests to the right tier](../../../../docs/pages/05-tiers-what-runs-where.md#moving-heavy-tests-to-the-right-tier): **Applies when:** Expensive files run on every PR: bounded model checks, large-fixture, long-history or large-dataset tests, wide grids, full oracle corpora. **Skip when:** No PR test is expensive enough to tie to the inputs it proves.
   - [Replaying recorded sessions](../../../../docs/pages/05-tiers-what-runs-where.md#replaying-recorded-sessions): **Applies when:** An end-to-end path depends on an outside tool whose live runs are slow, paid or nondeterministic, such as an agent harness calling a model. **Skip when:** Every outside dependency already has a fast local fake at the boundary you test.
   - [Cron is not a scheduler you can trust](../../../../docs/pages/05-tiers-what-runs-where.md#cron-is-not-a-scheduler-you-can-trust): **Applies when:** GitHub's scheduled runs carry checks, such as sweeps or main-only jobs. **Skip when:** The repo has no scheduled or main-only jobs.
   - [One issue for a red main, and a bisect with a budget](../../../../docs/pages/05-tiers-what-runs-where.md#one-issue-for-a-red-main-and-a-bisect-with-a-budget): **Applies when:** A sweep on main runs checks that PRs skip, so a failure has to be traced to a merge. **Skip when:** Main has no sweep.
   - [Releasing what the sweep checked](../../../../docs/pages/05-tiers-what-runs-where.md#releasing-what-the-sweep-checked): **Applies when:** Any PR coverage would move to a sweep, or a release or deploy should ship only what the sweep checked. **Skip when:** PRs keep all their coverage.
-- **[6. Reuse work by its real inputs](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md)**
+- **[Caching](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md)**
   - [Task runners and their remote caches](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#task-runners-and-their-remote-caches): **Applies when:** The repo has a workspace task runner, or caches task results today. **Skip when:** The repo would adopt a runner only for its cache and section 4's selection replay hasn't come first.
   - [Checking a cache on another task runner](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner): **Applies when:** Replays come from a runner with declared inputs, such as Turborepo, Nx, Bazel or Gradle. **Skip when:** The runner tracks what each task reads, as Vite+ does, or nothing is cached.
   - [A remote task cache, with tests as tasks](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#a-remote-task-cache-with-tests-as-tasks): **Applies when:** Task results are shared through a remote cache: on Vite+ as written, on other runners through the table above. **Skip when:** No task results are shared across machines.
@@ -37,14 +37,14 @@ Every technique in guide sections 2–17 and 21, by section, each with when it a
   - [Rust: reuse passes and binaries separately](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#rust-reuse-passes-and-binaries-separately): **Applies when:** The stack has Rust. **Skip when:** It has none.
   - [Setup caches on Blacksmith](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#setup-caches-on-blacksmith): **Applies when:** Installs and toolchain setup take job time: on Blacksmith with its sticky disks, elsewhere with the Actions cache fallback. **Skip when:** Setup isn't where the job time goes.
   - [Not worth caching](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md#not-worth-caching): **Applies when:** A cache is proposed for sub-second generation, npm tarballs, Rust sccache in CI or another layer. **Skip when:** No new cache layer is proposed.
-- **[7. Shards, runners and billing](../../../../docs/pages/07-shards-runners-and-billing.md)**
+- **[Sharding](../../../../docs/pages/07-shards-runners-and-billing.md)**
   - [Shards from measured time, not file count](../../../../docs/pages/07-shards-runners-and-billing.md#shards-from-measured-time-not-file-count): **Applies when:** Tests run, or should run, across several shards, and each file's time on main is recorded. **Skip when:** There are no per-file times yet.
   - [Work stealing over cache-key claims](../../../../docs/pages/07-shards-runners-and-billing.md#work-stealing-over-cache-key-claims): **Applies when:** Fixed shards from measured time are in place and runner speed still varies, measured on its own. **Skip when:** Fixed shards aren't in place yet.
   - [Independent lanes](../../../../docs/pages/07-shards-runners-and-billing.md#independent-lanes): **Applies when:** A shard runs its workers in rounds, so a lane waits for the slowest. **Skip when:** Each lane already starts its next task the moment it finishes.
   - [Size runners from the work and the bill](../../../../docs/pages/07-shards-runners-and-billing.md#size-runners-from-the-work-and-the-bill): **Applies when:** Per-job CPU over at least three runs, the high tail included, shows a job sized wrongly, or tiny selections pay a big runner's minimum minute. **Skip when:** Fewer than three runs agree.
   - [Shorten the critical path before buying cores](../../../../docs/pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores): **Applies when:** Jobs wait for upstream jobs before starting their own setup, or test binaries run one after another. **Skip when:** The critical path is a single job's own work.
-- **[8. A faster test harness](../../../../docs/pages/08-a-faster-test-harness.md)**: **Applies when:** A server with a heavy runtime per test file, such as workerd under Vitest. **Skip when:** The runtime's startup and bundling are a small share of each test file's time.
-- **[9. Workspace tooling](../../../../docs/pages/09-workspace-tooling.md)**
+- **[Test harness](../../../../docs/pages/08-a-faster-test-harness.md)**: **Applies when:** A server with a heavy runtime per test file, such as workerd under Vitest. **Skip when:** The runtime's startup and bundling are a small share of each test file's time.
+- **[Workspace tooling](../../../../docs/pages/09-workspace-tooling.md)**
   - [The commands](../../../../docs/pages/09-workspace-tooling.md#the-commands): **Applies when:** A TypeScript workspace, adopting one command at a time where a named duplicate pass or a measured bottleneck justifies it. **Skip when:** The repo's existing commands show neither: keep them as they are.
   - [One type check, no duplicate passes](../../../../docs/pages/09-workspace-tooling.md#one-type-check-no-duplicate-passes): **Applies when:** A framework's diagnostics or type-aware lint run as a separate compiler pass. **Skip when:** One type pass already covers them.
   - [Every file in a project, enforced](../../../../docs/pages/09-workspace-tooling.md#every-file-in-a-project-enforced): **Applies when:** One consolidated type check covers the workspace through project references. **Skip when:** Each project is checked on its own.
@@ -57,28 +57,28 @@ Every technique in guide sections 2–17 and 21, by section, each with when it a
   - [Find existing code before writing more](../../../../docs/pages/09-workspace-tooling.md#find-existing-code-before-writing-more): **Applies when:** Agents write code in the repo; the saving is a warm local one, not a measured CI one. **Skip when:** No agents write code here.
   - [Pin everything, share the tool](../../../../docs/pages/09-workspace-tooling.md#pin-everything-share-the-tool): **Applies when:** Node, pnpm or shared tool versions float, or the static workflow stops at its first failing command. **Skip when:** They are pinned and every command reports.
   - [If you use Effect](../../../../docs/pages/09-workspace-tooling.md#if-you-use-effect): **Applies when:** The stack uses Effect. **Skip when:** It doesn't.
-- **[10. Slow tests: the method](../../../../docs/pages/10-slow-tests-the-method.md)**
+- **[Slow tests](../../../../docs/pages/10-slow-tests-the-method.md)**
   - [Find them from CI's own records, not intuition](../../../../docs/pages/10-slow-tests-the-method.md#find-them-from-cis-own-records-not-intuition): **Applies when:** Test time bears on the measured limiter, and CI's records give per-file durations. **Skip when:** There are no per-file records yet: recording them comes first (section 13).
   - [Name the wait before changing anything](../../../../docs/pages/10-slow-tests-the-method.md#name-the-wait-before-changing-anything): **Applies when:** A file past 10 s, or one that ends its shard, is on the inventory. **Skip when:** The inventory is empty.
   - [Keep what each test proves](../../../../docs/pages/10-slow-tests-the-method.md#keep-what-each-test-proves): **Applies when:** Any test is made faster. **Skip when:** No test changes.
   - [Measure honestly](../../../../docs/pages/10-slow-tests-the-method.md#measure-honestly): **Applies when:** A before and after, or any timing comparison, is reported. **Skip when:** Nothing is compared.
-- **[11. Flakes](../../../../docs/pages/11-flakes.md)**: **Applies when:** CI's records show tests that failed and then passed, or jobs that passed on rerun. **Skip when:** The records show no failed-then-passed tests or jobs.
+- **[Flakes](../../../../docs/pages/11-flakes.md)**: **Applies when:** CI's records show tests that failed and then passed, or jobs that passed on rerun. **Skip when:** The records show no failed-then-passed tests or jobs.
   - [Cause, symptom, fix](../../../../docs/pages/11-flakes.md#cause-symptom-fix): **Applies when:** A failure's symptom matches one below, or a fixture forks, spawns, binds a socket, runs Git or uploads a stream. **Skip when:** None of the tests start processes, open sockets or run Git.
-- **[12. Budgets, health and spend](../../../../docs/pages/12-budgets-health-and-spend.md)**: **Applies when:** The plan sets job or run budgets, a spend cap or a health report, or a baseline compares spend across windows. **Skip when:** None of those is proposed or measured.
-- **[13. Records: evidence of what ran](../../../../docs/pages/13-records-evidence-of-what-ran.md)**: **Applies when:** CI can't show which test files ran, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its time on each run.
+- **[Budgets](../../../../docs/pages/12-budgets-health-and-spend.md)**: **Applies when:** The plan sets job or run budgets, a spend cap or a health report, or a baseline compares spend across windows. **Skip when:** None of those is proposed or measured.
+- **[Records](../../../../docs/pages/13-records-evidence-of-what-ran.md)**: **Applies when:** CI can't show which test files ran, or per-file timings are missing. **Skip when:** The repo already logs every executed file and its time on each run.
   - [Collecting from the API without losing runs](../../../../docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs): **Applies when:** A baseline, audit or report is built from the provider's API. **Skip when:** The evidence comes only from the repo's own records.
-- **[14. Local speed, and many agents on one machine](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md)**
+- **[Local speed](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md)**
   - [Fast local feedback](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md#fast-local-feedback): **Applies when:** Agents or people wait on local checks. **Skip when:** Local checks already run only what covers the change.
   - [The local runner contract](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md#the-local-runner-contract): **Applies when:** A local runner runs a selected list of tests, such as `test:cached` or one you write. **Skip when:** Local runs take no selection.
   - [Sharing one machine](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md#sharing-one-machine): **Applies when:** Several agents or worktrees run tests on one shared machine. **Skip when:** Each machine runs one checkout.
-- **[15. The agent workflow around CI](../../../../docs/pages/15-the-agent-workflow-around-ci.md)**: **Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
+- **[Agent workflow](../../../../docs/pages/15-the-agent-workflow-around-ci.md)**: **Applies when:** Agents open, ready and merge the repo's PRs. **Skip when:** People run the PR workflow; keep the repo's trigger and merge policy until the user approves a change.
   - [How we run a review](../../../../docs/pages/15-the-agent-workflow-around-ci.md#how-we-run-a-review): **Applies when:** A repo adopts the review gate and has no review process of its own for what the gate requires. **Skip when:** The repo's own review already decides who reviews and how, or it doesn't gate CI on a review.
   - [Running a slow-test campaign with parallel agents](../../../../docs/pages/15-the-agent-workflow-around-ci.md#running-a-slow-test-campaign-with-parallel-agents): **Applies when:** The slow-file inventory is long enough to split among agents, and the harness runs them in parallel, each in its own worktree. **Skip when:** The harness can't run parallel agents, or one agent can work the inventory.
-- **[16. Standing automations](../../../../docs/pages/16-standing-automations.md)**: **Applies when:** A repeated, read-only or deterministic follow-up would otherwise be done by hand, and the user says yes to its schedule. **Skip when:** The user hasn't said yes: a manual, read-only follow-up is the default.
-- **[17. Keeping agent knowledge from going stale](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md)**
+- **[Automations](../../../../docs/pages/16-standing-automations.md)**: **Applies when:** A repeated, read-only or deterministic follow-up would otherwise be done by hand, and the user says yes to its schedule. **Skip when:** The user hasn't said yes: a manual, read-only follow-up is the default.
+- **[Agent knowledge](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md)**
   - [Where knowledge lives](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md#where-knowledge-lives): **Applies when:** Agents work in the repo and the plan's findings go into their instructions. **Skip when:** No agents work in the repo.
   - [What keeps it fresh](../../../../docs/pages/17-keeping-agent-knowledge-from-going-stale.md#what-keeps-it-fresh): **Applies when:** The repo keeps lessons or a tried-and-dropped register that agents read. **Skip when:** No agents work in the repo.
-- **[21. Optimize all of your graphs](../../../../docs/pages/21-optimize-all-of-your-graphs.md)**: **Applies when:** A workspace has several packages or a CI run of several jobs, and an edit selects, rebuilds or waits on more than it touches. **Skip when:** One package and one job, where there is no graph to shape.
+- **[Graphs](../../../../docs/pages/21-optimize-all-of-your-graphs.md)**: **Applies when:** A workspace has several packages or a CI run of several jobs, and an edit selects, rebuilds or waits on more than it touches. **Skip when:** One package and one job, where there is no graph to shape.
   - [Package dependencies, declared and checked](../../../../docs/pages/21-optimize-all-of-your-graphs.md#package-dependencies-declared-and-checked): **Applies when:** A workspace's packages import each other, and nothing but review stops a new import across them. **Skip when:** A single package, or a build tool that already refuses undeclared edges, such as Bazel's `deps`.
   - [Export paths: what an edit triggers](../../../../docs/pages/21-optimize-all-of-your-graphs.md#export-paths-what-an-edit-triggers): **Applies when:** A shared package has a root barrel, or a few wide entry points, and an edit to one module selects most of its importers. **Skip when:** Each package is small enough that every importer uses most of it.
   - [Layers and folders inside a package](../../../../docs/pages/21-optimize-all-of-your-graphs.md#layers-and-folders-inside-a-package): **Applies when:** A package's folders import each other in both directions, or "near" selection climbs from a small edit to most of a package. **Skip when:** Packages are small, flat, or already split along their folders.
@@ -87,7 +87,7 @@ Every technique in guide sections 2–17 and 21, by section, each with when it a
   - [Measure the graphs](../../../../docs/pages/21-optimize-all-of-your-graphs.md#measure-the-graphs): **Applies when:** Before tightening any graph above, and after each change to one. **Skip when:** Nothing above applies.
   - [Adopt them in a repo that has none](../../../../docs/pages/21-optimize-all-of-your-graphs.md#adopt-them-in-a-repo-that-has-none): **Applies when:** Graphs 1–3 aren't declared yet. **Skip when:** They are.
 
-## 18. Tried and dropped
+## Tried and dropped
 
 From [docs/pages/18-tried-and-dropped.md](../../../../docs/pages/18-tried-and-dropped.md). What was tried and dropped, and what would have to change before trying again.
 
@@ -151,7 +151,7 @@ See what we tried and dropped, the evidence that ruled each out, and what would 
 
 Rows that were folded into another change, or closed before anyone measured them, aren't failed optimizations. Don't count them as performance failures unless evidence shows one.
 
-## 20. Thresholds cheat sheet
+## Thresholds
 
 From [docs/pages/20-thresholds-cheat-sheet.md](../../../../docs/pages/20-thresholds-cheat-sheet.md). The source repo's starting values, as examples, not targets.
 
@@ -186,7 +186,7 @@ Our starting values, as examples from one repo. Don't adopt them as targets: der
 | Interactive proof wait | Completion evidence, polled every 0.2 s; stillness only for the first prompt, or as a logged fallback after 20 s |
 | Persisted-wait replay test | First pass sleeps 10 min, replay 1 s |
 
-## 4. Run only what a change can reach
+## Affected checks
 
 From [docs/pages/04-run-only-what-a-change-can-reach.md](../../../../docs/pages/04-run-only-what-a-change-can-reach.md). Selection with Turborepo or Nx.
 
@@ -200,7 +200,7 @@ A repo on Turborepo or Nx already has package-level selection built in: `turbo r
 - **Verify it like a selector:** replay recent PRs and compare what it ran against what they needed ([below](../../../../docs/pages/04-run-only-what-a-change-can-reach.md#verify-the-selector-like-production-code)).
 - **Don't replace a finer selector with it.** Where the repo already selects by test file, keep that: a package graph replacing semantic selection missed tests in 74 of 100 replayed PRs (above). Our planner in [`templates/plan/`](../../../../templates/plan/README.md) reads pnpm workspaces only, so in a Turborepo or Nx repo it's for a later pilot, not a first step.
 
-## 5. Tiers: what runs where
+## Tiers
 
 From [docs/pages/05-tiers-what-runs-where.md](../../../../docs/pages/05-tiers-what-runs-where.md). The release checklist each shipping path is mapped to, before any PR coverage moves to a sweep.
 
@@ -227,7 +227,7 @@ The steps below are ours, for npm packages with optional native children. Other 
 6. **On a retry, publish only the versions still missing,** from the same tarballs. Never overwrite a published version.
 7. **After publishing, advance production to the sweep's checked commit,** with an ancestor or fast-forward check.
 
-## 6. Reuse work by its real inputs
+## Caching
 
 From [docs/pages/06-reuse-work-by-its-real-inputs.md](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md). Guide section 6's cache table, and the trust policy a shared cache needs.
 
@@ -261,7 +261,7 @@ Sources, checked November 2026: Vite+ [task caching](https://viteplus.dev/guide/
   - Developers read and write with personal credentials.
   - Read failures are misses, and upload failures don't fail a passed task.
 
-## 14. Local speed, and many agents on one machine
+## Local speed
 
 From [docs/pages/14-local-speed-and-many-agents-on-one-machine.md](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md). What a local runner of selected tests must do before its green means they ran.
 

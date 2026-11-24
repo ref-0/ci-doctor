@@ -8,7 +8,15 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
-## Unreleased
+## v0.3.0
+
+Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
+
+### Do first
+
+1. **Shard scripts moved:** refresh your `scripts/shards/` from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md` (below, under Shards).
+2. **The sweep's cron:** `sweep.yml`'s `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts` and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps (below, under Shards).
+3. **Your skill copies:** every skill names 0.3.0 in its `metadata.version` and links this repo at `v0.3.0`. If you keep copies of the skills, copy them again.
 
 ### Shards
 
@@ -41,6 +49,15 @@ Under 1.0, a minor release carries what would be a major one.
 - **A larger runner named without a size has no known vCPUs.** `ubuntu-latest-large` read as a standard runner's 4, or 2 on a private repo. Only GitHub's standard labels, such as `ubuntu-latest`, `ubuntu-24.04-arm` and `windows-2022`, take the standard size.
 - **Renovate counts as batching only when its config says so:** a `groupName`, a `group:` preset, `config:recommended`, `config:base` or `config:best-practices`, or a schedule. Any Renovate config counted before. A schedule for lock-file maintenance alone doesn't count, and a config that only extends a preset kept in another repo is unknown, with the reason. One more file read for a repo that has one.
 - **The shard group reported is the slowest in the most sampled runs,** not the newest run's.
+
+### The guide and the plugins
+
+- **Short guide titles.** Each page's title is one to three words, without its number or subtitle, and the guide's front page is "Guides". The Contents, the hub's excerpts and the phases' anchors follow; file names stay, so every link to a page still lands.
+- **The plugins describe ci-doctor as skills that teach coding agents to make CI fast, reliable and efficient,** and the plugin's icon is ref0's zero on its tile.
+
+### Releasing
+
+- **A release is a pull request, `Release: <version>`, from `next` into `main`.** `release.yml` checks it, and its merge publishes `@ref0/ci-doctor` to npm by trusted publishing, with provenance, from the `release` environment, then tags the merge `v<version>`. The README's Contributing says how.
 
 ## v0.2.0
 

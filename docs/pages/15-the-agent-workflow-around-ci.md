@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 15. The agent workflow around CI
+# Agent workflow
 
 Run PRs with coding agents so each one aims at a single CI run: drafts until done, a review before ready, and slow-test campaigns in parallel.
 
