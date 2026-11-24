@@ -39,7 +39,7 @@ Every script below is in this skill's [`scripts/`](../scripts/), with its `node 
 
 ## Wire it in
 
-Set this up only once the user approves the plan ([ci-doctor, "Before approval"](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/SKILL.md#before-approval-read-only)).
+Set this up only once the user approves the plan ([ci-doctor, "Before approval"](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/SKILL.md#before-approval-read-only)).
 
 ### Start simple: a fixed split
 
@@ -54,7 +54,7 @@ Before task groups, lanes or claims, a fixed split by measured time often gets m
 
 Work stealing (below) is a later, separately measured change: add it when the slowest shard still sits well past the median on runs of the same selection.
 
-[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.3.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
+[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.4.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
 
 ### 1. Tests as tasks
 
@@ -180,7 +180,7 @@ A final job restores every shard's claims file and fails the run if any queue ba
 
 Pass `sandbox_files` to a matrix. Each job runs its `file` list one after another. Keep the estimates in a JSON file. Re-measure from a full run's records ([`scripts/records/`](https://ci-doctor.ref0.dev/guide/scripts/records/README.md) in the ci-doctor repo), and change an estimate only when it's off by more than 20%.
 
-Estimate from each file's whole elapsed time, collection, imports, setup and hooks included, measured as wall clock around the command that runs the file. Neither a sum of the printed per-test durations nor the records' Vitest module duration includes all of that, so each is only a lower bound: a lower bound above an estimate proves the estimate low, but one below it proves nothing about the estimate being high. Never replace an estimate with one, and don't read a skipped or failed file as fast: neither says anything of a normal run. Apply this before the 20% rule. [Comparing before and after](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/references/measuring.md#comparing-before-and-after) says the same for a fix's timings.
+Estimate from each file's whole elapsed time, collection, imports, setup and hooks included, measured as wall clock around the command that runs the file. Neither a sum of the printed per-test durations nor the records' Vitest module duration includes all of that, so each is only a lower bound: a lower bound above an estimate proves the estimate low, but one below it proves nothing about the estimate being high. Never replace an estimate with one, and don't read a skipped or failed file as fast: neither says anything of a normal run. Apply this before the 20% rule. [Comparing before and after](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/measuring.md#comparing-before-and-after) says the same for a fix's timings.
 
 Which container files a PR runs is the planner's job, not this script's: see [`templates/plan/README.md`](https://ci-doctor.ref0.dev/guide/templates/plan/README.md#container-test-reach).
 
@@ -188,7 +188,7 @@ Which container files a PR runs is the planner's job, not this script's: see [`t
 
 The sweep keeps the times. On each sweep's or server slot's run on the default branch, save each shard's `--times` file. A small job then runs `node scripts/shards/test-shards.ts --merge <each results.json> test-times.json > new.json` and caches the result where the plan job reads it. That job is the times' only writer. Each file keeps its newest `keptSamples` times (3) and the plan reads their median, so one shard on a slow machine doesn't move a file. A file the checkout no longer tracks is dropped. A file with no recorded time is estimated cautiously: heavy-harness files at the 90th percentile of the recorded ones, other files at the median. Such files run in a shard's own share and never go into the queue.
 
-How fresh the times are decides only how even the split is, and that's a separate decision from how often the sweep runs. The sweep's cadence decides how soon a break that PR selection skipped shows, and what a release waits for ([`ci-workflows`' tiers](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-workflows/references/tiers.md#sweep-cadence-and-shard-times-are-separate-decisions)). The sweep, at whatever cadence the user picks, is enough to keep the times fresh. In the source repo's CI, 17 to 20 November 2026, 1,193 files were measured. A fixed split by stored times put its busiest shard at 1.001 times the best split's with fresh times. With times a week old it was 1.014 at the median and 1.072 at the 90th percentile; that's modelled from measured drift and the repo's rate of new files. An equal count of files a shard was 1.146. New files run on the cautious estimate until the next sweep; that's in the week-old figure, and it's the known, measured cost.
+How fresh the times are decides only how even the split is, and that's a separate decision from how often the sweep runs. The sweep's cadence decides how soon a break that PR selection skipped shows, and what a release waits for ([`ci-workflows`' tiers](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/tiers.md#sweep-cadence-and-shard-times-are-separate-decisions)). The sweep, at whatever cadence the user picks, is enough to keep the times fresh. In the source repo's CI, 17 to 20 November 2026, 1,193 files were measured. A fixed split by stored times put its busiest shard at 1.001 times the best split's with fresh times. With times a week old it was 1.014 at the median and 1.072 at the 90th percentile; that's modelled from measured drift and the repo's rate of new files. An equal count of files a shard was 1.146. New files run on the cautious estimate until the next sweep; that's in the week-old figure, and it's the known, measured cost.
 
 Why a median of 3, from the same runs (254 shards that replayed no task, 17,042 fresh times):
 

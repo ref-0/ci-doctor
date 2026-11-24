@@ -57,9 +57,9 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the 
 
 ## Adopt the checks
 
-For a repo whose graphs 1–3 aren't declared. [`tools/workspace/`'s `package-graph`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/tools/workspace/README.md#the-package-graph) is the TypeScript checker; for other languages, its README gives the contract.
+For a repo whose graphs 1–3 aren't declared. [`tools/workspace/`'s `package-graph`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/tools/workspace/README.md#the-package-graph) is the TypeScript checker; for other languages, its README gives the contract.
 
-1. **Generate the graph as it is.** Copy `tools/workspace/` into the repo and install its parser, as [its setup](https://github.com/ref-0/ci-doctor/blob/v0.3.0/tools/workspace/README.md#types-symbols-and-exports) says; that's a change to the repo, with its own yes. Then `node tools/workspace/src/bin.ts package-graph --generate > package-graph.json` writes every edge and entry today's imports draw. Fix only what it can't declare: an import of an app, and relative paths out of a package.
+1. **Generate the graph as it is.** Copy `tools/workspace/` into the repo and install its parser, as [its setup](https://github.com/ref-0/ci-doctor/blob/v0.4.0/tools/workspace/README.md#types-symbols-and-exports) says; that's a change to the repo, with its own yes. Then `node tools/workspace/src/bin.ts package-graph --generate > package-graph.json` writes every edge and entry today's imports draw. Fix only what it can't declare: an import of an app, and relative paths out of a package.
 2. **Turn the check on in CI,** in the static job or lint, so the graph can't widen unseen. Every later step only narrows it.
 3. **Tighten:** `--unused` lists edges and entries nothing uses. Then split the widest roots into entry points (fix 2).
 4. **Layer the packages that need it** (fix 3). A stale exception fails, so the count only falls.

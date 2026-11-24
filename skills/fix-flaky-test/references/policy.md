@@ -11,7 +11,7 @@ Part of the [`fix-flaky-test`](../SKILL.md) skill. What the gate does with a fla
 
 ## What the policy says
 
-Where the repo has one, it's in `.agents/repo/ci.md`'s **Verifying a flake's fix** and **Flaky tests** (template: [`repo-facts/ci.md`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/agent-knowledge/templates/repo-facts/ci.md)). It answers:
+Where the repo has one, it's in `.agents/repo/ci.md`'s **Verifying a flake's fix** and **Flaky tests** (template: [`repo-facts/ci.md`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/ci.md)). It answers:
 
 - **In-job retries:** whether CI retries a failed test inside the job, and how many times. A pass on a retry still counts as a flake.
 - **A diagnostic rerun:** whether one rerun of the failed job, on the same revision and configuration, is allowed, and who may start it.

@@ -2,7 +2,7 @@
 name: optimize-graphs
 description: "Measures and narrows how far an edit reaches: package dependencies, exports and barrel files, layers, task inputs and the CI job graph. Use when one edit reruns most tests or builds, an unrelated edit misses a task cache, or CI runs everything. Not for setup caches (cache-ci); a slow job (ci-workflows)."
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # optimize-graphs
@@ -26,7 +26,7 @@ The first three are one graph at three sizes, and the last two are built on them
 ## Rules
 
 - **Measure before you propose,** and quote every count with its denominator: "24% of 308 test files", not "24%". Label each number measured (where, when, at which commit), replayed or guessed.
-- **Measuring is read-only.** The graph tool reads committed trees with `git` and runs nothing in the repo. Run no installs, builds or tests to count a graph unless the user says so. Inside the ci-doctor plan, its [read-only rule](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/SKILL.md#before-approval-read-only) holds until the plan is approved.
+- **Measuring is read-only.** The graph tool reads committed trees with `git` and runs nothing in the repo. Run no installs, builds or tests to count a graph unless the user says so. Inside the ci-doctor plan, its [read-only rule](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/SKILL.md#before-approval-read-only) holds until the plan is approved.
 - **A package refactor is a change to the user's code, not their CI.** Propose each as its own step and get its own yes: one package per change, by a script where imports move.
 - **A selector change is a CI change.** It gets its own pull request, follows [its own rules](references/selection.md#rules-for-a-selector-change), and keeps the current selector until a replay shows the new one keeps its coverage.
 - **Tighten only the graph that sets the limit you measured.** Don't do all five at once.
@@ -44,7 +44,7 @@ node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo>               # an
 `<ci-doctor>` is a ci-doctor checkout. A skills-only install, by `npx skills add` or a copy of this folder, doesn't carry the tool: clone it once, outside the user's repo, at the release this skill names in `metadata.version`:
 
 ```sh
-git clone --depth 1 --branch v0.3.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 ```
 
 Graph 5 comes from CI's records. On GitHub Actions, the scorer reads it from the workflow files and recent PR runs, through `gh` with the user's own sign-in: `npx @ref0/ci-doctor`, then its "Job graph" block, or `jobGraph` in `--json`. Elsewhere, the provider's jobs API, as guide section 13's [collection recipe](https://ci-doctor.ref0.dev/guide/docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says.
@@ -90,12 +90,12 @@ The selector, which picks a change's jobs and tests, walks these graphs. Before 
 
 ## 5. Adopt the checks in a repo that has none
 
-Graphs 1–3 are declared in one file and held by one check. [Fixes](references/fixes.md#adopt-the-checks) has the steps, with `package-graph` from [`tools/workspace/`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/tools/workspace/README.md#the-package-graph) for TypeScript, copied into the repo, and its contract for other languages. In short: generate the graph as it is, fix only what it can't declare, turn the check on, then tighten with `--unused`, entry points and layers. A stale exception fails, so the count only falls.
+Graphs 1–3 are declared in one file and held by one check. [Fixes](references/fixes.md#adopt-the-checks) has the steps, with `package-graph` from [`tools/workspace/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/tools/workspace/README.md#the-package-graph) for TypeScript, copied into the repo, and its contract for other languages. In short: generate the graph as it is, fix only what it can't declare, turn the check on, then tighten with `--unused`, entry points and layers. A stale exception fails, so the count only falls.
 
 ## Not here
 
-- Editing a workflow, its jobs, tiers and slow runs: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-workflows/SKILL.md). Runners, the bill and the ci-doctor plan: the `ci-doctor` skill. Its Phase 1 maps these graphs with this skill.
-- Slow setup, and a setup cache that misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/cache-ci/SKILL.md).
+- Editing a workflow, its jobs, tiers and slow runs: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/SKILL.md). Runners, the bill and the ci-doctor plan: the `ci-doctor` skill. Its Phase 1 maps these graphs with this skill.
+- Slow setup, and a setup cache that misses: [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/cache-ci/SKILL.md).
 - Whether a test is worth keeping: `test-audit`.
 
 ## Outside this skill
