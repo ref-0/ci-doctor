@@ -20,9 +20,11 @@ describe('vcpusOf', () => {
     assert.equal(vcpusOf(['macos-latest'], true), 3);
   });
 
-  it("knows no size for a self-hosted runner or a macOS size GitHub doesn't list", () => {
+  it("knows no size for a self-hosted runner, a larger runner named without one, or a macOS size GitHub doesn't list", () => {
     assert.equal(vcpusOf(['self-hosted', 'linux', 'x64'], false), null);
     assert.equal(vcpusOf(['macos-latest-xlarge'], false), null);
+    assert.equal(vcpusOf(['ubuntu-latest-large'], false), null);
+    assert.equal(vcpusOf(['windows-2022-xl'], true), null);
     assert.equal(vcpusOf([], false), null);
   });
 });
