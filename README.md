@@ -122,7 +122,7 @@ The measurements behind the score live in [ci-doctor-db](https://github.com/ref-
 
 ## Updating
 
-Releases are tags, and `main` is always the newest release, which is what each harness's plugin install reads. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
+Releases are tags. Each harness's plugin install reads `main`, which between releases also holds work no release has yet; to stay on a release, clone or copy at its tag. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
 
 ## Contributing
 
