@@ -8,6 +8,13 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
+## Unreleased
+
+### The scorer, `@ref0/ci-doctor`
+
+- **No score on thin evidence.** The score reads only GitHub Actions, so a repo whose pull requests wait on another CI scored top marks on whatever small checks it also ran there. A report now reads the check runs and commit statuses on 3 of people's newest PR pushes, 6 calls, and looks for other CIs' configs in the tree, at the paths each CI reads. It's unscored, with the reason, when another CI was still at work more than a minute after the Actions checks finished on 2 of those pushes, when the repo keeps another CI's config and its p50 wait is under a tenth of what's typical for its size, or when none of a part's measures could be made. Another CI's work counts for a push only when it starts with it, so a rerun's or another pull request's checks on the same commit aren't mixed in.
+- **A confidence beside the score.** `evidence.confidence` is `high`, `medium` or `low`, with `evidence.reasons`: few pushes timed, a measure missing, reruns unread, another CI seen, checks that couldn't be read on any push asked about, or a file tree cut short. `evidence.measured` is the share of the score's weight that was measured, and `scoreOf` returns it unrounded with `missing` and `empty`, the parts with none of their measures made. The terminal report and the `<ci-report>` block carry the line, and the terminal report says under every score what it doesn't see: what the tests prove, what CI costs in money, and checks outside GitHub Actions.
+
 ## v0.3.0
 
 Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
@@ -49,8 +56,6 @@ Released 23 November 2026. `ci-runners` owns shard splitting, shard times come f
 - **A larger runner named without a size has no known vCPUs.** `ubuntu-latest-large` read as a standard runner's 4, or 2 on a private repo. Only GitHub's standard labels, such as `ubuntu-latest`, `ubuntu-24.04-arm` and `windows-2022`, take the standard size.
 - **Renovate counts as batching only when its config says so:** a `groupName`, a `group:` preset, `config:recommended`, `config:base` or `config:best-practices`, or a schedule. Any Renovate config counted before. A schedule for lock-file maintenance alone doesn't count, and a config that only extends a preset kept in another repo is unknown, with the reason. One more file read for a repo that has one.
 - **The shard group reported is the slowest in the most sampled runs,** not the newest run's.
-- **No score on thin evidence.** The score reads only GitHub Actions, so a repo whose pull requests wait on another CI scored top marks on whatever small checks it also ran there. A report now reads the check runs and commit statuses on 3 of people's newest PR pushes, 6 calls, and looks for other CIs' configs in the tree, at the paths each CI reads. It's unscored, with the reason, when another CI was still at work more than a minute after the Actions checks finished on 2 of those pushes, when the repo keeps another CI's config and its p50 wait is under a tenth of what's typical for its size, or when none of a part's measures could be made. Another CI's work counts for a push only when it starts with it, so a rerun's or another pull request's checks on the same commit aren't mixed in.
-- **A confidence beside the score.** `evidence.confidence` is `high`, `medium` or `low`, with `evidence.reasons`: few pushes timed, a measure missing, reruns unread, another CI seen, checks that couldn't be read on any push asked about, or a file tree cut short. `evidence.measured` is the share of the score's weight that was measured, and `scoreOf` returns it unrounded with `missing` and `empty`, the parts with none of their measures made. The terminal report and the `<ci-report>` block carry the line, and the terminal report says under every score what it doesn't see: what the tests prove, what CI costs in money, and checks outside GitHub Actions.
 
 ### The guide and the plugins
 
