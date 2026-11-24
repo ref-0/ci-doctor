@@ -12,6 +12,8 @@ export const OUTSIDE_DECIDES = 2;
 export const THIN_WAIT = 0.1;
 /** Timed pushes under which confidence is low, and under which it's medium. */
 export const FEW_PUSHES = { low: 10, medium: 20 };
+/** The share of job minutes whose runner's size must be known, or the vCPU-minutes are mostly a guess. */
+export const SIZED_ENOUGH = 0.5;
 /** The share of the score's weight that must be measured for confidence not to be low. */
 export const MEASURED_LOW = 0.8;
 
@@ -138,6 +140,8 @@ export interface EvidenceInputs {
   /** From `scoreOf`: the share of the score's weight measured, and each measure that wasn't. */
   measured: number;
   missing: string[];
+  /** The share of the sampled job minutes whose runner's size is known: NaN when no job was sampled. */
+  sizedShare: number;
   configs: { ci: string; path: string }[];
   outside: { read: number; pushes: OutsidePush[] };
 }
@@ -171,6 +175,7 @@ export const evidenceOf = (o: EvidenceInputs) => {
     alsoRan.length > 0 && `${list(alsoRan)} also ran on ${o.outside.pushes.length} of ${o.outside.read} sampled pushes, which the score doesn't read`,
     o.outside.read === 0 && `checks from outside GitHub Actions couldn't be read${o.configs.length ? `, and the repo keeps a config for ${list(o.configs.map((c) => c.ci))}` : ''}`,
     unmeasured.length > 0 && `${list(unmeasured)} couldn't be measured`,
+    o.sizedShare < SIZED_ENOUGH && `the runners' sizes are known for ${Math.round(o.sizedShare * 100)}% of job minutes, and the rest count as standard runners`,
     o.rerunsUnread > 0 && `${o.rerunsUnread} rerun${o.rerunsUnread === 1 ? "'s first attempt wasn't" : "s' first attempts weren't"} read`,
   ].filter((r): r is string => typeof r === 'string');
   const confidence = thin ? null : o.timed < FEW_PUSHES.low || o.measured < MEASURED_LOW ? ('low' as const) : reasons.length ? ('medium' as const) : ('high' as const);

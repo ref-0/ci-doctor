@@ -678,6 +678,66 @@ describe('what a score rests on', () => {
   });
 });
 
+describe('what efficiency is measured in', () => {
+  const report = async (routes: Routes, repo = PUBLIC) => {
+    const r = await runCli(['--repo', repo, '--json'], { routes });
+    assert.equal(r.code, 0, r.stderr);
+    return json(r.stdout);
+  };
+  const relabel = (routes: Routes, labels: string[]) => {
+    for (const [key, answer] of Object.entries(routes)) if (/\/attempts\/1\/jobs\?page=1$/.test(key)) for (const job of (answer.json as { jobs: { labels: string[] }[] }).jobs) job.labels = labels;
+    return routes;
+  };
+  const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) <= 0.011 * expected + 0.11, `${actual} isn't near ${expected}`);
+
+  it("weighs a job's minutes by its runner's vCPUs: 4 on a public repo's standard runner, 2 on a private one's", async () => {
+    const open = (await report(fakeRepo({ repo: PUBLIC }))).efficiency;
+    const closed = (await report(fakeRepo({ repo: PRIVATE, private: true }), PRIVATE)).efficiency;
+
+    near(open.vcpuMinutesPerMergedPr, 4 * open.jobMinutesPerMergedPr);
+    near(closed.vcpuMinutesPerMergedPr, 2 * closed.jobMinutesPerMergedPr);
+    assert.equal(open.sizedShare, 1);
+    near(open.expectedVcpuMinutesPerMergedPr, 4 * open.expectedMinutesPerMergedPr);
+  });
+
+  it('scores the same minutes lower on a runner 16 times the size', async () => {
+    const standard = await report(fakeRepo({ repo: PUBLIC }));
+    const large = await report(relabel(fakeRepo({ repo: PUBLIC }), ['ubuntu-24.04-64core']));
+
+    assert.equal(large.efficiency.jobMinutesPerMergedPr, standard.efficiency.jobMinutesPerMergedPr);
+    near(large.efficiency.vcpuMinutesPerMergedPr, 16 * standard.efficiency.vcpuMinutesPerMergedPr);
+    assert.ok(large.detail.efficiency.minutesPerPr < standard.detail.efficiency.minutesPerPr, `${large.detail.efficiency.minutesPerPr} against ${standard.detail.efficiency.minutesPerPr}`);
+  });
+
+  it("counts a runner of unknown size as a standard one, and says the score is less sure", async () => {
+    const standard = await report(fakeRepo({ repo: PUBLIC, heads: 30 }));
+    const own = await report(relabel(fakeRepo({ repo: PUBLIC, heads: 30 }), ['self-hosted', 'big-box']));
+
+    assert.equal(own.efficiency.vcpuMinutesPerMergedPr, standard.efficiency.vcpuMinutesPerMergedPr);
+    assert.equal(own.efficiency.sizedShare, 0);
+    assert.equal(own.evidence.confidence, 'medium');
+    assert.deepEqual(own.evidence.reasons, ["the runners' sizes are known for 0% of job minutes, and the rest count as standard runners"]);
+  });
+
+  it('measures setup in minutes a job, so a fast job with little else to do scores full marks', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    // Each job: 15 seconds to set up, 5 to install, 10 of tests. Setup is two thirds of it, and a third of a minute.
+    for (const [key, answer] of Object.entries(routes)) {
+      if (!/\/attempts\/1\/jobs\?page=1$/.test(key)) continue;
+      for (const job of (answer.json as { jobs: { started_at: string; completed_at: string; steps: { started_at: string; completed_at: string }[] }[] }).jobs) {
+        const at = (seconds: number) => new Date(Date.parse(job.started_at) + seconds * 1e3).toISOString();
+        [job.steps[0]!.completed_at, job.steps[1]!.started_at, job.steps[1]!.completed_at, job.steps[2]!.started_at, job.steps[2]!.completed_at, job.completed_at] = [at(15), at(15), at(20), at(20), at(30), at(30)];
+      }
+    }
+    const r = await report(routes);
+
+    near(r.jobs.setupMinPerJob, 1 / 3);
+    near(r.jobs.setupShare, 2 / 3);
+    assert.equal(r.detail.efficiency.setup, 100);
+    assert.ok(!r.fixes.some((fix: { text: string }) => /on setup/.test(fix.text)));
+  });
+});
+
 describe('what the measures count', () => {
   type FakeRun = { id: number; name: string; path: string; head_sha: string; conclusion: string; run_attempt: number; created_at: string; updated_at: string };
   const prKey = `repos/${PUBLIC}/actions/runs?event=pull_request&page=1`;

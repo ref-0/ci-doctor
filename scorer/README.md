@@ -37,6 +37,11 @@ A scored report carries its confidence, in `evidence.confidence` and on a line u
 
 The score doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions. The report says so under every score.
 
+## What efficiency is measured in
+
+- **vCPU-minutes for each merged PR.** A job's minutes times its runner's vCPUs, so a job that finishes in a quarter of the time on a runner four times the size has used the same. The size comes from the job's labels: one named in a label, such as `-16core`, or GitHub's standard runners by their documented sizes. A runner whose size the labels don't say, such as a self-hosted one, counts as a standard runner's 4, and `efficiency.sizedShare` is the share of job minutes whose size was known: under half, the report says the score is less sure. `efficiency.jobMinutesPerMergedPr` still gives the plain job minutes.
+- **Setup minutes a job.** The time a job spends in setup steps, such as checkout, installs and cache restores, as the mean across a run's jobs: `jobs.setupMinPerJob`. 30 seconds is full marks and 4 minutes is none. `jobs.setupShare`, setup as a share of job time, is still reported, and no longer scored: a fast job with little else to do has a high share and nothing to fix.
+
 ## What it reads
 
 It computes everything on your machine. Every GitHub read goes through `gh api`, with your own sign-in, so a private repo scores the same as a public one:
