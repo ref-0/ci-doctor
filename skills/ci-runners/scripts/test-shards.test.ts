@@ -10,6 +10,8 @@ import {
   fileStart,
   fixedShare,
   groupsFor,
+  keptSamples,
+  longestFile,
   merged,
   planOf,
   shardCount,
@@ -284,16 +286,101 @@ describe('shardCount', () => {
 });
 
 describe('merged', () => {
-  test('keeps each file’s newest time, so a run that timed some files keeps the rest', () => {
-    const before = results({ [server('src/a.test.ts')]: 90, [server('src/b.test.ts')]: 60 }, 1);
-    const sweep = results({ [server('src/a.test.ts')]: 30 }, 2);
+  const a = server('src/a.test.ts');
+  const b = server('src/b.test.ts');
+  /** Stored times: each file's planned time and its samples, as `merged` writes them. */
+  const stored = (files: Record<string, [number, ReadonlyArray<number>]>) =>
+    JSON.stringify({
+      version: 1,
+      projects: {
+        workspace: {
+          files: Object.fromEntries(
+            Object.entries(files).map(([path, [duration, times]]) => [
+              path,
+              { duration, lastRun: times.length, samples: times.map((ms, at) => [at + 1, ms]) },
+            ]),
+          ),
+        },
+      },
+    });
+  const read = (text: string) => JSON.parse(text).projects.workspace.files;
+
+  test('keeps the times of files a run didn’t time, and a sweep’s run times the rest', () => {
+    const before = results({ [a]: 90, [b]: 60 }, 1);
+    const sweep = results({ [a]: 30 }, 2);
 
     deepStrictEqual(
       timesIn([merged([sweep, before])]),
       new Map([
-        [server('src/a.test.ts'), 30],
-        [server('src/b.test.ts'), 60],
+        // The lower of its two samples' middle, as the planner rounds down.
+        [a, 30],
+        [b, 60],
       ]),
     );
+  });
+
+  test('plans from the median of the newest samples, so one slow runner moves nothing', () => {
+    const before = stored({ [a]: [10_000, [10_000, 10_500]] });
+    const slow = results({ [a]: 22_000 }, 9);
+
+    strictEqual(timesIn([merged([slow, before])]).get(a), 10_500);
+  });
+
+  test(`keeps only each file’s newest ${keptSamples} samples`, () => {
+    const before = stored({ [a]: [1_000, [1_000, 1_000, 1_000]] });
+    const after = [10, 11, 12].map((at) => results({ [a]: 5_000 }, at));
+    const text = merged([...after, before]);
+
+    strictEqual(read(text)[a].samples.length, keptSamples);
+    strictEqual(timesIn([text]).get(a), 5_000);
+  });
+
+  test('reads times stored before samples were kept as one sample each', () => {
+    // The shape stored before this format: a planned time with no samples.
+    const legacy = results({ [a]: 100 }, 1);
+    const text = merged([results({ [a]: 10 }, 2), results({ [a]: 300 }, 3), legacy]);
+
+    deepStrictEqual(read(text)[a].samples, [[1, 100], [2, 10], [3, 300]]);
+    strictEqual(timesIn([text]).get(a), 100);
+  });
+
+  test('counts a sample once when the same results come twice', () => {
+    const fresh = server('src/new.test.ts');
+    const pr = results({ [fresh]: 40_000 }, 3);
+    const once = merged([pr]);
+
+    deepStrictEqual(read(merged([pr, once]))[fresh].samples, [[3, 40_000]]);
+  });
+
+  test('drops a time past longestFile and a run dated ahead, so a bad record outranks nothing', () => {
+    const now = 1_000_000;
+    const bad = results({ [a]: 1e308 }, 1e307);
+    const ahead = results({ [b]: 5_000 }, now + 2 * 24 * 3600 * 1000);
+    const real = results({ [a]: 9_000, [b]: 4_000 }, now - 1);
+
+    deepStrictEqual(
+      timesIn([merged([bad, ahead, real], { now })]),
+      new Map([
+        [a, 9_000],
+        [b, 4_000],
+      ]),
+    );
+    strictEqual(read(merged([results({ [a]: longestFile + 1 }, 1)], { now }))[a], undefined);
+  });
+
+  test('gives the same bytes for the same inputs in any order', () => {
+    const one = results({ [b]: 20 }, 5);
+    const other = results({ [a]: 10 }, 5);
+    // Two samples at the same time: the order they came in mustn't decide which one is kept.
+    const tie = stored({ [a]: [7, [7, 7]] });
+    const same = [results({ [a]: 9 }, 2), results({ [a]: 8 }, 2)];
+
+    strictEqual(merged([one, other]), merged([other, one]));
+    strictEqual(merged([tie, ...same]), merged([...same.toReversed(), tie]));
+    deepStrictEqual(Object.keys(read(merged([one, other]))), [a, b].sort());
+  });
+
+  test('drops a file the checkout no longer tracks', () => {
+    deepStrictEqual(Object.keys(read(merged([results({ [a]: 1, [b]: 2 })], { tracked: new Set([a]) }))), [a]);
   });
 });

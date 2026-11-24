@@ -75,7 +75,10 @@ const PR_EVENTS = new Set(['pull_request', 'pull_request_target']);
 // Workflows that run on PRs but don't gate a merge; left out of the wait, listed in the report.
 const NOT_A_CHECK =
   /claude|codex|copilot|coderabbit|gemini|greptile|sourcery|ai.?review|pr.?review|label|triage|welcome|greet|stale|lock|assign|size|auto-?merge|preview|deploy|benchmark|codspeed|bundle.?(size|analy)|release|publish|cla\b|first.?interaction|backport|comment/i;
-const DONE = new Set(['success', 'failure']);
+// A run that hit its time limit failed, and its hours were CI time: it's red, and its push is timed.
+const FAILED = new Set(['failure', 'timed_out']);
+const failed = (conclusion: string | null | undefined) => FAILED.has(conclusion ?? '');
+const DONE = new Set(['success', ...FAILED]);
 const PUSH_WINDOW = 10 * 60e3;
 const MIN_TIMED = 5;
 const isBotActor = (login = '') => /\[bot\]$|^(renovate|dependabot|github-actions|copilot-swe-agent)/i.test(login);
@@ -96,8 +99,13 @@ interface Run {
   actor?: { login: string };
 }
 
-/** One stream of completed runs, such as PR runs or pushes to main, newest first. */
-const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: number) => {
+/**
+ * One stream of completed runs, such as PR runs or pushes to main, newest first. `from` is where the
+ * stream's window starts, and `days` what it covers, to now: from `since` when every run in it was read,
+ * and from the oldest run read when GitHub had more than the pages hold. A week with one burst of runs is
+ * still a week. With `until`, reading stops once it's back to that time: older runs aren't wanted.
+ */
+const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: number, until?: number) => {
   const runs: Run[] = [];
   let total = 0;
   for (let page = 1; page <= pages; page++) {
@@ -105,10 +113,12 @@ const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: nu
     total = res.total_count;
     runs.push(...res.workflow_runs);
     if (res.workflow_runs.length < 100) break;
+    if (until !== undefined && Date.parse(runs.at(-1)!.created_at) < until) break;
   }
   const done = runs.filter((r) => r.status === 'completed');
-  const days = done.length ? minutes(done.at(-1)!.created_at, done[0]!.created_at) / 1440 : 0;
-  return { runs: done, total, fetched: runs.length, days };
+  const from = total > runs.length && runs.length ? Date.parse(runs.at(-1)!.created_at) : Date.parse(since);
+  const days = done.length ? (Date.now() - from) / DAY : 0;
+  return { runs: done, total, fetched: runs.length, from, days };
 };
 
 // A run that sat over an hour before starting was waiting for a maintainer's approval (a fork's PR)
@@ -116,47 +126,84 @@ const readRuns = (gh: Gh, repo: string, since: string, filter: string, pages: nu
 const startOf = (r: Run) =>
   r.run_attempt === 1 && Date.parse(r.run_started_at) - Date.parse(r.created_at) > 60 * 60e3 ? r.run_started_at : r.created_at;
 
-/** For each pushed head: the wait from the first workflow's start to the last one's end. */
-/** A rerun run's first attempt: failed, cancelled or green. One call each, capped per report. */
+/**
+ * A rerun run's first attempt: failed, cancelled or green. One call each, capped per report: past the
+ * cap it's null, not read, which `waits` counts at the rate of the reruns that were read.
+ */
 const firstAttempts = (gh: Gh, repo: string, cap: number) => {
   const seen = new Map<number, string | undefined>();
-  return (run: Run): string | undefined => {
+  return (run: Run): string | null | undefined => {
     if (run.run_attempt === 1) return run.conclusion ?? undefined;
-    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1`, { absentOn: [404] })?.conclusion ?? undefined);
+    if (!seen.has(run.id) && seen.size >= cap) return null;
+    if (!seen.has(run.id)) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1`, { absentOn: [404] })?.conclusion ?? undefined);
     return seen.get(run.id);
   };
 };
 
-const waits = (runs: Run[], first: (run: Run) => string | undefined = () => undefined, heavy?: Set<string>) => {
+// A failed first attempt that took over an hour with no jobs never ran: GitHub failed it while it
+// waited, such as a fork's run nobody approved, closed days later with its pull request. Its hours
+// aren't CI time and its failure isn't a red check. A run that passed did run, so it isn't asked.
+// One call each, capped per report.
+const ranJobs = (gh: Gh, repo: string, cap: number) => {
+  const seen = new Map<number, boolean>();
+  return (run: Run): boolean => {
+    if (run.conclusion !== 'failure' || run.run_attempt > 1 || Date.parse(run.updated_at) - Date.parse(run.run_started_at) <= 60 * 60e3) return true;
+    if (!seen.has(run.id) && seen.size < cap) seen.set(run.id, gh.json(`repos/${repo}/actions/runs/${run.id}/attempts/1/jobs?per_page=1&page=1`).jobs.length > 0);
+    return seen.get(run.id) ?? true;
+  };
+};
+
+/** What tells one workflow from another: its file. Two files can share a name. */
+const workflowOf = (r: Run) => r.path || r.name;
+
+/**
+ * For each pushed head: the wait from the first workflow's start to the last one's end. The rates are
+ * shares of the heads that ran something: a head whose runs were all skipped has no CI to be red or flaky.
+ */
+const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () => undefined, heavy?: Set<string>, didRun: (run: Run) => boolean = () => true) => {
   const heads = groupBy(runs, (r) => r.head_sha);
-  const clean: { sha: string; wait: number; last: string; red: boolean }[] = [];
+  const clean: { sha: string; wait: number; last: Run; red: boolean }[] = [];
+  let ranHeads = 0;
   let rerunHeads = 0;
   let passedOnRerun = 0;
+  let rerunsRead = 0;
+  let rerunsUnread = 0;
   let cancelledHeads = 0;
   let redHeads = 0;
   let botHeads = 0;
   let lightHeads = 0;
+  let neverRan = 0;
+  const bots: string[] = [];
   const redBy: string[] = [];
   for (const [sha, rs] of heads) {
+    if (rs.every((r) => isBotActor(r.actor?.login))) bots.push(rs[0]?.actor?.login ?? '');
     // One push starts its runs together. A run created later came from another event, such as a
     // label, a comment or an approval, so it isn't part of this push's wait.
-    const ran = rs.filter((r) => r.conclusion !== 'skipped' && r.conclusion !== 'neutral' && r.conclusion !== 'action_required');
+    const started = rs.filter((r) => r.conclusion !== 'skipped' && r.conclusion !== 'neutral' && r.conclusion !== 'action_required');
+    const ran = started.filter(didRun);
+    neverRan += started.length - ran.length;
     if (!ran.length) continue;
+    ranHeads++;
     const pushedAt = Math.min(...ran.map((r) => Date.parse(r.created_at)));
     const counted = ran.filter((r) => Date.parse(r.created_at) - pushedAt <= PUSH_WINDOW);
     const startedAt = counted.map(startOf).sort()[0]!;
     const byBot = counted.every((r) => isBotActor(r.actor?.login));
     const reruns = counted.filter((r) => r.run_attempt > 1);
     // Green only on a rerun: the first attempt failed and the latest passed.
-    const flaked = reruns.some((r) => r.conclusion === 'success' && first(r) === 'failure');
-    const red = flaked || counted.some((r) => r.conclusion === 'failure');
+    const firsts = reruns.filter((r) => r.conclusion === 'success').map(first);
+    const flaked = firsts.some(failed);
+    const unread = !flaked && firsts.some((conclusion) => conclusion === null);
+    const red = flaked || counted.some((r) => failed(r.conclusion));
     if (red) {
       redHeads++;
-      for (const r of counted) if (r.conclusion === 'failure' || (r.run_attempt > 1 && first(r) === 'failure')) redBy.push(r.name);
+      // Only a green rerun's first attempt is asked for: the reads are few, and no other rerun can have flaked.
+      for (const r of counted) if (failed(r.conclusion) || (r.run_attempt > 1 && r.conclusion === 'success' && failed(first(r)))) redBy.push(r.name);
     }
     if (reruns.length) {
       rerunHeads++;
       if (flaked) passedOnRerun++;
+      if (unread) rerunsUnread++;
+      else if (firsts.length) rerunsRead++;
       continue;
     }
     if (counted.some((r) => r.conclusion === 'cancelled')) {
@@ -165,7 +212,7 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
     }
     if (!counted.every((r) => DONE.has(r.conclusion ?? ''))) continue;
     // Time only pushes that ran the real work; a push that ran only quick checks says little.
-    if (heavy?.size && !counted.some((r) => heavy.has(r.name))) {
+    if (heavy?.size && !counted.some((r) => heavy.has(workflowOf(r)))) {
       lightHeads++;
       continue;
     }
@@ -176,23 +223,34 @@ const waits = (runs: Run[], first: (run: Run) => string | undefined = () => unde
     }
     const start = startedAt;
     const lastRun = counted.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
-    clean.push({ sha, wait: minutes(start, lastRun.updated_at), last: lastRun.name, red });
+    clean.push({ sha, wait: minutes(start, lastRun.updated_at), last: lastRun, red });
   }
-  const all = heads.size;
   const w = clean.map((c) => c.wait);
+  const lastToFinish = count(clean, (c) => workflowOf(c.last));
+  const nameOf = (workflow: string) => clean.find((c) => workflowOf(c.last) === workflow)?.last.name ?? workflow;
+  // A rerun whose first attempt wasn't read went green on a rerun as often as the ones that were. With
+  // none read, how often is unknown.
+  const passedOnRerunEstimate = passedOnRerun + (rerunsRead ? (rerunsUnread * passedOnRerun) / rerunsRead : rerunsUnread ? NaN : 0);
   return {
-    heads: all,
+    heads: heads.size,
+    ranHeads,
     timed: clean.length,
     p50: pct(w, 0.5),
     p75: pct(w, 0.75),
     p90: pct(w, 0.9),
-    redRate: share(redHeads, all),
-    rerunRate: share(rerunHeads, all),
-    passedOnRerunRate: share(passedOnRerun, all),
-    cancelledRate: share(cancelledHeads, all),
+    redRate: share(redHeads, ranHeads),
+    rerunRate: share(rerunHeads, ranHeads),
+    passedOnRerunRate: share(passedOnRerunEstimate, ranHeads),
+    rerunsUnread,
+    cancelledRate: share(cancelledHeads, ranHeads),
     botHeads,
     lightHeads,
-    lastToFinish: count(clean, (c) => c.last).slice(0, 3),
+    neverRan,
+    botPushes: bots.length,
+    bots: count(bots, (n) => n).slice(0, 3),
+    lastToFinish: lastToFinish.slice(0, 3).map(([workflow, n]) => [nameOf(workflow), n] as [string, number]),
+    /** The file of the workflow that most often finishes last, which `lastToFinish` names. */
+    lastWorkflow: lastToFinish[0]?.[0],
     redBy: count(redBy, (n) => n).slice(0, 3),
   };
 };
@@ -351,6 +409,13 @@ const workflowFiles = (source: Source) => {
 const tri = (found: boolean, complete: boolean): boolean | null => (found ? true : complete ? false : null);
 const named = <T>(found: T | undefined, complete: boolean): T | false | null => (found !== undefined ? found : complete ? false : null);
 
+const RENOVATE_CONFIG = /^(\.github\/)?renovate\.json5?$|^\.renovaterc(\.json5?)?$/;
+const RENOVATE_BATCHES = /groupName|\bgroup:|config:(recommended|base|best-practices)|schedule/;
+// A schedule for lock-file maintenance alone doesn't batch the updates themselves.
+const LOCK_FILE_MAINTENANCE = /"?lockFileMaintenance"?\s*:\s*\{[^{}]*\}/g;
+// A preset kept in another repo: what it sets can't be read from here.
+const RENOVATE_SHARED_PRESET = /\b(github|gitlab|bitbucket|gitea|local)>/;
+
 export const practices = (source: Source) => {
   const tree = new Set(source.tree.blobs.map((b) => b.path));
   const treeComplete = !source.tree.truncated;
@@ -371,6 +436,9 @@ export const practices = (source: Source) => {
   const pkg = optional('package.json');
   const nx = optional('nx.json');
   const dependabot = optional('.github/dependabot.yml');
+  // Renovate batches only when its config groups updates, extends a preset that does, or holds them to a schedule.
+  const renovatePath = [...tree].find((path) => RENOVATE_CONFIG.test(path));
+  const renovate = renovatePath === undefined ? (treeComplete ? '' : undefined) : optional(renovatePath);
   const pkgKnown = pkg !== undefined;
 
   const all = workflows.join('\n');
@@ -391,6 +459,10 @@ export const practices = (source: Source) => {
           ? 'nextest'
           : /pytest[^\n]*-n\s/.test(all) ? 'pytest-xdist' : undefined;
   const agentsMd = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md'].filter((p) => has(p));
+
+  const depsBatched = RENOVATE_BATCHES.test((renovate ?? '').replace(LOCK_FILE_MAINTENANCE, '')) || /groups:/.test(dependabot ?? '');
+  const sharedPreset = RENOVATE_SHARED_PRESET.test(renovate ?? '');
+  if (!depsBatched && sharedPreset) unknown.push(`${renovatePath} extends a preset kept in another repo, so whether it batches updates can't be read here`);
 
   return {
     workflows: allWorkflows.length,
@@ -428,7 +500,7 @@ export const practices = (source: Source) => {
     // F. Tests and flakes
     testResults: yes(/junit|buildpulse|trunk-io|test-results|test-reporter|codecov\/test-results-action/i),
     // G. Health
-    depBotsBatched: tri(has(/^(\.github\/)?renovate\.json5?$|^\.renovaterc/) || /groups:/.test(dependabot ?? ''), treeComplete && dependabot !== undefined),
+    depBotsBatched: tri(depsBatched, treeComplete && dependabot !== undefined && renovate !== undefined && !sharedPreset),
     // H. Ready for agents
     agentsMd: agentsMd.length || treeComplete ? agentsMd : null,
     agentRules: tri(has(/^\.cursor\/rules\//) || has(/^\.(agents|claude)\/skills\//), treeComplete),
@@ -491,7 +563,7 @@ export const treeProfile = (tree: Tree) => {
   };
 };
 
-const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: number, coveredDays: number) => {
+const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: number, coveredDays: number, since: string) => {
   const { codeBytes, ...fromTree } = treeProfile(tree);
   const lines = (n: number) => Math.round(n / BYTES_PER_LINE);
 
@@ -515,17 +587,17 @@ const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: numb
   const yearWeekly = participation?.length ? participation.reduce((a, x) => a + x, 0) / participation.length : NaN;
   const lastMonthWeekly = participation?.length ? participation.slice(-4).reduce((a, x) => a + x, 0) / 4 : NaN;
 
-  // Merged PRs in the last 7 days: how many, and opened (or marked ready) to merged.
-  const since7 = new Date(Date.now() - 7 * DAY).toISOString().slice(0, 10);
-  const merged = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr is:merged merged:>=${since7}`)}&per_page=100&sort=updated`);
-  const opened = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr created:>=${since7}`)}&per_page=1`);
+  // Merged PRs in the window the runs were read over: how many a week, and opened (or marked ready) to merged.
+  const weeks = (Date.now() - Date.parse(since)) / (7 * DAY);
+  const merged = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr is:merged merged:>=${since}`)}&per_page=100&sort=updated`);
+  const opened = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr created:>=${since}`)}&per_page=1`);
   const items: any[] = merged?.items ?? [];
   const isBot = (i: any) => i.user?.type === 'Bot' || /\[bot\]$|^(renovate|dependabot)/.test(i.user?.login ?? '');
   const openToMerge = items.filter((i) => i.pull_request?.merged_at && !isBot(i)).map((i) => (Date.parse(i.pull_request.merged_at) - Date.parse(i.created_at)) / 3600e3);
   const botPrs = items.filter(isBot).length;
-  const mergedPerWeek = merged?.total_count ?? NaN;
+  const mergedPerWeek = merged ? merged.total_count / weeks : NaN;
 
-  return {
+  const profile = {
     ageYears: r1((Date.now() - Date.parse(meta.created_at)) / (365 * DAY)),
     stars: meta.stargazers_count,
     forks: meta.forks_count,
@@ -539,14 +611,17 @@ const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: numb
     commitsPerWeekYear: r1(yearWeekly),
     pace: Number.isFinite(lastMonthWeekly / yearWeekly) ? r1(lastMonthWeekly / yearWeekly) : null,
     activeAuthors28d: commits.length >= 500 ? `≥${authors.size}` : authors.size,
-    prsOpenedPerWeek: opened?.total_count ?? null,
-    prsMergedPerWeek: mergedPerWeek,
+    prsOpenedPerWeek: opened ? r1(opened.total_count / weeks) : null,
+    prsMergedPerWeek: r1(mergedPerWeek) ?? NaN,
     botShareOfMergedPrs: r1(share(botPrs, items.length) * 100),
     // People's PRs only: bots' are often merged in minutes.
     openToMergeHours: { p50: r1(median(openToMerge)), p90: r1(pct(openToMerge, 0.9)), n: openToMerge.length },
     prRunsPerDay: r1(prRunCount / Math.max(coveredDays, 0.5)),
     runsPerMergedPr: r1((prRunCount / Math.max(coveredDays, 0.5)) * 7 / mergedPerWeek),
   };
+
+  // The rate as counted, for what's worked out from it: the profile's is rounded for reading.
+  return { profile, mergedPerWeek };
 };
 
 // ---------- score and fixes ----------
@@ -561,16 +636,21 @@ export const sizeClass = (headsPerWeek: number, linesOfCode: number) => {
   return names[Math.max(byTraffic, byCode)]!;
 };
 
-/** PR CI job minutes in the window, across every workflow: 2 sampled runs each, scaled by run count. */
+/**
+ * PR CI job minutes in the window, across every workflow file: 3 sampled runs each, scaled by run count.
+ * A workflow whose sampled runs ran no job has no minutes to stand for it, and with none measured the
+ * minutes are unknown, not zero.
+ */
 const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
-  const ran = prRuns.filter((r) => ['success', 'failure', 'cancelled'].includes(r.conclusion ?? ''));
-  const byWorkflow = [...groupBy(ran, (r) => r.name)].sort((x, y) => y[1].length - x[1].length);
+  const ran = prRuns.filter((r) => DONE.has(r.conclusion ?? '') || r.conclusion === 'cancelled');
+  const byWorkflow = [...groupBy(ran, workflowOf)].sort((x, y) => y[1].length - x[1].length);
   const perRun: number[] = [];
   const billedPerRun: number[] = [];
   let minutes = 0;
   let billed = 0;
   let sampledRuns = 0;
   const totals = new Map<string, number>();
+  const names = new Map<string, string>();
   for (const [, rs] of byWorkflow.slice(0, 12)) {
     // The 3 runs nearest the workflow's median duration, so a run whose jobs were all skipped, or an
     // unusually long one, doesn't stand for the workflow.
@@ -578,7 +658,10 @@ const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
     const usable = rs.filter((r) => r.run_attempt === 1 && r.conclusion !== 'cancelled').sort((x, y) => length(x) - length(y));
     const mid = Math.floor(usable.length / 2);
     const sample = usable.slice(Math.max(0, mid - 1), mid + 2);
-    const jobs = sample.map((r) => readJobs(gh, repo, r.id));
+    const jobs = sample.map((r) => readJobs(gh, repo, r.id)).filter((js) => js.length);
+    // Its runs are accounted for either way: a workflow whose sampled runs ran no job costs nothing, and
+    // isn't charged the minutes of the workflows that did.
+    sampledRuns += rs.length;
     if (!jobs.length) continue;
     const dur = (j: Job) => minutes_(j.started_at!, j.completed_at!);
     const m = median(jobs.map((js) => js.reduce((acc, j) => acc + dur(j), 0)));
@@ -586,11 +669,11 @@ const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
     // A cancelled run usually stopped partway: count it as half.
     const weight = rs.filter((r) => r.conclusion !== 'cancelled').length + rs.filter((r) => r.conclusion === 'cancelled').length / 2;
     minutes += m * weight;
-    totals.set(rs[0]!.name, m * weight);
+    totals.set(workflowOf(rs[0]!), m * weight);
+    names.set(workflowOf(rs[0]!), rs[0]!.name);
     billed += bm * weight;
     perRun.push(m);
     billedPerRun.push(bm);
-    sampledRuns += rs.length;
   }
   // Workflows past the top 12: at the sampled median.
   const rest = ran.length - sampledRuns;
@@ -604,7 +687,14 @@ const ciMinutes = (gh: Gh, repo: string, prRuns: Run[]) => {
     heavy.add(name);
     covered += m;
   }
-  return { jobMinutes: minutes, billedMinutes: billed, workflows: byWorkflow.length, heavy };
+  const measured = perRun.length > 0;
+  return {
+    jobMinutes: measured ? minutes : NaN,
+    billedMinutes: measured ? billed : NaN,
+    workflows: byWorkflow.length,
+    heavy,
+    heavyNames: [...new Set([...heavy].map((workflow) => names.get(workflow) ?? workflow))],
+  };
 };
 const minutes_ = (a: string, b: string) => minutes(a, b);
 
@@ -726,26 +816,29 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   // PR runs and pushes to main are read as separate streams, so a busy repo's bots, schedules and
   // other events don't crowd the PR runs out of the window.
   const prStream = readRuns(gh, repo, since, 'event=pull_request', MAX_RUN_PAGES);
-  const targetStream = readRuns(gh, repo, since, 'event=pull_request_target', 2);
+  // Read back as far as the PR runs go, and no further: both streams are counted over the same days.
+  const targetStream = readRuns(gh, repo, since, 'event=pull_request_target', MAX_RUN_PAGES, prStream.from);
   const mainStream = readRuns(gh, repo, since, `event=push&branch=${encodeURIComponent(meta.default_branch)}`, 3);
-  const runs = [...prStream.runs, ...targetStream.runs, ...mainStream.runs];
+  const from = Math.max(prStream.from, targetStream.from);
+  const inWindow = (r: Run) => Date.parse(r.created_at) >= from;
+  const runs = [...prStream.runs.filter(inWindow), ...targetStream.runs.filter(inWindow), ...mainStream.runs];
   const total = prStream.total;
-  const covered = prStream.days;
+  const covered = prStream.runs.length + targetStream.runs.length ? (Date.now() - from) / DAY : 0;
 
   const prRuns = runs.filter((r) => PR_EVENTS.has(r.event));
   const gating = prRuns.filter((r) => !NOT_A_CHECK.test(r.name));
   const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
   const ci = ciMinutes(gh, repo, gating);
   const first = firstAttempts(gh, repo, 25);
-  const wait = waits(gating, first, ci.heavy);
-  const allPushes = waits(gating, first);
+  const ranAny = ranJobs(gh, repo, 60);
+  const wait = waits(gating, first, ci.heavy, ranAny);
+  const allPushes = waits(gating, first, undefined, ranAny);
   const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)));
   const bots = share(runs.filter((r) => r.actor?.login.endsWith('[bot]')).length, runs.length);
 
   // Jobs of the workflow that most often finishes last.
-  const lastName = wait.lastToFinish[0]?.[0];
   const sample = gating
-    .filter((r) => r.name === lastName && r.conclusion === 'success' && r.run_attempt === 1)
+    .filter((r) => workflowOf(r) === wait.lastWorkflow && r.conclusion === 'success' && r.run_attempt === 1)
     .slice(0, JOB_SAMPLE);
   const perRun = sample.map((r) => ({ run: r, jobs: readJobs(gh, repo, r.id) })).filter((x) => x.jobs.length);
   const stats = perRun.map((x) => jobStats(x.jobs));
@@ -770,9 +863,10 @@ export const measure = (gh: Gh, repo: string, days: number) => {
           minutes: median(stats.filter((s) => s.longest.name === name).map((s) => s.longest.minutes)),
         }))[0]!,
         providers: count(stats.flatMap((s) => s.providers), (p) => p).slice(0, 3),
-        shard: stats[0]!.shardGroups[0]
+        // The shard group that's the slowest in the most sampled runs, not only in the newest.
+        shard: stats.some((s) => s.shardGroups[0])
           ? (() => {
-              const name = stats[0]!.shardGroups[0]!.name;
+              const name = count(stats.flatMap((s) => s.shardGroups.slice(0, 1)), (g) => g.name)[0]![0];
               const gs = stats.map((s) => s.shardGroups.find((g) => g.name === name)).filter((g) => !!g);
               return {
                 name,
@@ -811,7 +905,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   // Remembered, so the graphs reread the stack's manifests from memory.
   const source = remembered(githubSource(gh, repo, meta.default_branch));
   const pr = practices(source);
-  const profile = profileOf(gh, repo, meta, source.tree, prRuns.length, covered);
+  const { profile, mergedPerWeek } = profileOf(gh, repo, meta, source.tree, prRuns.length, covered, since);
   // Workflow files and the languages answer are remembered from the reads before: no second call.
   const stack = stackOf({
     source,
@@ -822,12 +916,12 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     runners: jobs?.providers,
   });
   // The sampled runs' jobs and the workflow files are remembered from the reads above: no new calls.
-  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })));
+  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })), meta.private === true);
   // The entry files and task configs: GraphQL blob batches at the tree's ids, counted here.
   const callsBefore = gh.calls;
   const graphs = graphsOf({ source, stack, jobGraph });
   graphs.read.calls = gh.calls - callsBefore;
-  const mergedInWindow = (profile.prsMergedPerWeek * Math.max(covered, 0.5)) / 7;
+  const mergedInWindow = (mergedPerWeek * Math.max(covered, 0.5)) / 7;
   const efficiency = {
     prJobMinutesPerDay: r1(ci.jobMinutes / Math.max(covered, 0.5)),
     prBilledMinutesPerDay: r1(ci.billedMinutes / Math.max(covered, 0.5)),
@@ -859,7 +953,9 @@ export const measure = (gh: Gh, repo: string, days: number) => {
       ? `There are no GitHub Actions workflows on ${meta.default_branch}, so there's no CI history to score.`
       : prRuns.length === 0
         ? `There were no pull-request runs of GitHub Actions in the last ${days} days.`
-        : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
+        : wait.heads > 0 && wait.botPushes >= 0.8 * wait.heads
+          ? `${wait.botPushes} of ${wait.heads} PR pushes in the window came from bots (${wait.bots.map(([name]) => name).join(', ')}), and only pushes people make are timed; ${MIN_TIMED} are needed.`
+          : `Only ${wait.timed} PR pushes in the window ran the main workflows; ${MIN_TIMED} are needed.`;
 
   return {
     repo,
@@ -877,7 +973,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     parts: enough ? parts : {},
     detail,
     efficiency,
-    wait: { ...wait, leftOut: left, heavyWorkflows: [...ci.heavy], allPushesP50: allPushes.p50 },
+    wait: { ...wait, leftOut: left, heavyWorkflows: ci.heavyNames, allPushesP50: allPushes.p50 },
     main: { heads: main.heads, p50: main.p50, p90: main.p90, redRate: main.redRate, redBy: main.redBy },
     botRunShare: bots,
     jobs,

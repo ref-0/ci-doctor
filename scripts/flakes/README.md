@@ -43,7 +43,7 @@ Set it up only once the user approves the plan, and the test retry as its own ap
          node scripts/shards/ci-cache.ts save "$KEY" "$RUNNER_TEMP/test-flakes.jsonl"
    ```
 
-   An artifact named the same way works too. The Actions cache costs no artifact storage. [`../shards/ci-cache.ts`](../shards/ci-cache.ts) saves and restores by exact key, with the [`ci-cache` action](../../templates/github/actions/ci-cache/)'s outputs.
+   An artifact named the same way works too. The Actions cache costs no artifact storage. [`ci-cache.ts`](../../skills/ci-runners/scripts/ci-cache.ts), from the `ci-runners` skill and copied to `scripts/shards/` with its shard scripts, saves and restores by exact key, with the [`ci-cache` action](../../templates/github/actions/ci-cache/)'s outputs.
 
 2. In a job after the result (`ci.yml`'s `report`, so the required result keeps read rights only), restore every job's file for every attempt so far into one folder with the same `ci-cache` outputs (`ci.yml`'s "The run's flakes" step), then file:
 

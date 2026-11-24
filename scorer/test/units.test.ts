@@ -53,6 +53,27 @@ describe('practices', () => {
     assert.equal(found.taskRunner, 'vite-plus');
   });
 
+  it('takes Renovate as batching only when its config groups updates or holds them to a schedule', () => {
+    assert.equal(of({ 'renovate.json': '{ "extends": ["config:recommended"] }' }).depBotsBatched, true);
+    assert.equal(of({ '.github/renovate.json5': '{ packageRules: [{ groupName: "lint" }] }' }).depBotsBatched, true);
+    assert.equal(of({ 'renovate.json': '{ "enabled": true }' }).depBotsBatched, false);
+    assert.equal(of({ '.github/dependabot.yml': 'updates:\n  - groups:\n      all: {}\n' }).depBotsBatched, true);
+    assert.equal(of({ 'package.json': '{}' }).depBotsBatched, false);
+  });
+
+  it("leaves batching unknown when Renovate's rules are a preset kept in another repo, and says why", () => {
+    const shared = of({ 'renovate.json': '{ "extends": ["github>pip/renovate-config"] }' });
+
+    assert.equal(shared.depBotsBatched, null);
+    assert.deepEqual(shared.unknown, ["renovate.json extends a preset kept in another repo, so whether it batches updates can't be read here"]);
+    assert.equal(of({ 'renovate.json': '{ "extends": ["github>pip/renovate-config"], "packageRules": [{ "groupName": "lint" }] }' }).depBotsBatched, true);
+  });
+
+  it("takes a schedule for lock-file maintenance alone as no batching", () => {
+    assert.equal(of({ 'renovate.json': '{ "lockFileMaintenance": { "enabled": true, "schedule": ["before 5am on monday"] } }' }).depBotsBatched, false);
+    assert.equal(of({ 'renovate.json': '{ "schedule": ["before 5am on monday"] }' }).depBotsBatched, true);
+  });
+
   it("takes Oxlint's TypeScript config", () => {
     assert.equal(of({ 'package.json': '{}', 'oxlint.config.ts': '' }).fastLint, true);
     assert.equal(of({ 'package.json': '{}' }).fastLint, false);

@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-Burning time and money on CI? Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.
+Burning time and money on CI? ci-doctor is a set of skills and tools your agents use to make CI faster and cost less, and keep it that way.
 
 It's what we learned in a 1.5M-line TypeScript and Rust monorepo where AI agents write most of the code, without letting tests prove less: across 189 successful first-attempt runs of ready PRs in one week, CI's wall time had a median of about 3.2 minutes and a p90 of about 4.5 ([how we got here](docs/pages/19-how-we-got-here.md)). It cost us a lot of time and money to learn. It's all here so it doesn't cost you the same.
 
@@ -111,7 +111,7 @@ Paste the [AI Quickstart](#ai-quickstart)'s first prompt: it picks the method fo
 | [`docs/`](docs/) | The guide and harness notes |
 | [`skills/`](skills/README.md) | The plugin’s skills, as [Skills](#skills) lists |
 | [`scorer/`](scorer/README.md) | `@ref0/ci-doctor`: scores a repo's CI on your machine through `gh`, and prints how to install the skills |
-| [`scripts/`](scripts/README.md) | Timing, shards, budgets, flakes, sweeps and local test slots |
+| [`scripts/`](scripts/README.md) | Timing, budgets, flakes, sweeps and local test slots. Shards are the `ci-runners` skill's |
 | [`tools/`](tools/) | Workspace tools and upstream skill sync |
 | [`templates/`](templates/) | CI workflows and the selection planner |
 | [`cache/remote/`](cache/remote/README.md) | Vite+ remote cache on Cloudflare |
@@ -134,7 +134,7 @@ node scripts/check.ts
 
 After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first. `node scripts/site/build.ts` builds the guide site into `dist/site/`; `scripts/site/README.md` says how it's deployed.
 
-A release merges `next` into `main`, bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag, and pushes the tag, which publishes the scorer to npm.
+A release is a pull request, `Release: <version>`, from `next` into `main`. Before it, a pull request into `next` bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag and adds the CHANGELOG entry. [`release.yml`](.github/workflows/release.yml) checks the release pull request, and once it passes, merging it publishes the scorer to npm and tags the merge.
 
 ## License
 
