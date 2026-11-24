@@ -51,7 +51,7 @@ describe('outsideCiOf', () => {
 });
 
 describe('evidenceOf', () => {
-  const whole: EvidenceInputs = { timed: 60, p50: 6, rerunsUnread: 0, expectedWait: 8, linesOfCode: 40_000, measured: 1, missing: [], configs: [], outside: { read: 3, pushes: [] } };
+  const whole: EvidenceInputs = { timed: 60, p50: 6, rerunsUnread: 0, expectedWait: 8, linesOfCode: 40_000, measured: 1, missing: [], sizedShare: 1, configs: [], outside: { read: 3, pushes: [] } };
   const push = (sha: string, actionsMin: number, minutes: number | null) => ({ sha, actionsMin, ci: [{ name: 'Azure Pipelines', minutes }] });
 
   it('is sure of a score with every measure made and no other CI seen', () => {
@@ -90,7 +90,7 @@ describe('evidenceOf', () => {
   });
 
   it('withholds the score when a whole part went unmeasured', () => {
-    const { measured, missing } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, minutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupShare: NaN, queueP90Sec: NaN, shardIdleTail: NaN });
+    const { measured, missing } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: NaN, runsPerMergedPr: NaN, setupMinPerJob: NaN, queueP90Sec: NaN, shardIdleTail: NaN });
     const { thin } = evidenceOf({ ...whole, measured, missing });
 
     assert.equal(measured, 0.8);
@@ -98,7 +98,7 @@ describe('evidenceOf', () => {
   });
 
   it('is less sure with few pushes, a measure missing or reruns unread, and says each', () => {
-    const { measured, missing } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, minutesPerMergedPr: 30, runsPerMergedPr: 8, setupShare: 0.2, queueP90Sec: 12, shardIdleTail: NaN });
+    const { measured, missing } = scoreOf({ p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: NaN, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN });
     const { evidence } = evidenceOf({ ...whole, timed: 14, rerunsUnread: 2, measured, missing });
 
     assert.deepEqual(missing, ['reliability.mainRed']);
@@ -116,11 +116,18 @@ describe('evidenceOf', () => {
 });
 
 describe("scoreOf's measured share", () => {
-  const all = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, minutesPerMergedPr: 30, runsPerMergedPr: 8, setupShare: 0.2, queueP90Sec: 12, shardIdleTail: NaN };
+  const all = { p50: 4, p90: 9, linesOfCode: 40_000, passedOnRerunRate: 0.02, mainRedRate: 0.1, vcpuMinutesPerMergedPr: 120, runsPerMergedPr: 8, setupMinPerJob: 0.4, queueP90Sec: 12, shardIdleTail: NaN };
 
   it('is whole without shards, which only a repo that has them is measured on', () => {
     assert.deepEqual([scoreOf(all).measured, scoreOf(all).missing], [1, []]);
     assert.deepEqual([scoreOf({ ...all, shardIdleTail: 0.2 }).measured, scoreOf({ ...all, shardIdleTail: 0.2 }).missing], [1, []]);
+  });
+
+  it('gives setup full marks at 30 seconds a job and none at 4 minutes', () => {
+    const setup = (setupMinPerJob: number) => scoreOf({ ...all, setupMinPerJob }).detail.efficiency!.setup;
+
+    assert.deepEqual([setup(0.2), setup(0.5), setup(4), setup(9)], [100, 100, 0, 0]);
+    assert.ok(setup(1)! > setup(2)! && setup(2)! > 0);
   });
 
   it("drops by a missing measure's share of its part", () => {
