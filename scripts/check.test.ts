@@ -63,8 +63,8 @@ describe('the each-skill-alone link check', () => {
       '---\nname: leaf\ndescription: "A leaf."\n---\n\n# Leaf\n\n## Steps\n',
       'Read [the detail](references/detail.md#gone), [the guide](../../docs/a.md#one) and [the hub](../hub/SKILL.md#rules).',
       `In full: [the guide](${GUIDE_URL}docs/a.md#one), [no heading](${GUIDE_URL}docs/a.md#two), [the hub](${gh}skills/${HUB}/SKILL.md#rules), [a folder](${GITHUB_URL}tree/${GITHUB_REF}/docs), [gone](${gh}docs/gone.md) and [unserved](${GUIDE_URL}private/notes.md).`,
-      `On next: [the guide](${GITHUB_URL}blob/next/docs/a.md#one) and [gone](${GITHUB_URL}blob/next/docs/next-gone.md). An older tag: [the guide](${GITHUB_URL}blob/v0.0.1/docs/a.md#one).`,
-      'Elsewhere: [another branch](https://github.com/ref-0/ci-doctor/blob/main/docs/gone.md) and [a site](https://example.com/x).',
+      `On main: [the guide](${GITHUB_URL}blob/main/docs/a.md#one) and [gone](${GITHUB_URL}blob/main/docs/main-gone.md). An older tag: [the guide](${GITHUB_URL}blob/v0.0.1/docs/a.md#one).`,
+      'Elsewhere: [another branch](https://github.com/ref-0/ci-doctor/blob/a-branch/docs/gone.md) and [a site](https://example.com/x).',
       '',
     ].join('\n\n'),
   );
@@ -95,7 +95,7 @@ describe('the each-skill-alone link check', () => {
     match(leaf, /docs\/a\.md#two: no heading makes #two in docs\/a\.md/);
     match(leaf, /docs\/gone\.md: no docs\/gone\.md in the repo/);
     match(leaf, /private\/notes\.md: .* doesn't serve private\/notes\.md/);
-    match(leaf, /docs\/next-gone\.md: no docs\/next-gone\.md in the repo/);
+    match(leaf, /docs\/main-gone\.md: no docs\/main-gone\.md in the repo/);
     equal(leaf.split('\n').length, 8, leaf);
   });
 
