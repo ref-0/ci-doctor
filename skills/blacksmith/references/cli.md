@@ -29,6 +29,6 @@ Part of the [`blacksmith`](../SKILL.md) skill. Check each command's flags with `
 | Actions cache entries | `blacksmith cache` |
 | CI against local changes on a warm runner | `blacksmith testbox`; the source repo hadn't relied on it yet |
 
-- **Read jobs one by one** for CPU: aggregate views had no metrics for most jobs when this was measured. The sizing rule, resize only when three runs agree, is in [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/references/sizing.md).
+- **Read jobs one by one** for CPU: aggregate views had no metrics for most jobs when this was measured. The sizing rule, resize only when three runs agree, is in [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/sizing.md).
 - **`jobs list`'s `billable_minutes` are vCPU-minutes,** started minutes times vCPUs. Its records name a run and a job by name; `ci-time.ts --bill blacksmith` joins them to GitHub's jobs that way.
 - **Match the org and repo** to the one you mean before you trust a total: a login can see several.

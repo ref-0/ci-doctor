@@ -4,7 +4,7 @@
 
 Part of the [`ci-doctor`](../../SKILL.md) hub. What [Phase 3](../phases/phase-3-set-targets-and-write-the-plan.md) needs from the guide and the reference READMEs, copied from them so the phase runs where only the skills are installed. Each part links its source.
 
-## 2. Runners, Blacksmith, and the cost of getting fast
+## Runners
 
 From [docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md](../../../../docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md). Choosing runners, and telling a queue from slow work. Prices change: check the provider's page, and say "unknown" when you can't.
 
@@ -44,9 +44,9 @@ Before task groups, lanes or claims, a fixed split by measured time often gets m
 
 Work stealing (below) is a later, separately measured change: add it when the slowest shard still sits well past the median on runs of the same selection.
 
-[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
+[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.3.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
 
-## 6. Reuse work by its real inputs
+## Caching
 
 From [docs/pages/06-reuse-work-by-its-real-inputs.md](../../../../docs/pages/06-reuse-work-by-its-real-inputs.md). Checking a cache before the plan relies on it.
 
@@ -63,7 +63,7 @@ Our checks below come from Vite+, which tracks what each task reads. A runner wi
 5. **Restore on a clean checkout.** From a second clean checkout, read the remote and check that the restored outputs exist and work.
 6. **Keep nondeterministic tests uncached,** and count hits apart from executions.
 
-## 16. Standing automations
+## Automations
 
 From [docs/pages/16-standing-automations.md](../../../../docs/pages/16-standing-automations.md). The automations table, for the plan's automations step.
 
@@ -102,7 +102,7 @@ We also ran a **weekly CI audit** for a while. It covered spend by job against l
 - *Never, but propose:* new tier or coverage changes (moving a test to covered-only or the sweep, narrowing selection), new recurring CI spend or scheduled jobs, enabling macOS, re-enabling a workflow the spend watcher disabled, deleting data, touching production or tokens, widening a production API for a test. Stop at the first action outside the approved scope.
 - *Never at all:* retries, timeout-only fixes or skipped tests. No Docker or full local CI.
 
-## 10. Slow tests: the method
+## Slow tests
 
 From [docs/pages/10-slow-tests-the-method.md](../../../../docs/pages/10-slow-tests-the-method.md). The slow-test fix table, for each file in the inventory.
 

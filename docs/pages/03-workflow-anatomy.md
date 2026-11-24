@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 3. Workflow anatomy
+# Workflows
 
 Shape one workflow as a plan job, the jobs it selects and one result job, so a PR runs only what it needs and merges on one check.
 

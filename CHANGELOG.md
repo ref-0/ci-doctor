@@ -10,6 +10,23 @@ Under 1.0, a minor release carries what would be a major one.
 
 ## Unreleased
 
+### The scorer, `@ref0/ci-doctor`
+
+- **No score on thin evidence.** The score reads only GitHub Actions, so a repo whose pull requests wait on another CI scored top marks on whatever small checks it also ran there. A report now reads the check runs and commit statuses on 3 of people's newest PR pushes, 6 calls, and looks for other CIs' configs in the tree, at the paths each CI reads. It's unscored, with the reason, when another CI was still at work more than a minute after the Actions checks finished on 2 of those pushes, when the repo keeps another CI's config and its p50 wait is under a tenth of what's typical for its size, or when none of a part's measures could be made. Another CI's work counts for a push only when it starts with it, so a rerun's or another pull request's checks on the same commit aren't mixed in.
+- **A confidence beside the score.** `evidence.confidence` is `high`, `medium` or `low`, with `evidence.reasons`: few pushes timed, a measure missing, reruns unread, another CI seen, checks that couldn't be read on any push asked about, or a file tree cut short. `evidence.measured` is the share of the score's weight that was measured, and `scoreOf` returns it unrounded with `missing` and `empty`, the parts with none of their measures made. The terminal report and the `<ci-report>` block carry the line, and the terminal report says under every score what it doesn't see: what the tests prove, what CI costs in money, and checks outside GitHub Actions.
+- **Minutes are weighed by the runner's vCPUs.** Minutes per merged PR counted a job on a 16-vCPU runner the same as one on a standard runner, so buying bigger runners read as efficiency. The measure is now vCPU-minutes: each job's minutes times its runner's vCPUs, with a runner of unknown size counted as a standard one's 4. `efficiency` gains `vcpuMinutesPerMergedPr`, `prVcpuMinutesPerDay`, `expectedVcpuMinutesPerMergedPr` and `sizedShare`, the share of job minutes whose runner's size was known, each workflow's counted by its runs, and the confidence drops to medium when that's under half. GitHub's larger macOS runners have their documented sizes, 12 and 5 vCPUs. `scoreOf` takes `vcpuMinutesPerMergedPr` in place of `minutesPerMergedPr`.
+- **Setup is scored in minutes a job, not as a share of job time.** A share called a fast job wasteful: a repo with a 2-minute wait and 20 seconds of setup a job scored 28 of 100 on setup, and one whose long tests hid 4 minutes of setup scored 100. `jobs.setupMinPerJob` is the mean across a run's jobs; 30 seconds is full marks and 4 minutes is none. The setup fix shows when a job spends over a minute on it, unless that's under 5% of job time, and gives the minutes. `scoreOf` takes `setupMinPerJob` in place of `setupShare`, which the report still gives.
+
+## v0.3.0
+
+Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
+
+### Do first
+
+1. **Shard scripts moved:** refresh your `scripts/shards/` from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md` (below, under Shards).
+2. **The sweep's cron:** `sweep.yml`'s `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts` and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps (below, under Shards).
+3. **Your skill copies:** every skill names 0.3.0 in its `metadata.version` and links this repo at `v0.3.0`. If you keep copies of the skills, copy them again.
+
 ### Shards
 
 - **`ci-runners` owns shard splitting.** The shard scripts moved from `scripts/shards/` into `skills/ci-runners/scripts/`, with their tests, so they install with that skill alone: the plan (`test-shards.ts`), `test-groups.ts`, the lanes runner (`test-lanes.ts`), the claims (`test-claims.ts`), the Actions cache client (`ci-cache.ts`), `test-tasks.ts` and `container-pack.ts`. `scripts/shards/README.md` is now the skill's `references/shards.md`, which the hub's Phase 3 excerpt, `ci-workflows`, `speed-up-tests` and the guide point to. **Action:** the templates still call the scripts at `scripts/shards/` in your repo; refresh that copy from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link of yours to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md`.
@@ -41,10 +58,15 @@ Under 1.0, a minor release carries what would be a major one.
 - **A larger runner named without a size has no known vCPUs.** `ubuntu-latest-large` read as a standard runner's 4, or 2 on a private repo. Only GitHub's standard labels, such as `ubuntu-latest`, `ubuntu-24.04-arm` and `windows-2022`, take the standard size.
 - **Renovate counts as batching only when its config says so:** a `groupName`, a `group:` preset, `config:recommended`, `config:base` or `config:best-practices`, or a schedule. Any Renovate config counted before. A schedule for lock-file maintenance alone doesn't count, and a config that only extends a preset kept in another repo is unknown, with the reason. One more file read for a repo that has one.
 - **The shard group reported is the slowest in the most sampled runs,** not the newest run's.
-- **No score on thin evidence.** The score reads only GitHub Actions, so a repo whose pull requests wait on another CI scored top marks on whatever small checks it also ran there. A report now reads the check runs and commit statuses on 3 of people's newest PR pushes, 6 calls, and looks for other CIs' configs in the tree. It's unscored, with the reason, when another CI ran longer than the Actions checks on 2 of those pushes, when the repo keeps another CI's config and its p50 wait is under a tenth of what's typical for its size, or when none of a part's measures could be made.
-- **A confidence beside the score.** `evidence.confidence` is `high`, `medium` or `low`, with `evidence.reasons`: few pushes timed, a measure missing, reruns unread, another CI seen, or checks that couldn't be read. `evidence.measured` is the share of the score's weight that was measured, and `scoreOf` returns it with `missing`. The terminal report and the `<ci-report>` block carry the line, and the terminal report says under every score what it doesn't see: what the tests prove, what CI costs in money, and checks outside GitHub Actions.
-- **Minutes are weighed by the runner's vCPUs.** Minutes per merged PR counted a job on a 16-vCPU runner the same as one on a standard runner, so buying bigger runners read as efficiency. The measure is now vCPU-minutes: each job's minutes times its runner's vCPUs, with a runner of unknown size counted as a standard one's 4. `efficiency` gains `vcpuMinutesPerMergedPr`, `prVcpuMinutesPerDay`, `expectedVcpuMinutesPerMergedPr` and `sizedShare`, the share of job minutes whose runner's size was known, and the confidence drops to medium when that's under half. `scoreOf` takes `vcpuMinutesPerMergedPr` in place of `minutesPerMergedPr`.
-- **Setup is scored in minutes a job, not as a share of job time.** A share called a fast job wasteful: a repo with a 2-minute wait and 20 seconds of setup a job scored 28 of 100 on setup, and one whose long tests hid 4 minutes of setup scored 100. `jobs.setupMinPerJob` is the mean across a run's jobs; 30 seconds is full marks and 4 minutes is none. The setup fix shows when a job spends over a minute on it. `scoreOf` takes `setupMinPerJob` in place of `setupShare`, which the report still gives.
+
+### The guide and the plugins
+
+- **Short guide titles.** Each page's title is one to three words, without its number or subtitle, and the guide's front page is "Guides". The Contents, the hub's excerpts and the phases' anchors follow; file names stay, so every link to a page still lands.
+- **The plugins describe ci-doctor as skills that teach coding agents to make CI fast, reliable and efficient,** and the plugin's icon is ref0's zero on its tile.
+
+### Releasing
+
+- **A release is a pull request, `Release: <version>`, from `next` into `main`.** `release.yml` checks it, and its merge publishes `@ref0/ci-doctor` to npm by trusted publishing, with provenance, from the `release` environment, then tags the merge `v<version>`. The README's Contributing says how.
 
 ## v0.2.0
 

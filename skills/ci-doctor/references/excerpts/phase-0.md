@@ -4,7 +4,7 @@
 
 Part of the [`ci-doctor`](../../SKILL.md) hub. What [Phase 0](../phases/phase-0-know-your-harness-and-your-helpers.md) needs from the guide and the reference READMEs, copied from them so the phase runs where only the skills are installed. Each part links its source.
 
-## Harnesses: parallel agents and recurring work
+## Harnesses
 
 From [docs/harnesses.md](../../../../docs/harnesses.md). Which harness you are, and what it can run: subagents, worktrees and schedules.
 

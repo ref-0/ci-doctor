@@ -2,7 +2,7 @@
 name: prove-it
 description: "Checks whether the evidence for a claim holds: that a change made something faster, cost less or fixed. Use when someone claims a speed-up, a saving or a fix, or quotes a benchmark, a before and after or a few runs. Not for why a CI run failed (ci-doctor); whether a test is worth keeping (test-audit)."
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # prove-it
@@ -54,12 +54,12 @@ Check the artifact itself: run the feature, read the actual value, inspect the d
 
 ## Where this applies in CI
 
-CI's records and the rules particular to them are in the `ci-doctor` plugin's hub. Links go to the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.2.0) at this skill's release:
+CI's records and the rules particular to them are in the `ci-doctor` plugin's hub. Links go to the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.3.0) at this skill's release:
 
-- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
-- A cost: [budget CI at list price](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
+- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
+- A cost: [budget CI at list price](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
 - A slow-test campaign's report: its template carries [the report](references/report.md)'s fields for each headline number.
-- A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/review-gate/SKILL.md) says.
+- A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/review-gate/SKILL.md) says.
 
 ## Not here
 
@@ -68,4 +68,4 @@ CI's records and the rules particular to them are in the `ci-doctor` plugin's hu
 
 ## Outside this skill
 
-Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.2.0) at the tag `v<version>`, where the version is this file's `metadata.version`.
+Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.3.0) at the tag `v<version>`, where the version is this file's `metadata.version`.

@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 11. Flakes
+# Flakes
 
 Tell a flake from a real failure, find its cause and fix it, so a red check means something again and nobody reruns to get green.
 

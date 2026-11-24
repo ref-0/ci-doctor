@@ -1,6 +1,6 @@
 {
   "name": "@ref0/ci-doctor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Score GitHub Actions CI from 0 to 100 on your machine, see what to fix first, and find ci-doctor's playbook and coding-agent skills.",
   "license": "MIT",
   "type": "module",

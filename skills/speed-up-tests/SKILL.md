@@ -2,7 +2,7 @@
 name: speed-up-tests
 description: "Makes slow tests faster without losing what they prove: finds the slowest files and takes out what each waits on. Use when a test, a test file or a suite is slow, in CI or locally, or tests time out. Not for a flaky test (fix-flaky-test); whether a test is worth keeping (test-audit)."
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # speed-up-tests
@@ -21,7 +21,7 @@ The method behind this skill is [guide section 10](https://ci-doctor.ref0.dev/gu
 
 Collect CI's records of each test file's time, then rank them, with the commands in the repo's `speed-up-tests.md`. A file is slow past the triage cutoff its Thresholds name (10 s in CI in the source repo). Many files just past it can hold more test time than the few far past it, so review every file past it, not the top of the list.
 
-Rank by the median of each file's newest passing runs, over the window its Thresholds name (the newest five in the source repo), the widest spreads, each test that failed or passed only on a retry, and total test-seconds, as [measuring](references/measuring.md#reading-cis-records) says: count only what ran, say what the sample is, and split a failure by commit before calling it a flake. `ci-time.ts` ([`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md#measuring-a-run)) prints where a run's time went by job and shard. For API history, read [CI history data](references/ci-history-data.md).
+Rank by the median of each file's newest passing runs, over the window its Thresholds name (the newest five in the source repo), the widest spreads, each test that failed or passed only on a retry, and total test-seconds, as [measuring](references/measuring.md#reading-cis-records) says: count only what ran, say what the sample is, and split a failure by commit before calling it a flake. `ci-time.ts` ([`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-workflows/SKILL.md#measuring-a-run)) prints where a run's time went by job and shard. For API history, read [CI history data](references/ci-history-data.md).
 
 Start from the issues CI files for flakes and failures on `main`, and what other threads already own: `gh pr list --search "<file name>"`.
 
@@ -43,7 +43,7 @@ Give each file a verdict: slow for a wrong reason (which), real work, or unknown
 - **Repeat the whole file locally with no retry,** several times in a row, since a fix in one test can break its neighbours.
 - **Make the assertion stronger if you can.** Waiting for the event itself often proves an order the old sleep only hoped for.
 - **A retry starts from fresh state:** names, holds and records the first attempt left.
-- **Moving a proof to a slower tier must keep it honest:** its breaks still run, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/proof-tiers/SKILL.md) says for models and property tests.
+- **Moving a proof to a slower tier must keep it honest:** its breaks still run, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/proof-tiers/SKILL.md) says for models and property tests.
 
 ## 4. Measure before and after, the same way
 
@@ -72,19 +72,19 @@ The method holds on any stack. Where your stack matches, these say what was spec
 
 ## The tools
 
-The records collector is [`scripts/records/`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/scripts/records/README.md) in the ci-doctor repo, and `ci-time.ts` is in the `ci-workflows` skill, at `<skills-dir>/ci-workflows/scripts/ci-time.ts` in a plugin install. Both run on Node 24 with nothing installed. A skills-only install of this folder carries neither: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run them from there:
+The records collector is [`scripts/records/`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/scripts/records/README.md) in the ci-doctor repo, and `ci-time.ts` is in the `ci-workflows` skill, at `<skills-dir>/ci-workflows/scripts/ci-time.ts` in a plugin install. Both run on Node 24 with nothing installed. A skills-only install of this folder carries neither: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run them from there:
 
 ```sh
-git clone --depth 1 --branch v0.2.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+git clone --depth 1 --branch v0.3.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
 ```
 
 ## Not here
 
-- A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
-- Shards, planned and run by measured time: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/next/skills/ci-runners/references/shards.md). Tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-workflows/SKILL.md); caches, [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/cache-ci/SKILL.md); selection, [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/optimize-graphs/references/selection.md); runner size, queues and cost, [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/SKILL.md). How far an edit reaches through the workspace: `optimize-graphs`.
-- Whether a test is worth keeping at all: [`test-audit`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/test-audit/SKILL.md); its authoring gate applies to any test you add.
-- Taking a PR through CI: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md); [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/review-gate/SKILL.md) for its tests reviewer.
+- A test that fails sometimes, or passes only on a retry: [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/fix-flaky-test/SKILL.md). A flake is a wrong answer, not a slow one.
+- Shards, planned and run by measured time: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/shards.md). Tiers: [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-workflows/SKILL.md); caches, [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/cache-ci/SKILL.md); selection, [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/optimize-graphs/references/selection.md); runner size, queues and cost, [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/SKILL.md). How far an edit reaches through the workspace: `optimize-graphs`.
+- Whether a test is worth keeping at all: [`test-audit`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/test-audit/SKILL.md); its authoring gate applies to any test you add.
+- Taking a PR through CI: [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-merge-workflow/SKILL.md); [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/review-gate/SKILL.md) for its tests reviewer.
 
 ## Outside this skill
 
