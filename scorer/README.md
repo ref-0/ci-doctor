@@ -15,7 +15,7 @@ Run it in a Git checkout. If the checkout's `package.json` pins a Node version i
 
 A checkout with no GitHub remote has no Actions history to read. It then lists what it finds in the checkout's tracked files, says "unscored" and gives the reason. A repo with no pull-request runs in the window, or fewer than 5 timed PR pushes, is unscored too, with its practices still listed. A PR push is timed from its first run's start to its last run's end. It isn't timed when a bot made it, and a failed run that took over an hour with no jobs is left out, since it never ran: GitHub failed it while it waited, such as a fork's run nobody approved. When bots made nearly every push, the reason says so.
 
-A run that hit its time limit (`timed_out`) is a failed run: its push is red, and timed. The red, rerun and cancelled rates are shares of the pushes that ran something (`wait.ranHeads`), so a push whose runs were all skipped isn't in them. A rerun's first attempt is one call, and a report reads at most 25: past that, reruns count as green only on a rerun as often as the ones read did, and `wait.rerunsUnread` says how many. Rates a week, such as PR pushes and merged PRs, are over the days read: the whole window when every run in it was read, and from the oldest run read when GitHub had more than 1,000. Workflows are told apart by file, so two files with one name aren't one workflow. When no sampled run ran a job, the job minutes are unknown, not zero.
+A run that hit its time limit (`timed_out`) is a failed run: its push is red, and timed. The red, rerun and cancelled rates are shares of the pushes that ran something (`wait.ranHeads`), so a push whose runs were all skipped isn't in them. A rerun's first attempt is one call, and a report reads at most 25: past that, reruns count as green only on a rerun as often as the ones read did, and `wait.rerunsUnread` says how many. With none read, that rate is unknown. Rates a week, such as PR pushes and merged PRs, are over the days read: the whole window when every run in it was read, and from the oldest run read when GitHub had more than 1,000. `pull_request_target` runs are read back over the same days, and counted over them. Workflows are told apart by file, so two files with one name aren't one workflow. A workflow whose sampled runs ran no job adds no minutes, and when no workflow's did, the job minutes are unknown, not zero.
 
 ## What it reads
 
@@ -24,7 +24,7 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - the repo's metadata, languages, recent commits and weekly commit counts;
 - pull-request and default-branch Actions runs from the last 7 days (`--days`), and the jobs of a few of them;
 - the logs of up to 3 jobs, for test-file timings;
-- the default branch's file tree, its workflow files and its `package.json`, `nx.json` and `.github/dependabot.yml`;
+- the default branch's file tree, its workflow files and its `package.json`, `nx.json`, `.github/dependabot.yml` and Renovate config;
 - for the stack, each package's manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or `Gemfile`), up to 500, and the root's task files, such as a `Makefile` or `justfile`, 100 files to a GraphQL query;
 - for the graphs, each npm package's entry files, from its `exports` (or `main` and `module`), the modules they re-export, and the task runners' configs (`turbo.json`, `nx.json`, `project.json`, Vite+'s `vite.config.*`), up to 1,000 files, in the same GraphQL batches;
 - merged and opened PRs from the same days, through GitHub's search.

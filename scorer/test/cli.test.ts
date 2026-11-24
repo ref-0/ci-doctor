@@ -673,4 +673,104 @@ describe('what the measures count', () => {
     assert.equal(efficiency.workflowsOnPrs, 2);
     assert.deepEqual(wait.heavyWorkflows, ['CI']);
   });
+
+  it('samples the jobs of the workflow file that most often finishes last', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    // Even pushes run one file and odd ones another, under one name. The odd file loses its rerun push, so the even one finishes last more often.
+    for (const run of prRunsOf(routes).workflow_runs) if (/[02468]$/.test(run.head_sha)) run.path = '.github/workflows/ci-docs.yml';
+    const even = new Set(prRunsOf(routes).workflow_runs.filter((run) => run.path.endsWith('ci-docs.yml')).map((run) => run.id));
+    for (const [key, answer] of Object.entries(routes)) {
+      const id = Number(key.match(/\/actions\/runs\/(\d+)\/attempts\/1\/jobs/)?.[1]);
+      if (even.has(id)) for (const job of (answer.json as { jobs: { name: string }[] }).jobs) job.name = 'docs';
+    }
+    const { wait, jobs } = (await report(routes)).report;
+
+    assert.equal(wait.lastWorkflow, '.github/workflows/ci-docs.yml');
+    assert.equal(jobs.longest.name, 'docs');
+  });
+
+  it('takes a run that hit its time limit as red on the default branch, and counts its minutes', async () => {
+    const plain = (await report(fakeRepo({ repo: PUBLIC }))).report;
+    const routes = fakeRepo({ repo: PUBLIC });
+    const pushes = routes[`repos/${PUBLIC}/actions/runs?event=push&branch=main&page=1`]!.json as { workflow_runs: FakeRun[] };
+    for (const run of [...pushes.workflow_runs.slice(0, 2), ...prRunsOf(routes).workflow_runs.filter((each) => /-sha-1[0-4]$/.test(each.head_sha))]) run.conclusion = 'timed_out';
+    const { main, efficiency } = (await report(routes)).report;
+
+    assert.equal(plain.main.redRate, 0);
+    assert.equal(main.redRate, 2 / 10);
+    assert.equal(efficiency.jobMinutesPerMergedPr, plain.efficiency.jobMinutesPerMergedPr);
+  });
+
+  it("leaves the default branch's pushes whose runs were all skipped out of its red rate", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const pushes = routes[`repos/${PUBLIC}/actions/runs?event=push&branch=main&page=1`]!.json as { workflow_runs: FakeRun[] };
+    pushes.workflow_runs[0]!.conclusion = 'failure';
+    for (const run of pushes.workflow_runs.slice(5)) run.conclusion = 'skipped';
+    const { main } = (await report(routes)).report;
+
+    assert.equal(main.heads, 10);
+    assert.equal(main.redRate, 1 / 5);
+  });
+
+  it("charges a workflow whose runs ran no job nothing, not the other workflows' minutes", async () => {
+    const plain = (await report(fakeRepo({ repo: PUBLIC }))).report.efficiency;
+    const routes = fakeRepo({ repo: PUBLIC });
+    const runs = prRunsOf(routes);
+    for (const run of [...runs.workflow_runs]) {
+      const id = run.id + 5000;
+      runs.workflow_runs.push({ ...run, id, name: 'Docs', path: '.github/workflows/docs.yml', conclusion: 'success', run_attempt: 1 });
+      routes[`repos/${PUBLIC}/actions/runs/${id}/attempts/1/jobs?page=1`] = { status: 200, json: { total_count: 0, jobs: [] } };
+    }
+    runs.total_count = runs.workflow_runs.length;
+    const { efficiency } = (await report(routes)).report;
+
+    assert.equal(efficiency.workflowsOnPrs, 2);
+    assert.equal(efficiency.jobMinutesPerMergedPr, plain.jobMinutesPerMergedPr);
+    assert.equal(efficiency.prBilledMinutesPerDay, plain.prBilledMinutesPerDay);
+  });
+
+  it('works minutes per merged PR out from the count of merged PRs, not from the rounded weekly rate', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    (routes['search/issues?merged']!.json as { total_count: number }).total_count = 1;
+    const { efficiency, window, profile } = (await report(routes, ['--days', '90'])).report;
+
+    assert.equal(profile.prsMergedPerWeek, 0.1);
+    const whole = efficiency.prJobMinutesPerDay * window.days;
+    assert.ok(Math.abs(efficiency.jobMinutesPerMergedPr - whole) <= 0.03 * whole, `${efficiency.jobMinutesPerMergedPr} per merged PR, with 1 merged and ${whole} job-minutes in the window`);
+  });
+
+  it('counts pull_request_target runs over the same days as the pull_request runs it read', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    // GitHub holds more PR runs than were read, so the window is the 2.4 days the 20 read cover. The target runs span a week.
+    prRunsOf(routes).total_count = 5000;
+    const targets = Array.from({ length: 20 }, (_, i) => {
+      const created = Date.now() - 3600e3 - i * 8 * 3600e3;
+      return { ...prRunsOf(routes).workflow_runs[0]!, id: 9000 + i, name: 'Gate', path: '.github/workflows/gate.yml', event: 'pull_request_target', head_sha: `target-sha-${i}`, conclusion: 'success', run_attempt: 1, created_at: new Date(created).toISOString(), run_started_at: new Date(created + 5e3).toISOString(), updated_at: new Date(created + 60e3).toISOString() };
+    });
+    routes[`repos/${PUBLIC}/actions/runs?event=pull_request_target&page=1`] = { status: 200, json: { total_count: 20, workflow_runs: targets } };
+    for (const run of targets) routes[`repos/${PUBLIC}/actions/runs/${run.id}/attempts/1/jobs?page=1`] = { status: 200, json: { total_count: 0, jobs: [] } };
+    const { profile, window } = (await report(routes)).report;
+
+    assert.ok(window.days >= 2.4 && window.days <= 2.5, `${window.days} days`);
+    // 20 PR runs and the 8 target runs inside those days, not all 20 of them.
+    assert.ok(profile.prRunsPerDay >= 11 && profile.prRunsPerDay <= 12, `${profile.prRunsPerDay} runs a day`);
+  });
+
+  it('names the shard group that is slowest in the most sampled runs, not in the newest alone', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const newest = prRunsOf(routes).workflow_runs[0]!.id;
+    for (const [key, answer] of Object.entries(routes)) {
+      const id = Number(key.match(/\/actions\/runs\/(\d+)\/attempts\/1\/jobs/)?.[1]);
+      if (!id) continue;
+      const [first] = (answer.json as { jobs: { id: number; created_at: string; started_at: string }[] }).jobs;
+      if (!first) continue;
+      // In the newest run "unit" is the slow group; in every other run "e2e" is.
+      const minutes = id === newest ? { 'unit 1/2': 10, 'unit 2/2': 12, 'e2e 1/3': 3, 'e2e 2/3': 4, 'e2e 3/3': 5 } : { 'unit 1/2': 2, 'unit 2/2': 3, 'e2e 1/3': 6, 'e2e 2/3': 8, 'e2e 3/3': 9 };
+      (answer.json as { jobs: unknown[] }).jobs = Object.entries(minutes).map(([name, m], i) => ({ ...first, id: first.id + i, name, conclusion: 'success', completed_at: new Date(Date.parse(first.started_at) + m * 60e3).toISOString(), steps: [] }));
+    }
+    const { jobs } = (await report(routes)).report;
+
+    assert.equal(jobs.shard.name, 'e2e #');
+    assert.equal(jobs.shard.shards, 3);
+  });
 });
