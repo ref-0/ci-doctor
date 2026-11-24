@@ -25,6 +25,6 @@ Read ci.md, then the workflows its Entry points name: each header says what runs
 
 ## With no facts file
 
-Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, read them from the workflows: the triggers, the gate's `needs:`, each job's `runs-on`, the cache steps and their keys, `concurrency`, and the scripts the jobs call. Say which values you read from code and which you assumed, and at the end offer to write the file from [the template](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/agent-knowledge/templates/repo-facts/ci.md), filled with what you learned, and `ci-time.json` from [its template](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/agent-knowledge/templates/repo-facts/ci-time.json).
+Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, read them from the workflows: the triggers, the gate's `needs:`, each job's `runs-on`, the cache steps and their keys, `concurrency`, and the scripts the jobs call. Say which values you read from code and which you assumed, and at the end offer to write the file from [the template](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/ci.md), filled with what you learned, and `ci-time.json` from [its template](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/ci-time.json).
 
 Until then, `ci-time.ts` takes the same values as flags: `--repo`, `--workflow` and a `--shard` for each sharded job's name prefix.

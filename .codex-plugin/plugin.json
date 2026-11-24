@@ -1,6 +1,6 @@
 {
   "name": "ci-doctor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.",
   "author": {
     "name": "ref0",

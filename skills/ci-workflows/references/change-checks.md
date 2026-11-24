@@ -9,15 +9,15 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`ci-workflows`](../SKILL.md) skill. Read before designing, implementing or merging a workflow change.
 
-What to verify, and the measurements behind it, are in the hub's [checks](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/README.md):
+What to verify, and the measurements behind it, are in the hub's [checks](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/README.md):
 
 | When | Check |
 | --- | --- |
-| Before you design a change | [Measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md), [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md) and [size a runner by its CPU](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-size-a-runner-by-its-cpu.md) |
-| While you build and review it | [Check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md) |
-| When a run is slow | [Keep slow test files out of the shards](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-keep-slow-files-out-of-the-shards.md) |
-| Before it merges | [Check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md): its effect on a full and a small run, its cost a month and its budgets, where `.agents/repo/ci.md`'s Runners, budgets and records says. Then [check what CI ran](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/check-what-ci-ran.md) |
-| All the time | [Budget CI at list price](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), and [run only the checks that decide something](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-doctor/references/checks/run-only-checks-that-decide.md) |
+| Before you design a change | [Measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md), [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md) and [size a runner by its CPU](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-size-a-runner-by-its-cpu.md) |
+| While you build and review it | [Check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md) |
+| When a run is slow | [Keep slow test files out of the shards](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-keep-slow-files-out-of-the-shards.md) |
+| Before it merges | [Check a change to CI against real output](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-check-a-workflow-change.md): its effect on a full and a small run, its cost a month and its budgets, where `.agents/repo/ci.md`'s Runners, budgets and records says. Then [check what CI ran](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/check-what-ci-ran.md) |
+| All the time | [Budget CI at list price](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), and [run only the checks that decide something](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/run-only-checks-that-decide.md) |
 
 ## A step that must not gate
 
