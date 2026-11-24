@@ -8,7 +8,8 @@ on:
 
 permissions:
   contents: read
-  # npm provenance: the package says which workflow run built it.
+  # npm trusted publishing and provenance: npm trades this OIDC token for a publish token, and the package says
+  # which workflow run built it.
   id-token: write
 
 concurrency:
@@ -19,12 +20,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
 
       - name: The tag, the plugin and the package name one version
         run: |
@@ -46,5 +47,3 @@ jobs:
       - name: Publish
         working-directory: scorer
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
