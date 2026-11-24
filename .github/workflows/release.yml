@@ -1,5 +1,5 @@
 # Publishes the scorer, @ref0/ci-doctor, from the release pull request's merge. A release is a pull request,
-# "Release: <version>", from `next` into `main`, whose version in plugin.json no tag names yet:
+# "Release: <version>", into `main`, that bumps the version in plugin.json to one no tag names yet:
 #
 # - On that pull request, the plan checks the release's versions and CHANGELOG entry, then the build checks and
 #   the scorer's tests run, and the scorer is packed and dry-run published. They pass, then the user merges.
