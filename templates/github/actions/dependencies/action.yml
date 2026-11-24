@@ -81,10 +81,13 @@ runs:
     # disk is billed per GB-month until a week after its last use, and a key per lockfile would
     # keep a dozen. Each job mounts its own clone of the disk's last committed snapshot, so jobs
     # never share a live disk. Only main's own runs, a push, a schedule or a run by hand of main,
-    # commit theirs, and only when the copy below changed it: never a pull request or a run by hand
-    # whose `ref` input names another commit, so others read only what main installed. A job whose
-    # step failed commits nothing, and when several commit, the last wins, each a whole install. A
-    # job that checks on another branch mounts none.
+    # commit theirs, and only when the copy below ran: never a pull request or a run by hand whose
+    # `ref` input names another commit, so others read only what main installed. Every other path
+    # on main detaches the disk first, and the post step commits no disk it finds unmounted. Not
+    # `on-change`: it skips a change under 4 KB, which a new install can be, and then the disk stays
+    # a lockfile behind and every job installs again. A job whose step failed commits nothing, and
+    # when several commit, the last wins, each a whole install. A job that checks on another branch
+    # mounts none.
     - name: The dependencies' disk
       id: mount
       if: runner.os == 'Linux' && inputs.sticky-disk == 'true' && (inputs.check != 'true' || (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref))
@@ -92,7 +95,7 @@ runs:
       with:
         key: ${{ github.repository }}-dependencies-v3-${{ runner.os }}-${{ runner.arch }}
         path: ${{ inputs.disk-path }}
-        commit: ${{ (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref) && 'on-change' || 'false' }}
+        commit: ${{ (github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && !github.event.inputs.ref) && 'true' || 'false' }}
     # The disk holds this commit's install when the hash of its manifests, which the copy below
     # writes last, is this commit's: the lockfile, the workspace's settings and every package.json,
     # Vite+'s and pnpm's versions in the root's among them, and Node's. Then node_modules, and
@@ -161,7 +164,9 @@ runs:
         export PATH="$PWD/node_modules/.bin:$PATH"
         sh -c "$(node -p 'require("./package.json").scripts.prepare')"
     # Right after the install, before anything else writes to node_modules: the copy, then the
-    # manifests' hash last, so a copy cut short reads as another install's.
+    # manifests' hash last, so a copy cut short reads as another install's. When the disk holds
+    # this install already, such as for a job that checks, its mount is detached, so the post step
+    # commits nothing.
     - name: Dependencies onto the disk
       if: >-
         runner.os == 'Linux' && steps.disk.outcome == 'success' && steps.disk.outputs.warm != 'true' &&
@@ -173,6 +178,8 @@ runs:
       run: |
         disk=${DISK/#\~/$HOME}
         if [ "$(cat "$disk/manifests" 2> /dev/null)" = "$MANIFESTS" ]; then
+          # A plain folder, with cache-folder or when the sticky disk didn't mount, needs no detaching.
+          if mountpoint -q "$disk"; then sudo umount -l "$disk"; fi
           echo "The disk holds this install already."
           exit 0
         fi

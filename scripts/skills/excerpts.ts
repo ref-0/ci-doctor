@@ -84,7 +84,7 @@ export const EXCERPTS: ReadonlyArray<Excerpt> = [
     title: 'Phase 3: the decision tables',
     parts: [
       { from: 'docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md', sections: ['Choosing a provider and runners', 'When jobs wait to start'], why: 'Choosing runners, and telling a queue from slow work. Prices change: check the provider\'s page, and say "unknown" when you can\'t.' },
-      { from: 'scripts/shards/README.md', sections: ['Start simple: a fixed split'], why: 'The first shards.' },
+      { from: 'skills/ci-runners/references/shards.md', sections: ['Start simple: a fixed split'], why: 'The first shards, from the ci-runners skill.' },
       { from: 'docs/pages/06-reuse-work-by-its-real-inputs.md', sections: ['Checking a cache on another task runner'], why: 'Checking a cache before the plan relies on it.' },
       { from: 'docs/pages/16-standing-automations.md', whole: true, why: 'The automations table, for the plan\'s automations step.' },
       { from: 'docs/pages/10-slow-tests-the-method.md', sections: ['Name the wait before changing anything'], why: 'The slow-test fix table, for each file in the inventory.' },

@@ -8,6 +8,57 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
+## v0.3.0
+
+Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
+
+### Do first
+
+1. **Shard scripts moved:** refresh your `scripts/shards/` from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md` (below, under Shards).
+2. **The sweep's cron:** `sweep.yml`'s `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts` and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps (below, under Shards).
+3. **Your skill copies:** every skill names 0.3.0 in its `metadata.version` and links this repo at `v0.3.0`. If you keep copies of the skills, copy them again.
+
+### Shards
+
+- **`ci-runners` owns shard splitting.** The shard scripts moved from `scripts/shards/` into `skills/ci-runners/scripts/`, with their tests, so they install with that skill alone: the plan (`test-shards.ts`), `test-groups.ts`, the lanes runner (`test-lanes.ts`), the claims (`test-claims.ts`), the Actions cache client (`ci-cache.ts`), `test-tasks.ts` and `container-pack.ts`. `scripts/shards/README.md` is now the skill's `references/shards.md`, which the hub's Phase 3 excerpt, `ci-workflows`, `speed-up-tests` and the guide point to. **Action:** the templates still call the scripts at `scripts/shards/` in your repo; refresh that copy from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link of yours to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md`.
+- **Shard times: the median of each file's newest 3.** `test-shards.ts --merge` keeps each file's newest 3 times and plans from their median, so one slow machine doesn't move a file. It drops a time over an hour (`longestFile`), a run dated more than a day ahead, and a file the checkout no longer tracks. The sweep's `test-times` job stays the only writer of the stored times: measured in the source repo, times a week old split shards about as evenly as fresh ones, so a sweep at any cadence is enough. `references/shards.md`'s "Keeping the times current" and `ci-workflows`' tiers say that the sweep's cadence and shard freshness are separate decisions. **Action:** refresh your `scripts/shards/test-shards.ts`. Your stored `test-times.json` reads as it is, each file as one sample; the next sweep adds more.
+- **Sweep cadence, from the repo's numbers.** `ci-workflows`' new `scripts/sweep-cadence.ts` measures, read-only through `gh`, the merges a day (first-parent commits, the commits a bisect walks), a full sweep's job-minutes, a quiet slot's, what PR selection skips and the releases. It prices five crons at the sweep's own time of day (every 6 hours, every 12 hours, daily, every 2 days, weekly) by monthly job-minutes and the merges a missed break can hide. `references/tiers.md`'s "Choosing the sweep's cadence" has the agent show them and the user choose one, recorded as a cron in the `ci.md` template's new Sweep cadence. There's no trigger by merge count. A schedule is replayed at its cron's own slots, and one whose longest gap over the calendar's 400-year cycle is more than half the window is marked unavailable. `sweep.yml`'s fallback for a missed cron finds the newest slot with the same cron reader, `ci-workflows`' `scripts/cron.ts`, so a weekly or every-2-days sweep starts once a slot, not every day; its `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`, the crons themselves. **Action:** run it for your repo, choose, record the cron, and set it in `sweep.yml`'s cron and `SWEEP_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts`, and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps.
+
+### Templates
+
+- **The dependencies action commits main's disk after the install copy ran, not `on-change`.** `on-change` skips a change under 4 KB, which a new install can be, and then the disk stays a lockfile behind and every job installs again. The copy step now detaches a disk that already holds this install, as the warm path does. **Action:** if you copied `templates/github/actions/dependencies/action.yml`, take its `commit:` line and the copy step's detach.
+- **`affected-checks.ts` lists each tree once and reads each commit's files in one batch,** memoised by object ID. It reads only the files a change needs, as before, streaming `cat-file`'s output through a file rather than a buffer, so no repo or file size reaches a buffer's limit. Its output doesn't change; across its tests a run starts 8.4 Git processes, from 12.6. **Action:** if you copied the planner, take the Git section and its callers, or copy it again and refill the config block.
+
+### Skills
+
+- **`ci-merge-workflow`'s releases:** an optional handoff of a checked release tarball to its publish job through the Actions cache, keyed and checked by its digest, for when artifact storage runs out.
+- **`speed-up-tests` and `fix-flaky-test`:** an emulator once a file with its state reset per test, a module's settled value, a throttle's remainder, every operation to its hold, a Linux process-kill proof, a rerun's checkout and a single-file job's controls.
+
+### The scorer, `@ref0/ci-doctor`
+
+- **A run that never ran isn't CI time.** A failed first attempt on a pull request that took over an hour and has no jobs, such as a fork's run nobody approved that GitHub failed days later, is left out of the PR wait and the red heads, and counted as `wait.neverRan`. One jobs call per such run, at most 60 a report. On two popular repos, such runs had stretched the PR wait p90 to 11 and 58 hours; without them it is 16 and 17 minutes.
+- **An unscored repo whose pushes nearly all came from bots says so,** naming the bots, instead of saying that too few pushes ran the main workflows. `wait.botPushes` and `wait.bots` count them.
+- **Each job's runner and its vCPUs.** The job graph's nodes and each replayed run's jobs carry `runner`, the first runner label past `self-hosted`, and `vcpus`: the size a label names (`-4core`, `4vcpu`, Namespace's `4x16`, Depot's trailing `-8`), else GitHub's documented size for its standard runners (Linux and Windows 4 on a public repo and 2 on a private one, Intel macOS 4, Apple silicon macOS 3, `ubuntu-slim` 1), else null.
+- **A run that hit its time limit is a failed run.** A `timed_out` run was neither red nor timed, so a push whose checks hung for hours dropped out of the wait and the red rate. It now counts as a failure in both, on pull requests and on the default branch, and its minutes count as CI minutes.
+- **Reruns past the read cap count at the rate of the ones read.** A rerun's first attempt is one call, at most 25 a report. Past that, a rerun was taken as not flaky, so a repo with many reruns scored full marks on flakes. Those now count as green only on a rerun as often as the ones read did, and `wait.rerunsUnread` says how many weren't read. With none read, the rate is unknown. Only a green rerun's first attempt is asked for, so the reads go where a flake can be.
+- **Rates a week are over the days read.** The window was the span from the oldest run to the newest, so a week with one afternoon of runs read as an afternoon, and PR pushes, runs per merged PR and minutes per merged PR came out up to 14 times too high. It's now the whole window when every run in it was read, and from the oldest run read to now when GitHub had more than 1,000. `pull_request_target` runs were read over their own days and divided by the `pull_request` runs' days: they're now read back over the same days, up to 10 pages, and counted over them. `window.days` and `headsPerWeek` change with it, and so can the size class.
+- **Merged and opened PRs follow `--days`.** They were counted over 7 days whatever `--days` was. `profile.prsMergedPerWeek` and `prsOpenedPerWeek` are now rates a week over the days read, to one decimal.
+- **A push whose runs were all skipped is in no rate.** `wait.redRate`, `rerunRate`, `passedOnRerunRate` and `cancelledRate` are shares of the pushes that ran something, `wait.ranHeads`; `wait.heads` still counts every push.
+- **Job minutes are unknown, not zero, when no sampled run ran a job.** Zero minutes scored 100 on minutes per merged PR. A workflow whose sampled runs ran no job, beside ones that did, still adds none.
+- **Workflows are told apart by file.** Two workflow files with one name were counted as one workflow. `wait.heavyWorkflows` and `wait.lastToFinish` still give names; `wait.lastWorkflow` is the file of the one that most often finishes last.
+- **A larger runner named without a size has no known vCPUs.** `ubuntu-latest-large` read as a standard runner's 4, or 2 on a private repo. Only GitHub's standard labels, such as `ubuntu-latest`, `ubuntu-24.04-arm` and `windows-2022`, take the standard size.
+- **Renovate counts as batching only when its config says so:** a `groupName`, a `group:` preset, `config:recommended`, `config:base` or `config:best-practices`, or a schedule. Any Renovate config counted before. A schedule for lock-file maintenance alone doesn't count, and a config that only extends a preset kept in another repo is unknown, with the reason. One more file read for a repo that has one.
+- **The shard group reported is the slowest in the most sampled runs,** not the newest run's.
+
+### The guide and the plugins
+
+- **Short guide titles.** Each page's title is one to three words, without its number or subtitle, and the guide's front page is "Guides". The Contents, the hub's excerpts and the phases' anchors follow; file names stay, so every link to a page still lands.
+- **The plugins describe ci-doctor as skills that teach coding agents to make CI fast, reliable and efficient,** and the plugin's icon is ref0's zero on its tile.
+
+### Releasing
+
+- **A release is a pull request, `Release: <version>`, from `next` into `main`.** `release.yml` checks it, and its merge publishes `@ref0/ci-doctor` to npm by trusted publishing, with provenance, from the `release` environment, then tags the merge `v<version>`. The README's Contributing says how.
+
 ## v0.2.0
 
 Released 19 November 2026. Nine new skills, the hub's topics moved into them, the phases hand each step to a skill, and every description is rewritten.

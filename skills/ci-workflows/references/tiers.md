@@ -1,13 +1,13 @@
 <!--
-What: how to move a test to a later tier, and how to add a scheduled run.
-Where: read by an agent before moving a test off pull requests or adding a scheduled run.
+What: how to move a test to a later tier, how to choose the sweep's cadence, and how to add a scheduled run.
+Where: read by an agent before moving a test off pull requests, choosing or changing how often the sweep runs, or adding a scheduled run.
 Configure: your tiers and covered-only list go in `.agents/repo/ci.md`; the scheduled spend within <monthly-cap>.
 Reference implementation from a production monorepo; adapt to your repo.
 -->
 
 # Which tier runs a test
 
-Part of the [`ci-workflows`](../SKILL.md) skill. Read it before moving a test off pull requests, adding a scheduled run, or asking whether a test should wait for the sweep or a release. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) explains the tiers.
+Part of the [`ci-workflows`](../SKILL.md) skill. Read it before moving a test off pull requests, choosing how often the sweep runs, adding a scheduled run, or asking whether a test should wait for the sweep or a release. [guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md) explains the tiers.
 
 ## The tiers
 
@@ -22,7 +22,7 @@ Read each from its source, as `.agents/repo/ci.md`'s Selection and tiers names t
 5. **Check every selector.** Where CI and a local run select through different modes, as ci.md says, each has to apply the covered-only list. A covered path missing from one ran no proof there until a test failed without it.
 6. **Check a run that selects everything.** Where the plan drops a covered-only file from it, the move takes it out of full pull request runs too. Say so when that widens what the change does.
 7. **State the cost and the delay** in the pull request: the test-seconds a run saves, the minutes a month, and how long a fault it would catch can now sit on main.
-8. **Keep a deep proof honest in its new tier.** A model or property test keeps its cheap PR run and its breaks, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/proof-tiers/SKILL.md) says.
+8. **Keep a deep proof honest in its new tier.** A model or property test keeps its cheap PR run and its breaks, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/proof-tiers/SKILL.md) says.
 
 ## Replaying recorded sessions
 
@@ -34,9 +34,30 @@ To test a path that depends on an outside tool that is slow, paid or nondetermin
 4. **Test the capture workflow** with a scripted model, so recording again doesn't wait on paid calls.
 5. **Keep a live compatibility proof** against the real tool on a slower tier, and record again when the tool changes.
 
+## Choosing the sweep's cadence
+
+How often the default branch's full sweep runs is recurring spend against how long a break can hide, so the user chooses it, from this repo's numbers. Never copy a schedule from a template or another repo.
+
+1. **Measure, read-only.** Run [`sweep-cadence.ts`](../scripts/sweep-cadence.ts) from the repo's checkout, naming the sweep's runs and its test jobs as ci.md does: `node <skills-dir>/ci-workflows/scripts/sweep-cadence.ts --sweep-title '<the sweep's run title start>' --test-job '<the test jobs' name start>'`, or `--sweep-event push` where every push to the default branch runs everything. It reads, from `gh`:
+   - the merges a day, counted as first-parent commits, the commits a bisect walks, so a rebase-merged PR counts once per commit;
+   - a full sweep's job-minutes, from passing runs that ran a test job;
+   - what a slot with nothing new costs, from passing runs that ran none;
+   - a PR run's job-minutes against a sweep's;
+   - the releases;
+   - the slots' time of day, from the sweep workflow's `SWEEP_CRON` or cron, or `--slot HH:MM` (UTC). It says which it used.
+
+   It prices five crons at that time of day: every 6 hours, every 12 hours, daily, every 2 days and weekly. Add `--option '<cron>'` for another. Give it at least 14 days, twice the longest gap you'll price, over the calendar's whole cycle: a schedule it can't observe twice is marked unavailable. It reads the sweep's runs newest first until 10 full ones. With none, it prices nothing, and says whether the window held none or GitHub's limit of 1,000 listed runs stopped it first.
+2. **Show the user every schedule** with its monthly job-minutes (priced at list price where ci.md has prices), and the merges a missed break can hide behind it at the 90th percentile and at most, with the bisect steps, about log2 of that many. A slot with nothing new runs only its plan, so a short schedule costs little on a quiet repo. A bursty repo's busy days hide the most: if its "most" is much more than its p90, a shorter schedule caps it.
+3. **Say what bounds it.** Where the sweep gates the release, a release waits for the next passing sweep, so a schedule longer than the release's delays it. The more PR selection skips, the more only the sweep checks, and the more a long schedule hides.
+4. **Let the user choose,** then record the cron, its date and its numbers in ci.md's Sweep cadence, and set it as the sweep's cron and `SWEEP_CRON`, as the [sweep template](https://github.com/ref-0/ci-doctor/blob/v0.3.0/templates/github/workflows/sweep.yml)'s header says. Its fallback for a missed cron finds the newest slot with `cron.ts`, this skill's cron reader, so any schedule works there unchanged. ci-doctor doesn't trigger a sweep by merge count, on purpose: a cron's cost and what it can hide are what's measured and chosen. Measure again when merges a day or a sweep's cost move by half, or the release cadence changes.
+
+## Sweep cadence and shard times are separate decisions
+
+How often the sweep runs decides how soon a break that PR selection skipped shows up, and what a release waits for where the sweep gates it. That's the user's cost and risk choice: daily, every few hours or weekly. It doesn't decide how even the shards are. Every run balances from the stored file times, which the sweep refreshes, and how old they are barely matters. In the source repo's CI, 17 to 20 November 2026, a split by fresh times put its busiest shard at 1.001 times the best split's. With times a week old it was 1.014 at the median and 1.072 at the 90th percentile (modelled from measured drift, new files on their estimate), against 1.146 for an equal count of files. So a sweep at any cadence, weekly included, keeps the times fresh enough; a new file runs on a cautious estimate until the next one. Choose the cadence without counting shard times in, as [`ci-runners`' shards](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/shards.md#5-keeping-the-times-current) say.
+
 ## Adding a scheduled run
 
-- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-runners/references/billing.md) says.
+- **Agree its cost with whoever owns the budget first,** and size it within that, in billed minutes a month at list price against `<monthly-cap>`, as [`ci-runners`' billing](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-runners/references/billing.md) says.
 - **Select from the newest passing ancestor,** run nothing when that is the head or no change reaches what it checks, and run everything when no ancestor passed.
 - **Give it a run name of its own.** Where only the daily sweep may close main's failure issue, a narrower run's name mustn't start like the sweep's. A narrower run names the merges since its base when it fails.
 - **Don't trust the cron.** GitHub starts scheduled runs late or skips them. A merge after a slot starts the run when nothing has since, choosing the newest slot and taking turns, so a late cron can't start it twice.
