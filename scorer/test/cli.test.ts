@@ -693,7 +693,7 @@ describe('what a score rests on', () => {
     const r = await report(routes);
 
     assert.equal(json(r.stdout).score, null);
-    assert.equal(json(r.stdout).unscored, "Too little of the score's efficiency part could be measured to score: none of vCPU-minutes per merged PR, runs per merged PR, setup time or queue time.");
+    assert.equal(json(r.stdout).unscored, "Too little of the score's efficiency part could be measured to score: none of vCPU-minutes per merged PR, runs per merged PR, setup time, queue time or how the jobs are wired.");
     assert.deepEqual(outsideCalls(r.calls), []);
   });
 

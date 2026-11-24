@@ -3,7 +3,7 @@
 // scores, and nothing more: they read no API, and they don't measure the repo again.
 import { MEASURED_LOW } from './evidence.ts';
 import { isRepoName } from './repo.ts';
-import { band, grade, GUIDE, MIN_TIMED, scoreOf, sizeClass, type Inputs } from './score.ts';
+import { band, flagCounts, grade, GUIDE, MIN_TIMED, scoreOf, sizeClass, type Inputs } from './score.ts';
 import { VERSION } from './version.ts';
 
 /** A submitted file's size limit, in bytes: GitHub's contents API gives a file's content inline up to 1 MB. Stored reports run 10 to 210 KB. */
@@ -15,11 +15,22 @@ export const submissionPath = (repo: string, date: string) => `reports/${repo.re
 const DAY = 24 * 3600e3;
 const n = (x: unknown) => (typeof x === 'number' ? x : NaN);
 
+/** The graphs' flag counts as `measure` took them; unknown for a report with no graphs, or with graphs it can't read. */
+const flagsOf = (graphs: any) => {
+  try {
+    return flagCounts(graphs);
+  } catch {
+    return { pathFlags: NaN, graphFlags: NaN };
+  }
+};
+
 /** A stored report's score inputs, as `measure` passed them to `scoreOf`; a measure the JSON holds as null is unknown. */
 export const inputsOf = (r: any): Inputs => ({
   p50: n(r.wait?.p50),
   p90: n(r.wait?.p90),
   linesOfCode: n(r.profile?.linesOfCode),
+  language: typeof r.profile?.languages?.[0]?.[0] === 'string' ? r.profile.languages[0][0] : undefined,
+  ...flagsOf(r.graphs),
   passedOnRerunRate: n(r.wait?.passedOnRerunRate),
   mainRedRate: n(r.main?.redRate),
   vcpuMinutesPerMergedPr: n(r.efficiency?.vcpuMinutesPerMergedPr),
