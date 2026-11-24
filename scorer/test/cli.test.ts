@@ -589,10 +589,14 @@ describe('what a score rests on', () => {
     return r;
   };
   const checksAt = (i: number) => `repos/${PUBLIC}/commits/pull_request-sha-${i}/check-runs`;
-  const ran = (slug: string, sha: number, minutes: number) => {
+  const statusesAt = (i: number) => `repos/${PUBLIC}/commits/pull_request-sha-${i}/statuses`;
+  // A check that started with push `sha` and ended `minutes` after it.
+  const checkOf = (slug: string, sha: number, minutes: number) => {
     const started = Date.now() - (sha * 3 + 1) * 3600e3;
-    return { status: 200, json: { check_runs: [{ status: 'completed', started_at: new Date(started).toISOString(), completed_at: new Date(started + minutes * 60e3).toISOString(), app: { slug } }] } };
+    return { status: 'completed', started_at: new Date(started).toISOString(), completed_at: new Date(started + minutes * 60e3).toISOString(), app: { slug } };
   };
+  const ran = (slug: string, sha: number, minutes: number) => ({ status: 200, json: { total_count: 1, check_runs: [checkOf(slug, sha, minutes)] } });
+  const denied = { status: 403, message: 'Resource not accessible by integration' };
   const outsideCalls = (calls: string[][]) => paths(calls).filter((path) => /\/commits\/[^/]+\/(check-runs|statuses)/.test(path));
 
   it('is sure of a repo whose pushes carry no other CI, and reads three pushes to know', async () => {
@@ -600,11 +604,11 @@ describe('what a score rests on', () => {
     const { evidence, score } = json(r.stdout);
 
     assert.equal(typeof score, 'number');
-    assert.deepEqual(evidence, { confidence: 'high', reasons: [], measured: 1, missing: [], outsideCi: { sampled: 3, configs: [], pushes: [] } });
+    assert.deepEqual(evidence, { confidence: 'high', reasons: [], measured: 1, missing: [], outsideCi: { sampled: 3, read: 3, configs: [], pushes: [] } });
     assert.deepEqual(outsideCalls(r.calls), [0, 1, 2].flatMap((i) => [`${checksAt(i)}?per_page=100`, `repos/${PUBLIC}/commits/pull_request-sha-${i}/statuses?per_page=100`]));
   });
 
-  it('gives no score when another CI ran longer than the Actions checks on the sampled pushes', async () => {
+  it('gives no score when another CI was still running after the Actions checks on the sampled pushes', async () => {
     const routes = fakeRepo({ repo: PUBLIC });
     for (const i of [0, 1, 2]) routes[checksAt(i)] = ran('azure-pipelines', i, 70);
     const r = json((await report(routes)).stdout);
@@ -612,12 +616,12 @@ describe('what a score rests on', () => {
     assert.equal(r.score, null);
     assert.equal(r.grade, null);
     assert.deepEqual(r.parts, {});
-    assert.match(r.unscored, /^Pull requests here wait on Azure Pipelines, outside GitHub Actions: on 3 of 3 sampled pushes it ran longer than the Actions checks, 70 minutes against \d(\.\d)? minutes at the median\./);
+    assert.match(r.unscored, /^Pull requests here wait on Azure Pipelines, outside GitHub Actions: on 3 of 3 sampled pushes it was still running when the Actions checks finished, until at least 70 minutes after the push against \d(\.\d)? minutes at the median\./);
     assert.equal(r.evidence.confidence, null);
     assert.deepEqual(r.evidence.outsideCi.pushes.map((push: { ci: unknown }) => push.ci), Array.from({ length: 3 }, () => [{ name: 'Azure Pipelines', minutes: 70 }]));
   });
 
-  it('scores a repo whose other CI ran no longer than its Actions checks, and says the score is less sure', async () => {
+  it('scores a repo whose other CI finished before its Actions checks, and says the score is less sure', async () => {
     const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
     for (const i of [0, 1, 2]) routes[checksAt(i)] = ran('circleci-checks', i, 2);
     const r = await report(routes, []);
@@ -629,12 +633,66 @@ describe('what a score rests on', () => {
 
   it("scores a repo whose other checks it couldn't read, and says so", async () => {
     const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
-    for (const key of Object.keys(routes)) if (/\/check-runs$/.test(key)) routes[key] = { status: 403, message: 'Resource not accessible by integration' };
+    for (const key of Object.keys(routes)) if (/\/check-runs$/.test(key)) routes[key] = denied;
     const r = json((await report(routes)).stdout);
 
     assert.equal(typeof r.score, 'number');
     assert.equal(r.evidence.confidence, 'medium');
     assert.deepEqual(r.evidence.reasons, ["checks from outside GitHub Actions couldn't be read"]);
+    assert.deepEqual(r.evidence.outsideCi, { sampled: 3, read: 0, configs: [], pushes: [] });
+  });
+
+  it("takes a push as unread when either of its two answers didn't come, and says how many", async () => {
+    const routes = fakeRepo({ repo: PUBLIC, heads: 30 });
+    routes[checksAt(0)] = denied;
+    routes[statusesAt(1)] = denied;
+    const r = json((await report(routes)).stdout);
+
+    assert.equal(r.evidence.confidence, 'medium');
+    assert.deepEqual(r.evidence.reasons, ["checks from outside GitHub Actions couldn't be read on 2 of 3 sampled pushes"]);
+    assert.deepEqual(r.evidence.outsideCi, { sampled: 3, read: 1, configs: [], pushes: [] });
+  });
+
+  it("reads a push's check runs past the first page", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    for (const i of [0, 1, 2]) {
+      routes[checksAt(i)] = { status: 200, json: { total_count: 101, check_runs: Array.from({ length: 100 }, () => checkOf('github-actions', i, 4)) } };
+      routes[`${checksAt(i)}?page=2`] = { status: 200, json: { total_count: 101, check_runs: [checkOf('buildkite', i, 45)] } };
+    }
+    const r = await report(routes);
+
+    assert.match(json(r.stdout).unscored, /^Pull requests here wait on Buildkite, outside GitHub Actions: on 3 of 3 sampled pushes/);
+    assert.deepEqual(outsideCalls(r.calls).filter((path) => /check-runs/.test(path)), [0, 1, 2].flatMap((i) => [`${checksAt(i)}?per_page=100`, `${checksAt(i)}?per_page=100&page=2`]));
+  });
+
+  it("samples the newest pushes across both pull request events, not one event's first", async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const runs = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { workflow_runs: Record<string, unknown>[] };
+    // Three pushes a few minutes old, which only a pull_request_target workflow ran on.
+    const targets = [0, 1, 2].map((i) => {
+      const created = Date.now() - (i + 2) * 60e3;
+      return { ...runs.workflow_runs[0]!, id: 9000 + i, event: 'pull_request_target', head_sha: `target-sha-${i}`, conclusion: 'success', run_attempt: 1, created_at: new Date(created).toISOString(), run_started_at: new Date(created + 5e3).toISOString(), updated_at: new Date(created + 60e3).toISOString() };
+    });
+    routes[`repos/${PUBLIC}/actions/runs?event=pull_request_target&page=1`] = { status: 200, json: { total_count: 3, workflow_runs: targets } };
+    for (const run of targets) {
+      routes[`repos/${PUBLIC}/actions/runs/${run.id}/attempts/1/jobs?page=1`] = { status: 200, json: { total_count: 0, jobs: [] } };
+      routes[`repos/${PUBLIC}/commits/${run.head_sha}/check-runs`] = { status: 200, json: { total_count: 0, check_runs: [] } };
+      routes[`repos/${PUBLIC}/commits/${run.head_sha}/statuses`] = { status: 200, json: [] };
+    }
+    const r = await report(routes);
+
+    assert.deepEqual(outsideCalls(r.calls).filter((path) => /check-runs/.test(path)), [0, 1, 2].map((i) => `repos/${PUBLIC}/commits/target-sha-${i}/check-runs?per_page=100`));
+  });
+
+  it('reads no other checks when a whole part of the score is already unmeasured', async () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    for (const key of Object.keys(routes)) if (/\/attempts\/1\/jobs\?page=1$/.test(key)) routes[key] = { status: 200, json: { total_count: 0, jobs: [] } };
+    routes['search/issues?merged'] = { status: 200, json: { total_count: 0, items: [] } };
+    const r = await report(routes);
+
+    assert.equal(json(r.stdout).score, null);
+    assert.equal(json(r.stdout).unscored, "Too little of the score's efficiency part could be measured to score: none of minutes per merged PR, runs per merged PR, setup time or queue time.");
+    assert.deepEqual(outsideCalls(r.calls), []);
   });
 
   it("gives no score when the repo keeps another CI's config and its Actions checks are small for its size", async () => {

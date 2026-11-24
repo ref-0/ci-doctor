@@ -21,19 +21,21 @@ A run that hit its time limit (`timed_out`) is a failed run: its push is red, an
 
 The score reads only GitHub Actions. So it's withheld, with the reason, when what Actions shows is too thin to stand for the repo's CI:
 
-- **Another CI decides the wait.** On at least 2 of the 3 pushes read, a CI outside Actions, such as Azure Pipelines, CircleCI, Buildkite or Jenkins, ran longer than the Actions checks did.
-- **The Actions checks are small and another CI's config is in the repo.** The p50 wait is under a tenth of what's typical for the repo's size, and the tree holds a file such as `azure-pipelines.yml` or `.circleci/config.yml`. If that file is a leftover, delete it.
-- **A whole part went unmeasured.** None of the reliability measures, or none of the efficiency ones, could be made.
+- **Another CI decides the wait.** On at least 2 of the 3 pushes read, a CI outside Actions, such as Azure Pipelines, CircleCI, Buildkite or Jenkins, was still at work more than a minute after the Actions checks finished. What counts is when each ends after the push, not how long each ran.
+- **The Actions checks are small and another CI's config is in the repo.** The p50 wait is under a tenth of what's typical for the repo's size, and the tree holds a file such as `azure-pipelines.yml` or `.circleci/config.yml`, where that CI reads it: a fixture or a page about one doesn't count. If that file is a leftover, delete it.
+- **A whole part went unmeasured.** None of the reliability measures, or none of the efficiency ones, could be made. Shard balance alone doesn't carry efficiency.
 
 A scored report carries its confidence, in `evidence.confidence` and on a line under the score:
 
 | Confidence | When |
 | --- | --- |
 | `high` | 20 or more pushes timed, every measure made, no other CI seen |
-| `medium` | 10 to 19 pushes timed, a measure missing, reruns whose first attempt wasn't read, another CI seen running no longer than Actions, or the other checks unreadable with this sign-in |
+| `medium` | 10 to 19 pushes timed, a measure missing, reruns whose first attempt wasn't read, another CI seen that didn't finish after Actions, the other checks unreadable on any push read, or a file tree GitHub cut short under Actions checks small for the repo's size |
 | `low` | under 10 pushes timed, or under 80% of the score's weight measured |
 
-`evidence.reasons` says which, `evidence.measured` is the share of the score's weight that was measured, `evidence.missing` names each measure that wasn't, and `evidence.outsideCi` holds the configs found and what ran on the pushes read. Shard balance counts only for a repo that has shards. Review bots, scanners, deploy previews and licence checks aren't CI, and a runner provider's jobs are Actions jobs.
+`evidence.reasons` says which, `evidence.measured` is the share of the score's weight that was measured, `evidence.missing` names each measure that wasn't, and `evidence.outsideCi` holds the pushes asked about (`sampled`), those GitHub answered in full (`read`), the configs found and each push another CI was on. Shard balance counts only for a repo that has shards. Review bots, scanners, deploy previews and licence checks aren't CI, and a runner provider's jobs are Actions jobs.
+
+Another CI's minutes on a push run from the push to the latest end known of its work there, so they're a floor. Its work is a check run, or a status context from its first mark after the push to the first that isn't pending. Work counts for the push when it starts within 30 minutes of it, or within 10 minutes of that CI's earlier work ending, as a later stage does: anything later came from another event, such as a rerun or a second pull request on the same commit. Work with no end counts as going until now on a push under a day old, and as unknown on an older one. A push is read only when both its answers came, and one whose check runs go past 300 isn't. The pushes read are people's 3 newest whose runs all finished on the first attempt, across `pull_request` and `pull_request_target`, since only those have an Actions wait to compare. A report with too few timed pushes, or a part already unmeasured, asks for none.
 
 The score doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions. The report says so under every score.
 
@@ -48,7 +50,7 @@ It computes everything on your machine. Every GitHub read goes through `gh api`,
 - for the stack, each package's manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml` or `Gemfile`), up to 500, and the root's task files, such as a `Makefile` or `justfile`, 100 files to a GraphQL query;
 - for the graphs, each npm package's entry files, from its `exports` (or `main` and `module`), the modules they re-export, and the task runners' configs (`turbo.json`, `nx.json`, `project.json`, Vite+'s `vite.config.*`), up to 1,000 files, in the same GraphQL batches;
 - merged and opened PRs from the same days, through GitHub's search;
-- the check runs and commit statuses on 3 of people's newest PR pushes, two calls each, to see whether another CI ran there.
+- the check runs and commit statuses on 3 of people's newest PR pushes, two calls each and one more for each further 100 check runs up to 300, to see whether another CI ran there.
 
 Every call names `github.com`, whatever `GH_HOST` says, and turns `gh`'s own telemetry off (`GH_TELEMETRY=false`). Any `gh` version with `gh api` works.
 

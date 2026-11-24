@@ -164,7 +164,7 @@ const workflowOf = (r: Run) => r.path || r.name;
 const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () => undefined, heavy?: Set<string>, didRun: (run: Run) => boolean = () => true) => {
   const heads = groupBy(runs, (r) => r.head_sha);
   const clean: { sha: string; wait: number; last: Run; red: boolean }[] = [];
-  const newest: { sha: string; wait: number }[] = [];
+  const newest: { sha: string; at: number; wait: number }[] = [];
   let ranHeads = 0;
   let rerunHeads = 0;
   let passedOnRerun = 0;
@@ -216,7 +216,7 @@ const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () 
     const lastRun = counted.reduce((a, b) => (a.updated_at > b.updated_at ? a : b));
     const wait = minutes(startedAt, lastRun.updated_at);
     // Any push a person made can show another CI at work, whichever workflows it ran here.
-    if (!byBot) newest.push({ sha, wait });
+    if (!byBot) newest.push({ sha, at: Date.parse(startedAt), wait });
     // Time only pushes that ran the real work; a push that ran only quick checks says little.
     if (heavy?.size && !counted.some((r) => heavy.has(workflowOf(r)))) {
       lightHeads++;
@@ -256,8 +256,8 @@ const waits = (runs: Run[], first: (run: Run) => string | null | undefined = () 
     /** The file of the workflow that most often finishes last, which `lastToFinish` names. */
     lastWorkflow: lastToFinish[0]?.[0],
     redBy: count(redBy, (n) => n).slice(0, 3),
-    /** People's finished pushes, newest first, each with its wait here: the ones whose other checks are read. Not part of the report. */
-    newest,
+    /** People's finished pushes, newest first, each with when it started and its wait here: the ones whose other checks are read. Not part of the report. */
+    newest: newest.sort((a, b) => b.at - a.at),
   };
 };
 
@@ -772,8 +772,10 @@ export const scoreOf = (o: Inputs) => {
     parts: Object.fromEntries(Object.entries(scored).map(([k, v]) => [k, Math.round(v.s)])),
     detail: Object.fromEntries(Object.entries(parts).map(([k, part]) => [k, Object.fromEntries(Object.entries(part.of).map(([n, x]) => [n, Number.isFinite(x.s) ? Math.round(x.s) : null]))])),
     /** The share of the score's weight that was measured, 0 to 1, and each measure that wasn't, as `part.measure`. */
-    measured: Math.round(measured * 100) / 100,
+    measured,
     missing: Object.entries(parts).flatMap(([k, part]) => owed(part).filter(([, x]) => !Number.isFinite(x.s)).map(([n]) => `${k}.${n}`)),
+    /** Each part with none of the measures every repo is owed: one measured only where a repo has the thing, such as shards, doesn't carry a part alone. */
+    empty: Object.entries(parts).filter(([, part]) => !owed(part).some(([, x]) => !x.optional && Number.isFinite(x.s))).map(([k]) => k),
   };
 };
 
@@ -948,7 +950,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   };
 
   const outcomes = { wait, jobs, tests, jobGraph, graphs };
-  const { score, parts, detail, measured, missing } = scoreOf({
+  const { score, parts, detail, measured, missing, empty } = scoreOf({
     p50: wait.p50,
     p90: wait.p90,
     linesOfCode: profile.linesOfCode,
@@ -972,8 +974,11 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     linesOfCode: profile.linesOfCode,
     measured,
     missing,
+    empty,
     configs: outsideConfigs(source.tree.blobs.map((b) => b.path)),
-    outside: timedEnough ? outsideOn(gh, repo, wait.newest) : { read: 0, pushes: [] },
+    treeTruncated: source.tree.truncated,
+    // Not asked when there's no score to rest on them: too few timed pushes, or a part with nothing measured.
+    outside: timedEnough && !empty.length ? outsideOn(gh, repo, wait.newest) : { sampled: 0, read: 0, pushes: [] },
   });
   const enough = timedEnough && thin === undefined;
   const unscored = timedEnough

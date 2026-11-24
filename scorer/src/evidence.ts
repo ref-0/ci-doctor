@@ -25,30 +25,32 @@ interface Ci {
   app?: RegExp;
   /** Its context, on a commit status. */
   status?: RegExp;
-  /** Its config file in the repo. Left out where the file as often holds a deploy as a check. */
+  /** Its config file in the repo, at the paths the CI itself reads. Left out where the file as often holds a deploy as a check. */
   config?: RegExp;
 }
 
 // CIs that report to a commit from outside GitHub Actions. A runner provider, such as Blacksmith, runs Actions
-// jobs, so it isn't one. Review bots, scanners, deploy previews and licence checks aren't CI.
+// jobs, so it isn't one.
 const OUTSIDE: Ci[] = [
-  { name: 'Azure Pipelines', app: /^azure-pipelines$/, config: /(^|\/)azure-pipelines[^/]*\.ya?ml$|^\.azure-pipelines\/|^\.azuredevops\/|^eng\/pipelines\// },
-  { name: 'CircleCI', app: /^circleci/, status: /^ci\/circleci/, config: /^\.circleci\/config\.yml$/ },
-  { name: 'Buildkite', app: /^buildkite/, status: /^buildkite\//, config: /^\.buildkite\// },
-  { name: 'Travis CI', app: /^travis-ci/, status: /^continuous-integration\/travis-ci/, config: /^\.travis\.yml$/ },
-  { name: 'Cirrus CI', app: /^cirrus-ci/, config: /^\.cirrus\.(yml|star)$/ },
-  { name: 'AppVeyor', app: /^appveyor/, status: /^continuous-integration\/appveyor/, config: /^\.?appveyor\.yml$/ },
-  { name: 'Jenkins', app: /jenkins/, status: /^continuous-integration\/jenkins|^jenkins/i, config: /^Jenkinsfile[^/]*$/ },
-  { name: 'GitLab CI', app: /^gitlab/, status: /^ci\/gitlab/, config: /^\.gitlab-ci\.yml$/ },
+  { name: 'Azure Pipelines', app: /^azure-pipelines$/, config: /^azure-pipelines[^/]*\.ya?ml$|^(\.azure-pipelines|\.azuredevops|\.azure\/pipelines|eng\/pipelines)\/.+\.ya?ml$/ },
+  { name: 'CircleCI', app: /^circleci(-checks)?$/, status: /^ci\/circleci/, config: /^\.circleci\/config\.yml$/ },
+  { name: 'Buildkite', app: /^buildkite$/, status: /^buildkite\//, config: /^\.buildkite\/.+\.(ya?ml|json)$/ },
+  { name: 'Travis CI', app: /^travis-ci$/, status: /^continuous-integration\/travis-ci/, config: /^\.travis\.yml$/ },
+  { name: 'Cirrus CI', app: /^cirrus-ci$/, config: /^\.cirrus\.(yml|star)$/ },
+  { name: 'AppVeyor', app: /^appveyor$/, status: /^continuous-integration\/appveyor/, config: /^\.?appveyor\.yml$/ },
+  { name: 'Jenkins', app: /^jenkins(-ci)?$/, status: /^continuous-integration\/jenkins|^jenkins(\/|$)/i, config: /^(\.?ci\/|\.?jenkins\/)?Jenkinsfile(\.(?!md$|txt$)[\w-]+)?$/ },
+  { name: 'GitLab CI', app: /^gitlab(-ci)?$/, status: /^ci\/gitlab/, config: /^\.gitlab-ci\.yml$/ },
   { name: 'Drone', status: /^continuous-integration\/drone/, config: /^\.drone\.(yml|jsonnet|star)$/ },
-  { name: 'Woodpecker', status: /^ci\/woodpecker/, config: /^\.woodpecker(\.ya?ml$|\/)/ },
-  { name: 'TeamCity', app: /teamcity/, status: /teamcity/i, config: /^\.teamcity\// },
-  { name: 'Semaphore', app: /^semaphore/, status: /^ci\/semaphoreci/, config: /^\.semaphore\// },
-  { name: 'Bitrise', app: /^bitrise/, status: /^ci\/bitrise/, config: /^bitrise\.yml$/ },
+  { name: 'Woodpecker', status: /^ci\/woodpecker/, config: /^\.woodpecker(\.ya?ml$|\/.+\.ya?ml$)/ },
+  { name: 'TeamCity', app: /^teamcity/, status: /teamcity/i, config: /^\.teamcity\/.+/ },
+  { name: 'Semaphore', app: /^semaphore/, status: /^ci\/semaphoreci/, config: /^\.semaphore\/.+\.ya?ml$/ },
+  { name: 'Bitrise', app: /^bitrise$/, status: /^ci\/bitrise/, config: /^bitrise\.yml$/ },
   { name: 'Google Cloud Build', app: /^google-cloud-build$/ },
   { name: 'AWS CodeBuild', app: /^aws-codebuild/, status: /^codebuild/i },
-  { name: 'Prow', status: /^tide$|^pull-[a-z0-9-]+$/ },
+  { name: 'Prow', status: /^pull-[a-z0-9]+-[a-z0-9-]+$/ },
 ];
+// Review bots, deploy previews, coverage and licence checks aren't CI, whatever else their name holds.
+const NOT_CI = /preview|deploy|review|coverage|licen[cs]e|\bcla\b|\bbot\b/i;
 
 /** Each outside CI with a config in the tree, and the first such file. */
 export const outsideConfigs = (paths: string[]) =>
@@ -74,43 +76,87 @@ export interface OutsidePush {
   sha: string;
   /** This push's wait on GitHub Actions, in minutes. */
   actionsMin: number;
-  /** Each outside CI seen on it, and how long it ran: null when only its end was reported. */
+  /** Each outside CI on it, and the minutes from the push to the latest end known of its work: null when none is. */
   ci: { name: string; minutes: number | null }[];
 }
 
-const spanMin = (from: number[], to: number[]) => (from.length && to.length ? Math.round(((Math.max(...to) - Math.min(...from)) / 60e3) * 10) / 10 : null);
-
-/** One push's outside CIs, from its check runs and commit statuses. A run still going has run at least until now. */
-export const outsideCiOf = (checks: CheckRun[], statuses: Status[], now = Date.now()) =>
-  OUTSIDE.flatMap((ci) => {
-    const runs = checks.filter((c) => ci.app?.test(c.app?.slug ?? '') && c.started_at);
-    const marks = statuses.filter((s) => ci.status?.test(s.context));
-    if (!runs.length && !marks.length) return [];
-
-    const ran = spanMin(runs.map((c) => Date.parse(c.started_at!)), runs.map((c) => (c.completed_at ? Date.parse(c.completed_at) : now)));
-    // A status is one moment. A pending one and the one that ended it are a start and an end.
-    const marked = marks.length > 1 ? spanMin(marks.map((s) => Date.parse(s.created_at)), marks.map((s) => Date.parse(s.created_at))) : null;
-    const minutes = ran === null ? marked : marked === null ? ran : Math.max(ran, marked);
-    return [{ name: ci.name, minutes }];
-  });
+/** A CI's work belongs to a push when it starts within this long after it: later work came from another event, such as a rerun or a second pull request on the same commit. */
+export const PUSH_CHECKS_WINDOW = 30 * 60e3;
+// A later stage of the same work starts within this long of the stage before it ending.
+const STAGE_GAP = 10 * 60e3;
+// Clocks differ: a check may be stamped a little before the run that marks the push.
+const CLOCK_SLACK = 2 * 60e3;
+// Work with no end is still going only on a fresh push; on an old one it was abandoned.
+const FRESH = 24 * 3600e3;
 
 /**
- * The outside CIs on people's newest pushes. `read` is how many pushes' checks GitHub gave: a token
- * without read access to checks gets none, which is unknown, not absent.
+ * One push's outside CIs, from its check runs and commit statuses, each with the minutes from the push to
+ * the latest end known of that CI's work on it. When each finished tells who decides the wait, not how long
+ * each ran. The minutes are a floor: work that can't be tied to the push, or has no end, isn't counted.
  */
-export const outsideOn = (gh: Gh, repo: string, pushes: { sha: string; wait: number }[]) => {
+export const outsideCiOf = (checks: CheckRun[], statuses: Status[], pushedAt: number, now = Date.now()) => {
+  const going = now - pushedAt < FRESH ? now : null;
+
+  return OUTSIDE.flatMap((ci) => {
+    const runs = checks.filter((c) => ci.app?.test(c.app?.slug ?? '') && !NOT_CI.test(c.app?.slug ?? ''));
+    const contexts = Map.groupBy(statuses.filter((s) => ci.status?.test(s.context) && !NOT_CI.test(s.context)), (s) => s.context);
+    if (!runs.length && !contexts.size) return [];
+
+    // Each stretch of the CI's work: a check run, queued ones from the push, or a status context, from its
+    // first mark after the push to the first that isn't pending. A status is one moment, so a context marked
+    // once, already ended, starts and ends there.
+    const spans = [
+      ...runs.map((c) => ({ from: c.started_at ? Date.parse(c.started_at) : pushedAt, to: c.completed_at ? Date.parse(c.completed_at) : going })),
+      ...[...contexts.values()].flatMap((marks) => {
+        const after = marks.map((s) => ({ state: s.state, at: Date.parse(s.created_at) })).filter((s) => s.at >= pushedAt - CLOCK_SLACK).sort((a, b) => a.at - b.at);
+        return after.length ? [{ from: after[0]!.at, to: after.find((s) => s.state !== 'pending')?.at ?? going }] : [];
+      }),
+    ];
+
+    // The push's own work starts within the window, or soon after its earlier work ends, as a later stage does.
+    let horizon = pushedAt + PUSH_CHECKS_WINDOW;
+    let end: number | null = null;
+    for (const span of spans.filter((each) => each.from >= pushedAt - CLOCK_SLACK).sort((a, b) => a.from - b.from)) {
+      if (span.from > horizon) break;
+      if (span.to === null) continue;
+      end = Math.max(end ?? pushedAt, span.to);
+      horizon = Math.max(horizon, span.to + STAGE_GAP);
+    }
+    return [{ name: ci.name, minutes: end === null ? null : Math.round(((end - pushedAt) / 60e3) * 10) / 10 }];
+  });
+};
+
+// Check runs a commit can hold past the first page: 3 pages is 300.
+const CHECK_PAGES = 3;
+
+/**
+ * The outside CIs on people's newest pushes. `sampled` is how many pushes were asked about and `read` how
+ * many GitHub answered in full: a token without read access to checks or statuses gets none, which is
+ * unknown, not absent.
+ */
+export const outsideOn = (gh: Gh, repo: string, pushes: { sha: string; at: number; wait: number }[]) => {
+  const asked = pushes.slice(0, SAMPLED_PUSHES);
   let read = 0;
   const seen: OutsidePush[] = [];
-  for (const push of pushes.slice(0, SAMPLED_PUSHES)) {
-    const checks = gh.json(`repos/${repo}/commits/${push.sha}/check-runs?per_page=100`, { absentOn: [403, 404, 422] });
-    if (checks === undefined) continue;
-    const statuses = gh.json(`repos/${repo}/commits/${push.sha}/statuses?per_page=100`, { absentOn: [403, 404, 422] }) ?? [];
+  for (const push of asked) {
+    const checks: CheckRun[] = [];
+    let whole = false;
+    for (let page = 1; page <= CHECK_PAGES; page++) {
+      const answer = gh.json(`repos/${repo}/commits/${push.sha}/check-runs?per_page=100${page > 1 ? `&page=${page}` : ''}`, { absentOn: [403, 404, 422] });
+      if (!Array.isArray(answer?.check_runs)) break;
+      checks.push(...answer.check_runs);
+      whole = checks.length >= (answer.total_count ?? 0) || answer.check_runs.length < 100;
+      if (whole) break;
+    }
+    if (!whole) continue;
+    const statuses = gh.json(`repos/${repo}/commits/${push.sha}/statuses?per_page=100`, { absentOn: [403, 404, 422] });
+    if (!Array.isArray(statuses)) continue;
 
     read++;
-    const ci = outsideCiOf(checks.check_runs ?? [], statuses);
+    const ci = outsideCiOf(checks, statuses, push.at);
     if (ci.length) seen.push({ sha: push.sha, actionsMin: Math.round(push.wait * 10) / 10, ci });
   }
-  return { read, pushes: seen };
+  return { sampled: asked.length, read, pushes: seen };
 };
 
 const MEASURES: Record<string, string> = {
@@ -123,9 +169,15 @@ const MEASURES: Record<string, string> = {
   'efficiency.shardIdle': 'shard balance',
 };
 
-const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const list = (xs: string[], last = 'and') => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${last} ${xs.at(-1)}`);
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor((xs.length - 1) / 2)]!;
-const words = (minutes: number) => `${minutes < 10 ? Math.round(minutes * 10) / 10 : Math.round(minutes)} minute${minutes === 1 ? '' : 's'}`;
+const words = (minutes: number) => {
+  const shown = minutes < 10 ? Math.round(minutes * 10) / 10 : Math.round(minutes);
+  return `${shown} minute${shown === 1 ? '' : 's'}`;
+};
+const linesWords = (lines: number) => (lines >= 10_000 ? Math.round(lines / 1000) * 1000 : Math.round(lines)).toLocaleString('en-US');
+/** Another CI decides a push's wait when it ended more than this long after the Actions checks did. */
+export const DECIDES_BY = 1;
 
 export interface EvidenceInputs {
   /** Pushes timed, their p50 wait in minutes, and reruns whose first attempt wasn't read. */
@@ -135,11 +187,14 @@ export interface EvidenceInputs {
   /** The wait typical for the repo's size, in minutes, and its lines of code. */
   expectedWait: number;
   linesOfCode: number;
-  /** From `scoreOf`: the share of the score's weight measured, and each measure that wasn't. */
+  /** From `scoreOf`: the share of the score's weight measured, each measure that wasn't, and each part with none made. */
   measured: number;
   missing: string[];
+  empty: string[];
   configs: { ci: string; path: string }[];
-  outside: { read: number; pushes: OutsidePush[] };
+  /** GitHub cut the file tree short, so a config past the cut wasn't seen. */
+  treeTruncated: boolean;
+  outside: { sampled: number; read: number; pushes: OutsidePush[] };
 }
 
 /**
@@ -148,28 +203,30 @@ export interface EvidenceInputs {
  * whole part of the score went unmeasured.
  */
 export const evidenceOf = (o: EvidenceInputs) => {
-  const longer = o.outside.pushes.filter((p) => p.ci.some((c) => c.minutes !== null && c.minutes > p.actionsMin));
-  const names = (pushes: OutsidePush[]) => [...new Set(pushes.flatMap((p) => p.ci.map((c) => c.name)))];
-  const emptyParts = ['reliability', 'efficiency'].filter((part) => {
-    const of = Object.keys(MEASURES).filter((m) => m.startsWith(`${part}.`) && m !== 'efficiency.shardIdle');
-    return of.every((m) => o.missing.includes(m));
-  });
+  // On each push, the CIs still at work after the Actions checks ended: the ones the pull request was still waiting on.
+  const decides = (p: OutsidePush) => p.ci.filter((c) => c.minutes !== null && c.minutes > p.actionsMin + DECIDES_BY);
+  const longer = o.outside.pushes.filter((p) => decides(p).length);
+  const names = (cis: { name: string }[]) => [...new Set(cis.map((c) => c.name))];
+  const deciding = names(longer.flatMap(decides));
+  const small = o.p50 < THIN_WAIT * o.expectedWait;
 
   const thin =
     longer.length >= OUTSIDE_DECIDES
-      ? `Pull requests here wait on ${list(names(longer))}, outside GitHub Actions: on ${longer.length} of ${o.outside.read} sampled pushes it ran longer than the Actions checks, ${words(median(longer.map((p) => Math.max(...p.ci.map((c) => c.minutes ?? 0)))))} against ${words(median(longer.map((p) => p.actionsMin)))} at the median. The score reads only GitHub Actions.`
-      : o.configs.length && o.p50 < THIN_WAIT * o.expectedWait
-        ? `The repo keeps a config for ${list(o.configs.map((c) => c.ci))} (\`${o.configs[0]!.path}\`), and its GitHub Actions checks on pull requests are small for its size: a wait of ${words(o.p50)}, where about ${words(o.expectedWait)} is typical for ${Math.round(o.linesOfCode / 1000).toLocaleString('en-US')},000 lines. Its main checks likely run outside GitHub Actions, where the score can't read them.`
-        : emptyParts.length
-          ? `None of the score's ${emptyParts[0]} measures could be made (${list(Object.entries(MEASURES).filter(([m]) => m.startsWith(`${emptyParts[0]}.`) && o.missing.includes(m)).map(([, text]) => text))}), so there's too little to score.`
+      ? `Pull requests here wait on ${list(deciding)}, outside GitHub Actions: on ${longer.length} of ${o.outside.read} sampled pushes ${deciding.length > 1 ? 'they were' : 'it was'} still running when the Actions checks finished, until at least ${words(median(longer.map((p) => Math.max(...decides(p).map((c) => c.minutes!)))))} after the push against ${words(median(longer.map((p) => p.actionsMin)))} at the median. The score reads only GitHub Actions.`
+      : o.configs.length && small
+        ? `The repo keeps a config for ${list(o.configs.map((c) => c.ci))} (\`${o.configs[0]!.path}\`), and its GitHub Actions checks on pull requests are small for its size: a wait of ${words(o.p50)}, where about ${words(o.expectedWait)} is typical for ${linesWords(o.linesOfCode)} lines. Its main checks likely run outside GitHub Actions, where the score can't read them.`
+        : o.empty.length
+          ? `Too little of the score's ${o.empty[0]} part could be measured to score: none of ${list(Object.entries(MEASURES).filter(([m]) => m.startsWith(`${o.empty[0]}.`) && o.missing.includes(m)).map(([, text]) => text), 'or')}.`
           : undefined;
 
-  const alsoRan = names(o.outside.pushes);
+  const alsoRan = names(o.outside.pushes.flatMap((p) => p.ci));
+  const unread = o.outside.sampled - o.outside.read;
   const unmeasured = o.missing.map((m) => MEASURES[m] ?? m);
   const reasons = [
     o.timed < FEW_PUSHES.medium && `${o.timed} pushes were timed, under ${o.timed < FEW_PUSHES.low ? FEW_PUSHES.low : FEW_PUSHES.medium}`,
     alsoRan.length > 0 && `${list(alsoRan)} also ran on ${o.outside.pushes.length} of ${o.outside.read} sampled pushes, which the score doesn't read`,
-    o.outside.read === 0 && `checks from outside GitHub Actions couldn't be read${o.configs.length ? `, and the repo keeps a config for ${list(o.configs.map((c) => c.ci))}` : ''}`,
+    unread > 0 && `checks from outside GitHub Actions couldn't be read${o.outside.read ? ` on ${unread} of ${o.outside.sampled} sampled pushes` : ''}${o.configs.length ? `, and the repo keeps a config for ${list(o.configs.map((c) => c.ci))}` : ''}`,
+    o.treeTruncated && small && !o.configs.length && "GitHub cut the file tree short, so another CI's config may be past the cut",
     unmeasured.length > 0 && `${list(unmeasured)} couldn't be measured`,
     o.rerunsUnread > 0 && `${o.rerunsUnread} rerun${o.rerunsUnread === 1 ? "'s first attempt wasn't" : "s' first attempts weren't"} read`,
   ].filter((r): r is string => typeof r === 'string');
@@ -183,10 +240,11 @@ export const evidenceOf = (o: EvidenceInputs) => {
       /** What lowers it, each a clause; empty when it's high. */
       reasons: thin ? [] : reasons,
       /** The share of the score's weight that was measured, 0 to 1. */
-      measured: o.measured,
+      measured: Math.round(o.measured * 100) / 100,
       /** Each measure that couldn't be made, as `part.measure`. */
       missing: o.missing,
-      outsideCi: { sampled: o.outside.read, configs: o.configs, pushes: o.outside.pushes },
+      /** Pushes asked about, pushes read in full, the configs found, and each push another CI was on. */
+      outsideCi: { sampled: o.outside.sampled, read: o.outside.read, configs: o.configs, pushes: o.outside.pushes },
     },
   };
 };
