@@ -53,6 +53,14 @@ describe('practices', () => {
     assert.equal(found.taskRunner, 'vite-plus');
   });
 
+  it('takes Renovate as batching only when its config groups updates or holds them to a schedule', () => {
+    assert.equal(of({ 'renovate.json': '{ "extends": ["config:recommended"] }' }).depBotsBatched, true);
+    assert.equal(of({ '.github/renovate.json5': '{ packageRules: [{ groupName: "lint" }] }' }).depBotsBatched, true);
+    assert.equal(of({ 'renovate.json': '{ "enabled": true }' }).depBotsBatched, false);
+    assert.equal(of({ '.github/dependabot.yml': 'updates:\n  - groups:\n      all: {}\n' }).depBotsBatched, true);
+    assert.equal(of({ 'package.json': '{}' }).depBotsBatched, false);
+  });
+
   it("takes Oxlint's TypeScript config", () => {
     assert.equal(of({ 'package.json': '{}', 'oxlint.config.ts': '' }).fastLint, true);
     assert.equal(of({ 'package.json': '{}' }).fastLint, false);

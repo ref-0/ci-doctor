@@ -2,7 +2,7 @@
 // "32-cores", "4vcpu", Namespace's "4x16", Depot's trailing "-8". Otherwise GitHub's standard runners by
 // their documented sizes (docs.github.com, "GitHub-hosted runners", read 21 Nov 2026): Linux and Windows 4 on a
 // public repo and 2 on a private one, Intel macOS 4, Apple silicon macOS 3, ubuntu-slim 1. Anything else, a
-// self-hosted runner or a larger runner with a name of its own, has no known size.
+// self-hosted runner or a larger runner with a name of its own, such as `ubuntu-latest-large`, has no known size.
 
 const NAMED = [/(\d+)\s*-?\s*(?:v?cpus?|cores?)\b/i, /\bnscloud-.*?-(\d+)x\d+\b/i, /\bdepot-[a-z]+-[\d.]+-(\d+)\b/i];
 
@@ -16,7 +16,7 @@ export const vcpusOf = (labels: ReadonlyArray<string>, isPrivate: boolean): numb
 
   const standard = labels.map((label) => label.toLowerCase());
   if (standard.includes('ubuntu-slim')) return 1;
-  if (standard.some((label) => /^(ubuntu|windows)-[\w.-]+$/.test(label))) return isPrivate ? 2 : 4;
+  if (standard.some((label) => /^(ubuntu|windows)-(latest|[\d.]+)(-arm)?$/.test(label))) return isPrivate ? 2 : 4;
   if (standard.some((label) => /^macos-[\w.-]+-(large|xlarge)$/.test(label))) return null;
   if (standard.some((label) => /^macos-(13|[\w.]+-intel)$/.test(label))) return 4;
   if (standard.some((label) => /^macos-[\w.-]+$/.test(label))) return 3;
