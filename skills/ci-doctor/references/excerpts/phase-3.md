@@ -44,7 +44,7 @@ Before task groups, lanes or claims, a fixed split by measured time often gets m
 
 Work stealing (below) is a later, separately measured change: add it when the slowest shard still sits well past the median on runs of the same selection.
 
-[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.2.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
+[`templates/github/workflows/ci.yml`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/templates/github/workflows/ci.yml) wires all of this; the steps below are the parts, for a workflow of your own. The `ci-cache` action they use is [`templates/github/actions/ci-cache/`](https://github.com/ref-0/ci-doctor/tree/v0.3.0/templates/github/actions/ci-cache), copied to `.github/actions/ci-cache/`.
 
 ## Caching
 

@@ -8,7 +8,15 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
-## Unreleased
+## v0.3.0
+
+Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
+
+### Do first
+
+1. **Shard scripts moved:** refresh your `scripts/shards/` from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md` (below, under Shards).
+2. **The sweep's cron:** `sweep.yml`'s `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts` and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps (below, under Shards).
+3. **Your skill copies:** every skill names 0.3.0 in its `metadata.version` and links this repo at `v0.3.0`. If you keep copies of the skills, copy them again.
 
 ### Shards
 
@@ -31,6 +39,15 @@ Under 1.0, a minor release carries what would be a major one.
 - **A run that never ran isn't CI time.** A failed first attempt on a pull request that took over an hour and has no jobs, such as a fork's run nobody approved that GitHub failed days later, is left out of the PR wait and the red heads, and counted as `wait.neverRan`. One jobs call per such run, at most 60 a report. On two popular repos, such runs had stretched the PR wait p90 to 11 and 58 hours; without them it is 16 and 17 minutes.
 - **An unscored repo whose pushes nearly all came from bots says so,** naming the bots, instead of saying that too few pushes ran the main workflows. `wait.botPushes` and `wait.bots` count them.
 - **Each job's runner and its vCPUs.** The job graph's nodes and each replayed run's jobs carry `runner`, the first runner label past `self-hosted`, and `vcpus`: the size a label names (`-4core`, `4vcpu`, Namespace's `4x16`, Depot's trailing `-8`), else GitHub's documented size for its standard runners (Linux and Windows 4 on a public repo and 2 on a private one, Intel macOS 4, Apple silicon macOS 3, `ubuntu-slim` 1), else null.
+
+### The guide and the plugins
+
+- **Short guide titles.** Each page's title is one to three words, without its number or subtitle, and the guide's front page is "Guides". The Contents, the hub's excerpts and the phases' anchors follow; file names stay, so every link to a page still lands.
+- **The plugins describe ci-doctor as skills that teach coding agents to make CI fast, reliable and efficient,** and the plugin's icon is ref0's zero on its tile.
+
+### Releasing
+
+- **A release is a pull request, `Release: <version>`, from `next` into `main`.** `release.yml` checks it, and its merge publishes `@ref0/ci-doctor` to npm by trusted publishing, with provenance, from the `release` environment, then tags the merge `v<version>`. The README's Contributing says how.
 
 ## v0.2.0
 
