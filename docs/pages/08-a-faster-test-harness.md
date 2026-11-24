@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 8. A faster test harness
+# Test harness
 
 Cut the time and work a heavy test runtime, such as workerd under Vitest, adds to each test file, without making any test prove less.
 

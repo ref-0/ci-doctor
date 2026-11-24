@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 12. Budgets, health and spend
+# Budgets
 
 Give every job and run a time budget, report CI's health, and compare spend only across windows that can be compared.
 
