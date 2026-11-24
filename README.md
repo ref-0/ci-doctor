@@ -134,7 +134,7 @@ node scripts/check.ts
 
 After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first. `node scripts/site/build.ts` builds the guide site into `dist/site/`; `scripts/site/README.md` says how it's deployed.
 
-A release merges `next` into `main`, bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag, and pushes the tag, which publishes the scorer to npm.
+A release is a pull request, `Release: <version>`, from `next` into `main`. Before it, a pull request into `next` bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag and adds the CHANGELOG entry. [`release.yml`](.github/workflows/release.yml) checks the release pull request, and once it passes, merging it publishes the scorer to npm and tags the merge.
 
 ## License
 
