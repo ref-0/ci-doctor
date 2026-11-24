@@ -17,6 +17,10 @@ Under 1.0, a minor release carries what would be a major one.
 - **Minutes are weighed by the runner's vCPUs.** Minutes per merged PR counted a job on a 16-vCPU runner the same as one on a standard runner, so buying bigger runners read as efficiency. The measure is now vCPU-minutes: each job's minutes times its runner's vCPUs, with a runner of unknown size counted as a standard one's 4. `efficiency` gains `vcpuMinutesPerMergedPr`, `prVcpuMinutesPerDay`, `expectedVcpuMinutesPerMergedPr` and `sizedShare`, the share of job minutes whose runner's size was known, each workflow's counted by its runs, and the confidence drops to medium when that's under half. GitHub's larger macOS runners have their documented sizes, 12 and 5 vCPUs. `scoreOf` takes `vcpuMinutesPerMergedPr` in place of `minutesPerMergedPr`.
 - **Setup is scored in minutes a job, not as a share of job time.** A share called a fast job wasteful: a repo with a 2-minute wait and 20 seconds of setup a job scored 28 of 100 on setup, and one whose long tests hid 4 minutes of setup scored 100. `jobs.setupMinPerJob` is the mean across a run's jobs; 30 seconds is full marks and 4 minutes is none. The setup fix shows when a job spends over a minute on it, unless that's under 5% of job time, and gives the minutes. `scoreOf` takes `setupMinPerJob` in place of `setupShare`, which the report still gives.
 
+### Releasing
+
+- **Pull requests go to `main`, and there's no `next` branch.** A release is one pull request into `main` that bumps the version; `release.yml` publishes and tags on its merge, as before. Merging a release from `next` deleted that branch each time, which moved every open pull request onto `main`.
+
 ## v0.3.0
 
 Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
