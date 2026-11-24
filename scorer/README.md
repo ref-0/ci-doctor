@@ -69,7 +69,22 @@ By default it prints to the terminal and nothing else: no cache, no report files
 
 - **Job logs** are read in memory, and only the derived test timings are kept, with test names that hold only name characters: nothing else from a log line is printed or saved. They're never written to disk, even with `--cache`.
 - **`--cache`** keeps API answers for up to 24 hours and reuses them. **`--save`** writes the report as JSON. Both go to your user cache folder, never npm's cache: `$XDG_CACHE_HOME/ci-doctor` or `~/.cache/ci-doctor` on Linux, `~/Library/Caches/ci-doctor` on macOS, `%LOCALAPPDATA%\ci-doctor` on Windows, or `CI_DOCTOR_CACHE_DIR`. Each gh account gets its own folder, so one account never sees another's answers. The output says how many answers came from the cache and how old the oldest was.
-- **`--standing`** is the only thing that ever sends anything. It sends a JSON body holding the score and the size class, `{"score":81,"size":"medium"}`, and nothing else: no repo name, account or measurements. It sends to the endpoint `--standing-url` or `CI_DOCTOR_STANDING_URL` names, over https, and refuses a URL with a query, fragment or credentials in it. ci-doctor.ref0.dev doesn't take standings yet, so there's no default. An unscored run sends nothing.
+- **`--standing`** sends a JSON body holding the score and the size class, `{"score":81,"size":"medium"}`, and nothing else: no repo name, account or measurements. It sends to the endpoint `--standing-url` or `CI_DOCTOR_STANDING_URL` names, over https, and refuses a URL with a query, fragment or credentials in it. ci-doctor.ref0.dev doesn't take standings yet, so there's no default. An unscored run sends nothing.
+- **`--submit`** adds the report to [ci-doctor-db](https://github.com/ref-0/ci-doctor-db), the public data behind the scores, as a pull request. The next section says what it sends.
+
+## Submitting a report
+
+```sh
+npx @ref0/ci-doctor --repo pip/garden --submit
+```
+
+It scores the repo and prints the report as usual. Then it says what it will send and where, and through `gh api`, with your sign-in and no clone, forks ci-doctor-db if you have no fork, makes a branch from its default branch, adds one file, `reports/pip__garden/<date>.json`, and opens a pull request. It prints the pull request's link. If one of yours that adds that file is still open, it prints that link and sends nothing.
+
+The file is the report `--json` prints, with `submitted: { by, at }`, your GitHub login and the time, and `scorerVersion`, which every report carries. `read` keeps only the call counts, not the cache's folder. Nothing else from your machine is sent: no checkout, no cache, no token.
+
+It refuses, and sends nothing, for a private repo (`--standing` sends only the score and size class), for a checkout with no GitHub remote, and for a `--days` other than 7. An unscored repo can be submitted: its reason is the result.
+
+Before sending, it runs `smokeCheck`, the same function ci-doctor-db's check runs on the pull request: the file is JSON under 1 MB with the fields that are read, of their types; it's filed at its repo and date, today's or yesterday's in UTC; the current release made it; its numbers are in range, with at least 5 timed pushes behind a score; and the score, grade and parts are what `scoreOf` gives for its own measures, within a point. ci-doctor-db doesn't score the repo again: a submitted row is marked as submitted.
 
 ## Options
 
@@ -82,6 +97,7 @@ By default it prints to the terminal and nothing else: no cache, no report files
 | `--save` | Save the report as JSON beside the cache |
 | `--standing` | Send the score and size class, and nothing else |
 | `--standing-url <url>` | The endpoint `--standing` sends to |
+| `--submit` | Add this public repo's report to ci-doctor-db, as a pull request from your fork |
 
 Exit codes: 0 for a report, scored or unscored. 1 when a read fails, or `gh` is missing or signed out. 2 for a usage error, such as an ambiguous remote.
 
@@ -114,7 +130,7 @@ const report = scoreRepo('vitejs/vite', { days: 7, token: process.env.GH_TOKEN }
 console.log(report.score, report.stack.testRunners, report.read.calls);
 ```
 
-It reads through `gh api` as the CLI does. `token` is passed to `gh` as `GH_TOKEN`, such as a GitHub App's installation token; without it, `gh`'s own sign-in reads. `cacheDir` keeps and reuses answers up to 24 hours old there. `scoreOf` and the other scoring functions are exported too, to re-score a stored report from its inputs.
+It reads through `gh api` as the CLI does. `token` is passed to `gh` as `GH_TOKEN`, such as a GitHub App's installation token; without it, `gh`'s own sign-in reads. `cacheDir` keeps and reuses answers up to 24 hours old there. `scoreOf` and the other scoring functions are exported too, to re-score a stored report from its inputs, which `inputsOf` reads from it. `smokeCheck(text, { path })` returns what's wrong with a submitted report file, empty when it passes.
 
 ## Windows
 
