@@ -1,5 +1,6 @@
 // What the terminal shows: the score, the <ci-report> block an agent can start from, each practice as yes, no or
 // unknown, the fixes with their guide pages, and where the numbers came from.
+import { UNSEEN } from './evidence.ts';
 import { graphPromptLines, graphsBlock } from './graphs.ts';
 import { graphBlock, promptLines } from './job-graph.ts';
 import type { Inventory, Practices, Report } from './score.ts';
@@ -16,10 +17,17 @@ const pkgText = (pk: Record<string, number>) =>
 const profileLine = (r: Report) =>
   `Repo: ~${fmtK(r.profile.linesOfCode)} lines (${r.profile.languages.map(([l, s]) => `${l} ${s}%`).join(', ')}), tests ${p(r.profile.testShare)} of source, ${pkgText(r.profile.packages)}; ${r.profile.commitsPerWeek} commits/week by ${r.profile.activeAuthors28d} ${r.profile.activeAuthors28d === 1 ? 'person' : 'people'} (28 days, pace ${r.profile.pace ?? '–'}× the year); ${r.profile.prsMergedPerWeek} PRs merged/week, ${r.profile.botShareOfMergedPrs === null ? '–' : `${r.profile.botShareOfMergedPrs}%`} by bots, people's open→merge p50 ${r.profile.openToMergeHours.p50 ?? '–'} h; ${r.profile.runsPerMergedPr ?? '–'} PR runs per merged PR`;
 
+/** How sure the score is, and why it isn't surer. */
+export const confidenceLine = (r: Report) =>
+  r.evidence.confidence === 'high'
+    ? `Confidence high: ${r.wait.timed} pushes timed and every measure made.`
+    : `Confidence ${r.evidence.confidence}: ${r.evidence.reasons.join('; ')}.`;
+
 export const promptBlock = (r: Report) =>
   [
     `<ci-report repo="${r.repo}" date="${r.date}">`,
     `Score ${r.score}/100, grade ${r.grade}: speed ${r.parts.speed}, reliability ${r.parts.reliability}, efficiency ${r.parts.efficiency} (${r.size}: ${r.headsPerWeek} PR pushes a week)`,
+    confidenceLine(r),
     profileLine(r),
     `PR wait p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (pushes that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all pushes p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
     `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr ?? NaN)} job-min across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedMinutesPerMergedPr}); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
@@ -130,7 +138,7 @@ export const scoredText = (r: Report, v: Provenance) => {
 
   return [
     head,
-    window,
+    r.score === null ? window : `${window}\n${confidenceLine(r)}\n${UNSEEN}`,
     r.score === null ? profileLine(r) : `To fix it with your agent, paste the AI Quickstart prompt from https://github.com/ref-0/ci-doctor, then "Start from this CI report:" and this block:\n\n${promptBlock(r)}`,
     r.jobGraph && graphBlock(r.jobGraph),
     practicesBlock(r.practices),
