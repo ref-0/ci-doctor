@@ -29,8 +29,8 @@ A scored report carries its confidence, in `evidence.confidence` and on a line u
 
 | Confidence | When |
 | --- | --- |
-| `high` | 20 or more pushes timed, every measure made, no other CI seen |
-| `medium` | 10 to 19 pushes timed, a measure missing, reruns whose first attempt wasn't read, another CI seen that didn't finish after Actions, the other checks unreadable on any push read, or a file tree GitHub cut short under Actions checks small for the repo's size |
+| `high` | 20 or more pushes timed, every measure made, no other CI seen, at least half the job minutes on runners of a known size |
+| `medium` | 10 to 19 pushes timed, a measure missing, reruns whose first attempt wasn't read, another CI seen that didn't finish after Actions, the other checks unreadable on any push read, a file tree GitHub cut short under Actions checks small for the repo's size, or under half the job minutes on runners of a known size |
 | `low` | under 10 pushes timed, or under 80% of the score's weight measured |
 
 `evidence.reasons` says which, `evidence.measured` is the share of the score's weight that was measured, `evidence.missing` names each measure that wasn't, and `evidence.outsideCi` holds the pushes asked about (`sampled`), those GitHub answered in full (`read`), the configs found and each push another CI was on. Shard balance counts only for a repo that has shards. Review bots, scanners, deploy previews and licence checks aren't CI, and a runner provider's jobs are Actions jobs.
@@ -39,9 +39,14 @@ Another CI's minutes on a push run from the push to the latest end known of its 
 
 The score doesn't see what the tests prove, what CI costs in money, or checks that run outside GitHub Actions. The report says so under every score.
 
+## What efficiency is measured in
+
+- **vCPU-minutes for each merged PR.** A job's minutes times its runner's vCPUs, so a job that finishes in a quarter of the time on a runner four times the size has used the same. The size comes from the job's labels: one named in a label, such as `-16core`, or GitHub's own runners by their documented sizes: its standard ones, 4 on a public repo and 2 on a private one, and its larger macOS ones, 12 and 5. So a private repo's job on a standard runner counts half a public repo's. A runner whose size the labels don't say, such as a self-hosted one, counts as a standard runner's 4, which reads a bigger one too kindly and a smaller one too harshly. `efficiency.sizedShare` is the share of job minutes whose size was known, each workflow's counted by its runs: under half, the report says the score is less sure. `efficiency.jobMinutesPerMergedPr` still gives the plain job minutes.
+- **Setup minutes a job.** The time a job spends in setup steps, such as checkout, installs and cache restores, as the mean across a run's jobs: `jobs.setupMinPerJob`. 30 seconds is full marks and 4 minutes is none. `jobs.setupShare`, setup as a share of job time, is still reported, and no longer scored: a fast job with little else to do has a high share and nothing to fix. The setup fix shows over a minute a job, unless that's under 5% of job time.
+
 ## What it reads
 
-It computes everything on your machine. Every GitHub read goes through `gh api`, with your own sign-in, so a private repo scores the same as a public one:
+It computes everything on your machine. Every GitHub read goes through `gh api`, with your own sign-in, so a private repo is read as a public one is:
 
 - the repo's metadata, languages, recent commits and weekly commit counts;
 - pull-request and default-branch Actions runs from the last 7 days (`--days`), and the jobs of a few of them;
