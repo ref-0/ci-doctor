@@ -11,6 +11,7 @@ import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts'
 import { vcpusOf } from './runners.ts';
 import { githubSource, localSource, remembered, type Source, type Tree } from './source.ts';
 import { ecosystemOf, stackOf } from './stack.ts';
+import { VERSION } from './version.ts';
 
 const DAY = 24 * 3600e3;
 const MAX_RUN_PAGES = 10;
@@ -82,7 +83,8 @@ const FAILED = new Set(['failure', 'timed_out']);
 const failed = (conclusion: string | null | undefined) => FAILED.has(conclusion ?? '');
 const DONE = new Set(['success', ...FAILED]);
 const PUSH_WINDOW = 10 * 60e3;
-const MIN_TIMED = 5;
+/** Timed PR pushes a score needs. */
+export const MIN_TIMED = 5;
 const isBotActor = (login = '') => /\[bot\]$|^(renovate|dependabot|github-actions|copilot-swe-agent)/i.test(login);
 
 interface Run {
@@ -1036,6 +1038,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   return {
     repo,
     date: new Date().toISOString().slice(0, 10),
+    scorerVersion: VERSION,
     checkout: null,
     defaultBranch: meta.default_branch as string,
     unscored,
