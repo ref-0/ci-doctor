@@ -66,6 +66,6 @@ Then go through [the techniques](../excerpts/phase-1.md#the-techniques), guide s
 - **Already done:** say where.
 - **Doesn't fit:** give the reason, for example "no integration harness", "no Rust", or "single package".
 
-Collapse the rest into a short applicability note: a line per section is enough. Also read [what was tried and dropped](../excerpts/phase-1.md#18-tried-and-dropped). It's history, not instructions, but for each dropped idea that the plan comes near, say whether the condition that ruled it out holds here.
+Collapse the rest into a short applicability note: a line per section is enough. Also read [what was tried and dropped](../excerpts/phase-1.md#tried-and-dropped). It's history, not instructions, but for each dropped idea that the plan comes near, say whether the condition that ruled it out holds here.
 
 Don't propose machinery the repo is too small to need. A small repo may need only drafts-run-nothing, time-based shards and a budget. A CI-wide in-process retry that files a flake issue on every recovery is a separate policy choice: it changes what a green gate means, so it needs its own yes.

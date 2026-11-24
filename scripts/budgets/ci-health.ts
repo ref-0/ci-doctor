@@ -22,7 +22,7 @@
  * multiplies every limit for one run, below 1 to open the issue and above 1 to close it, so you
  * can try that path.
  *
- * Rules that keep it trustworthy (docs/pages/12-budgets-health-and-spend.md):
+ * Rules that keep it reliable (docs/pages/12-budgets-health-and-spend.md):
  * - Two observations: a job or a kind of run is over only when its p95 is past its limit AND at
  *   least two of its runs are, so one bad run pages nobody. A test file is over at once: its time
  *   is the shard planner's input.

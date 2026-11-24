@@ -4,7 +4,7 @@
 
 Part of the [`ci-doctor`](../../SKILL.md) hub. What [Phase 2](../phases/phase-2-measure-the-baseline.md) needs from the guide and the reference READMEs, copied from them so the phase runs where only the skills are installed. Each part links its source.
 
-## 13. Records: evidence of what ran
+## Records
 
 From [docs/pages/13-records-evidence-of-what-ran.md](../../../../docs/pages/13-records-evidence-of-what-ran.md). The read-only collection recipe: pagination, attempts and what you couldn't read.
 
@@ -77,7 +77,7 @@ The reporter and collector here are Vitest's. For pytest, use the runner you hav
 - **Keep them small:** a structured log line like `ci-record`'s, or a small artifact, once the user approves it.
 - **Keep Python and TypeScript timings apart** unless they were measured on the same basis.
 
-## 12. Budgets, health and spend
+## Budgets
 
 From [docs/pages/12-budgets-health-and-spend.md](../../../../docs/pages/12-budgets-health-and-spend.md). The audit rules for comparing spend across windows.
 
@@ -91,7 +91,7 @@ From [docs/pages/12-budgets-health-and-spend.md](../../../../docs/pages/12-budge
   - Read the authorized cap from the watcher's configuration (its `cap` and optional `warn`) or the approved change that set it, and fix stale docs that disagree. The health report's projection copies only the cap; name who keeps the two in sync. An audit never authorizes raising it.
   - Keep first-attempt latency and all-attempt spend as separate populations.
 
-## 14. Local speed, and many agents on one machine
+## Local speed
 
 From [docs/pages/14-local-speed-and-many-agents-on-one-machine.md](../../../../docs/pages/14-local-speed-and-many-agents-on-one-machine.md). Test slots on a shared machine: Phase 0's settings and Phase 2's local contention.
 

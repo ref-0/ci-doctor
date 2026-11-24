@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 13. Records: evidence of what ran
+# Records
 
 Record which test files ran and how long each took, so a green check can't hide a file that never ran.
 

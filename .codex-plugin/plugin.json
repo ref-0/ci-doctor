@@ -1,7 +1,7 @@
 {
   "name": "ci-doctor",
-  "version": "0.2.0",
-  "description": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI and writes a plan you approve, then fixes failed runs, workflows that waste time, caches that miss, slow and flaky tests, runners on any provider or Blacksmith, their queues and the bill, and how far an edit reaches, with each speed-up, saving or fix proved before it's quoted, and agents' instructions kept short and true.",
+  "version": "0.3.0",
+  "description": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way.",
   "author": {
     "name": "ref0",
     "url": "https://ref0.dev"
@@ -25,8 +25,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "ci-doctor",
-    "shortDescription": "CI playbook and local scorer",
-    "longDescription": "Everything your agents need to make CI fast, and keep it that way: a playbook, coding-agent skills and a local GitHub Actions scorer. Your agent measures CI from its history and writes a plan for you to approve before anything changes. Day to day, its skills diagnose failed runs, cut checks an edit doesn't need, fix slow or flaky tests without losing what they prove, size runners on any provider or Blacksmith and shorten their queues, check that a speed-up, saving or fix holds up before anyone quotes it, and keep agents' instructions and the repo's facts short and true.",
+    "shortDescription": "Fast, reliable, efficient CI",
+    "longDescription": "Skills that teach your coding agents to make CI fast, reliable and efficient, and keep it that way. Your agent measures CI from its history and writes a plan for you to approve before anything changes. Day to day, its skills diagnose failed runs, cut checks an edit doesn't need, fix slow or flaky tests without losing what they prove, size runners on any provider or Blacksmith and shorten their queues, check that a speed-up, saving or fix holds up before anyone quotes it, and keep agents' instructions and the repo's facts short and true.",
     "developerName": "ref0",
     "category": "Developer Tools",
     "capabilities": [
@@ -39,9 +39,9 @@
       "Why did this PR's CI check fail?",
       "Our Actions bill doubled last month. Find out why."
     ],
-    "brandColor": "#111111",
-    "composerIcon": "./assets/logo-light.svg",
-    "logo": "./assets/logo-light.svg",
+    "brandColor": "#0c0d0d",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg",
     "screenshots": []
   }
 }
