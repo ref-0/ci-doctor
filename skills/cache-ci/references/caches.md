@@ -10,7 +10,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`cache-ci`](../SKILL.md) skill: the rules in full. Read it when changing caches or image reuse. Each of the repo's own caches, its key and who writes it, and what's left uncached on purpose, are in `.agents/repo/ci.md`'s Caches. [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md) covers the remote task cache and setup caches.
 
-If you run on Blacksmith, its sticky disks, its Actions cache and its shared Docker disk are in [`blacksmith`'s disks and caches](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and the toolchain are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/ci-workflows/references/rust.md).
+If you run on Blacksmith, its sticky disks, its Actions cache and its shared Docker disk are in [`blacksmith`'s disks and caches](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and the toolchain are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/rust.md).
 
 ## Who may write a cache
 
@@ -30,7 +30,7 @@ The rule holds for any package manager: key a saved install by every file that d
 - **Some jobs always install.** One job a run installs with the package manager's lockfile and policy checks on, so drift and supply-chain rules are still caught; ci.md's Caches says which. A job that pushes what a deploy runs should install fresh too.
 - **Measure both paths** in your CI, before and after: the warm path cut each job's setup to a fraction of the install's in the source repo.
 
-Where to keep the snapshot is the provider's question. On GitHub Actions, `actions/cache` keyed by the manifests' hash works on any runner, at the price of a restore each job; the [templates' README](https://github.com/ref-0/ci-doctor/blob/v0.3.0/templates/github/README.md#without-blacksmith) shows it beside each disk action. Time the restore and the install apart before adding a full-install snapshot at all. If you run on Blacksmith, a persistent disk mounted into each job skips the restore ([its disks](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/blacksmith/references/disks.md)); measure both on your workload.
+Where to keep the snapshot is the provider's question. On GitHub Actions, `actions/cache` keyed by the manifests' hash works on any runner, at the price of a restore each job; the [templates' README](https://github.com/ref-0/ci-doctor/blob/v0.4.0/templates/github/README.md#without-blacksmith) shows it beside each disk action. Time the restore and the install apart before adding a full-install snapshot at all. If you run on Blacksmith, a persistent disk mounted into each job skips the restore ([its disks](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md)); measure both on your workload.
 
 ## A toolchain cache
 

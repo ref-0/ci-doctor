@@ -88,7 +88,7 @@ Done when every lane plan is applied and each lane's keepers pass.
 
 ## 6. Preservation review
 
-This is a separate coverage audit owned by the campaign lead, not a PR review round ([`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.3.0/skills/review-gate/references/tests-reviewer.md)'s, where the repo adopted it). Use at most one independent pass per boundary group; the lead resolves gaps with source evidence and mutation checks, without repeated review rounds.
+This is a separate coverage audit owned by the campaign lead, not a PR review round ([`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/review-gate/references/tests-reviewer.md)'s, where the repo adopted it). Use at most one independent pass per boundary group; the lead resolves gaps with source evidence and mutation checks, without repeated review rounds.
 
 Before claiming completion, have independent reviewers compare deleted
 coverage against the keepers, one reviewer per boundary group. This review is
