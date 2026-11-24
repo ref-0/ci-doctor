@@ -99,8 +99,9 @@ export const main = async (argv: string[], cwd = process.cwd()) => {
   const login = o.cache || o.save || o.submit ? new Gh().login() : undefined;
   const cacheDir = o.cache && login ? apiCacheDir(login) : undefined;
   const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined);
-  // Before reading the rest: a private repo's report never goes in a public file. measure reads this answer from memory.
-  const meta = o.submit ? gh.json(`repos/${target.repo}`, { absentOn: [404] }) : undefined;
+  // Before reading the rest: a private repo's report never goes in a public file. GitHub is asked now, never the cache:
+  // a repo made private since the cache's answer must still be refused, and a renamed one filed under its new name.
+  const meta = o.submit ? gh.json(`repos/${target.repo}`, { absentOn: [404], noCache: true }) : undefined;
   if (meta?.private === true) throw usage(`Not submitted: ${target.repo} is private, and ${DATA_REPO} is public. --standing sends only the score and size class.`);
   // A submitted report is filed under the name as GitHub spells it, so --repo Pip/Garden lands in pip__garden.
   const repo = typeof meta?.full_name === 'string' && isRepoName(meta.full_name) ? meta.full_name : target.repo;

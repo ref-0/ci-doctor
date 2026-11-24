@@ -82,8 +82,19 @@ const FIELDS: [string, string][] = [
 
 /** The longest string or key a report holds, in characters. Stored reports' longest outside the fields below is about 300. */
 export const MAX_STRING = 400;
-// A package cycle is named whole, one package after another: 4,920 characters on the biggest real one.
-const LONG_STRINGS: Record<string, number> = { 'fixes[].text': 8000, 'graphs.packages.flags[].subject': 8000, 'graphs.packages.chain[]': 8000 };
+// A field is named by its steps from the report's root, EACH standing for any place in an array, so a key that only
+// looks like a path (`fixes.0.text` at the root) is never taken for the field.
+const EACH = Symbol('each');
+type Step = string | typeof EACH;
+const among = (fields: Step[][], steps: Step[]) => fields.some((f) => f.length === steps.length && f.every((step, i) => step === steps[i]));
+/** A package cycle is named whole, one package after another: 4,920 characters on the biggest real one. */
+export const MAX_LONG_STRING = 8000;
+const LONG_STRINGS: Step[][] = [['fixes', EACH, 'text'], ['graphs', 'packages', 'flags', EACH, 'subject'], ['graphs', 'packages', 'chain', EACH]];
+// The only links a report holds are its fixes' and notes' guides, each a page of ci-doctor's guide. No real report
+// holds a link anywhere else, and one in a fix's words would read on the site as ci-doctor's own advice.
+const GUIDES: Step[][] = [['fixes', EACH, 'guide'], ['notes', EACH, 'guide']];
+const LINK = /:\/\/|\bwww\./i;
+const GUIDE_PAGE = /^\d{2}-[a-z0-9-]+\.md(#[\w-]+)?$/;
 // Control characters (newline and tab too), bidi overrides and isolates, the report block's closing tag and a code fence:
 // each could change what a page or an agent's prompt shows around the text.
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]|<\/ci-report|```/i;
@@ -118,19 +129,19 @@ export const shown = (x: unknown) => {
 };
 
 /** One walk over the report: each number that isn't finite (`1e999` parses to Infinity), and each string or key that's unsafe or too long. */
-const walk = (x: unknown, path: string, out: { nonFinite: string[]; strings: string[] }) => {
-  const field = path.replace(/\.\d+(?=\.|$)/g, '[]');
-  const look = (s: string, where: string, what: string) => {
+const walk = (x: unknown, path: string, steps: Step[], out: { nonFinite: string[]; strings: string[] }) => {
+  const look = (s: string, where: string, what: string, cap: number, link: boolean) => {
     if (UNSAFE.test(s)) out.strings.push(`${where} holds ${what} with a control character, a bidi override, a code fence or \`</ci-report\`.`);
-    const cap = LONG_STRINGS[field] ?? MAX_STRING;
     if (s.length > cap) out.strings.push(`${where} holds ${what} of ${s.length} characters; at most ${cap}.`);
+    if (!link && LINK.test(s)) out.strings.push(`${where} holds ${what} with a link; a report's only links are its fixes' and notes' guides.`);
   };
   if (typeof x === 'number' && !Number.isFinite(x)) out.nonFinite.push(path);
-  else if (typeof x === 'string') look(x, shown(path), 'a string');
+  else if (typeof x === 'string') look(x, shown(path), 'a string', among(LONG_STRINGS, steps) ? MAX_LONG_STRING : MAX_STRING, among(GUIDES, steps));
+  else if (Array.isArray(x)) x.forEach((v, i) => walk(v, `${path}.${i}`, [...steps, EACH], out));
   else if (x && typeof x === 'object')
     for (const [k, v] of Object.entries(x)) {
-      look(k, path ? shown(path) : 'The report', 'a key');
-      walk(v, path ? `${path}.${k}` : k, out);
+      look(k, path ? shown(path) : 'The report', 'a key', MAX_STRING, false);
+      walk(v, path ? `${path}.${k}` : k, [...steps, k], out);
     }
   return out;
 };
@@ -162,7 +173,7 @@ export const smokeCheck = (text: string, { path, now = Date.now(), version: rele
   const wrong = FIELDS.filter(([field, types]) => !types.split('|').includes(kind(at(r, field))));
   if (wrong.length)
     return wrong.map(([field, types]) => `${field} is ${kind(at(r, field)) === 'undefined' ? 'missing' : `a ${kind(at(r, field))}`}; it should be ${types.replace(/\|undefined$/, '').replaceAll('|', ' or ')}.`);
-  const found = walk(r, '', { nonFinite: [], strings: [] });
+  const found = walk(r, '', [], { nonFinite: [], strings: [] });
   if (found.strings.length) return found.strings;
   // A report with no score adds nothing to compare, and its reason is free text: there's nothing to submit.
   if (r.score === null) return [`It has no score, so there's nothing to submit. The scorer said: ${shown(r.unscored)}`];
@@ -194,7 +205,7 @@ export const smokeCheck = (text: string, { path, now = Date.now(), version: rele
   if (r.wait.timed < MIN_TIMED) problems.push(`It's scored on ${r.wait.timed} timed PR pushes; a score needs ${MIN_TIMED}.`);
   for (const list of ['fixes', 'notes'] as const)
     r[list].forEach((x: any, i: number) => {
-      if (typeof x?.guide !== 'string' || !x.guide.startsWith(GUIDE)) problems.push(`${list}[${i}].guide isn't a link into ci-doctor's guide, ${GUIDE}.`);
+      if (typeof x?.guide !== 'string' || !x.guide.startsWith(GUIDE) || !GUIDE_PAGE.test(x.guide.slice(GUIDE.length))) problems.push(`${list}[${i}].guide isn't a page of ci-doctor's guide, ${GUIDE}.`);
     });
   if (problems.length) return problems;
 
