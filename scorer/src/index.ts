@@ -12,7 +12,7 @@ export { CliError } from './errors.ts';
 export { graphsOf, MAX_GRAPH_FILES, MAX_TASK_FILES, MAX_REEXPORT_DEPTH } from './graphs.ts';
 export type { EntryNode, Graphs } from './graphs.ts';
 export { THRESHOLDS } from './graph-core.ts';
-export { smokeCheck, submissionPath, inputsOf, SUBMISSION_MAX_BYTES } from './smoke.ts';
+export { smokeCheck, submissionPath, inputsOf, shown, SUBMISSION_MAX_BYTES, MAX_STRING } from './smoke.ts';
 export type { SmokeOptions } from './smoke.ts';
 export { submissionOf, DATA_REPO } from './submit.ts';
 export { VERSION } from './version.ts';

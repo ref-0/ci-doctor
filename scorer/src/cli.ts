@@ -100,9 +100,11 @@ export const main = async (argv: string[], cwd = process.cwd()) => {
   const cacheDir = o.cache && login ? apiCacheDir(login) : undefined;
   const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined);
   // Before reading the rest: a private repo's report never goes in a public file. measure reads this answer from memory.
-  if (o.submit && gh.json(`repos/${target.repo}`, { absentOn: [404] })?.private === true)
-    throw usage(`Not submitted: ${target.repo} is private, and ${DATA_REPO} is public. --standing sends only the score and size class.`);
-  const report = measure(gh, target.repo, days);
+  const meta = o.submit ? gh.json(`repos/${target.repo}`, { absentOn: [404] }) : undefined;
+  if (meta?.private === true) throw usage(`Not submitted: ${target.repo} is private, and ${DATA_REPO} is public. --standing sends only the score and size class.`);
+  // A submitted report is filed under the name as GitHub spells it, so --repo Pip/Garden lands in pip__garden.
+  const repo = typeof meta?.full_name === 'string' && isRepoName(meta.full_name) ? meta.full_name : target.repo;
+  const report = measure(gh, repo, days);
 
   let savedTo: string | undefined;
   if (o.save && login) {
@@ -124,6 +126,7 @@ export const main = async (argv: string[], cwd = process.cwd()) => {
   }
 
   if (o.submit && login) {
+    if (report.score === null) throw usage(`Not submitted: there's no score, so there's nothing to submit. ${report.unscored ?? ''}`.trim());
     const sent = submit(gh, report, submissionOf(report, provenance, login), login, say);
     if (sent.already) return say(`Not sent: your pull request ${sent.url} already adds this report, and is still open.`);
     say(`Opened ${sent.url}. A check there reads the file and comments what it found. Once it's merged, the repo's row shows as submitted.`);
