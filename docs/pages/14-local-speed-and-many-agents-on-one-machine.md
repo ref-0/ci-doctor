@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 14. Local speed, and many agents on one machine
+# Local speed
 
 Get fast feedback on your own machine, and run many agents on one machine without their checks slowing each other down.
 
