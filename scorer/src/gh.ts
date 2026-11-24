@@ -1,5 +1,5 @@
 // Every GitHub read goes through `gh api`, so it carries the caller's own sign-in and a private repo reads the
-// same as a public one. Nothing here uses unauthenticated HTTP.
+// same as a public one. So does the one write, --submit's pull request. Nothing here uses unauthenticated HTTP.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -18,6 +18,14 @@ export interface ReadOptions {
   noCache?: boolean;
   /** Send this GraphQL query, to the `graphql` path. */
   query?: string;
+}
+
+/** A write's options: never cached, and never sent twice, since a write that timed out may have landed. */
+interface WriteOptions {
+  method: 'POST' | 'PUT' | 'PATCH';
+  /** The request's JSON body, on stdin. */
+  body: string;
+  absentOn?: number[];
 }
 
 /** API answers kept on disk, only when asked, under one gh account's folder. */
@@ -134,6 +142,11 @@ export class Gh {
     return this.parse(path, this.text(path, options));
   }
 
+  /** One write, such as opening a pull request, with a JSON body; its answer, or undefined for a status in `absentOn`. */
+  send(method: WriteOptions['method'], path: string, body: unknown, options: { absentOn?: number[] } = {}): any {
+    return this.parse(path, this.fetch(path, { ...options, method, body: JSON.stringify(body) }));
+  }
+
   /**
    * One GraphQL query's answer, cached and remembered as a GET is. GitHub counts these against their own hourly points.
    * An answer with data and errors both comes back as it is, `{ data, errors }`, and isn't cached.
@@ -181,24 +194,28 @@ export class Gh {
     return 'try again once it resets';
   }
 
-  private fetch(path: string, options: ReadOptions): string | undefined {
-    // --hostname pins every read to github.com, which the remote named, whatever GH_HOST says.
+  private fetch(path: string, options: ReadOptions | WriteOptions): string | undefined {
+    const write = 'method' in options ? options : undefined;
+    const read = 'method' in options ? undefined : options;
+    // A query, like a write's body, goes on stdin: 100 files' worth can pass Windows' 32,767-character command line.
+    const input = read?.query !== undefined ? JSON.stringify({ query: read.query }) : write?.body;
+    // --hostname pins every call to github.com, which the remote named, whatever GH_HOST says.
     const args = () => [
       'api',
       '--hostname=github.com',
       ...(this.escapesFlag ? ['--allow-escape-sequences'] : []),
-      ...(options.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
+      ...(read?.raw ? ['-H', 'Accept: application/vnd.github.raw'] : []),
+      ...(write ? ['--method', write.method] : []),
       path,
-      // A query goes on stdin as the request's body: 100 files' worth can pass Windows' 32,767-character command line.
-      ...(options.query !== undefined ? ['--input', '-'] : []),
+      ...(input !== undefined ? ['--input', '-'] : []),
     ];
     const run = () => {
       this.calls++;
       return execFileSync('gh', args(), {
         encoding: 'utf8',
         maxBuffer: 512 << 20,
-        stdio: [options.query !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-        ...(options.query !== undefined ? { input: JSON.stringify({ query: options.query }) } : {}),
+        stdio: [input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        ...(input !== undefined ? { input } : {}),
         env: { ...process.env, ...(this.token ? { GH_TOKEN: this.token } : {}), GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GH_TELEMETRY: 'false' },
         windowsHide: true,
       });
@@ -227,15 +244,19 @@ export class Gh {
         const said = stderr.split('\n')[0]?.replace(/^gh:\s*/, '').replace(/\.$/, '') || `gh exited ${err.status}`;
         if (throttled) throw new RateLimitError(`Couldn't read ${path}: ${said}. GitHub's rate limit for this account ran out; ${this.resetsAt(path)}.`);
         // Some aliases answered and some didn't: what was read is kept, and the errors say why the rest weren't.
-        const partial = options.query !== undefined ? partialGraphql(String(err.stdout ?? '')) : undefined;
+        const partial = read?.query !== undefined ? partialGraphql(String(err.stdout ?? '')) : undefined;
         if (partial) return partial;
         if (status !== undefined && options.absentOn?.includes(status)) return undefined;
         if (status === 401) throw new CliError(`${NOT_SIGNED_IN} (GitHub answered 401 to ${path}.)`);
 
-        // A 5xx or a dropped connection gets one more try; a 4xx won't change.
+        // A read gets one more try after a 5xx or a dropped connection; a 4xx won't change.
         const transient = status === undefined || status >= 500;
-        if (transient && attempt < 2) continue;
+        if (transient && attempt < 2 && !write) continue;
 
+        if (write) {
+          const hint = status === 403 || status === 404 ? ' Your gh account may lack the scope to fork and open pull requests (`gh auth refresh -s public_repo`).' : '';
+          throw new CliError(`Couldn't ${write.method} ${path}: ${said}.${hint}`);
+        }
         const hint = status === 403 || status === 404 ? ' Your gh account may lack access: a private repo needs the `repo` scope (`gh auth refresh -s repo`).' : '';
         throw new CliError(`Couldn't read ${path}: ${said}.${hint}`);
       }
