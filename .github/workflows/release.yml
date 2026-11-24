@@ -1,49 +1,212 @@
-# Publishes the scorer, @ref0/ci-doctor, when a release tag is pushed. Nothing else runs here: the repo has no
-# CI of its own, and contributors run `node scripts/check.ts` before pushing.
+# Publishes the scorer, @ref0/ci-doctor, from the release pull request's merge. A release is a pull request,
+# "Release: <version>", from `next` into `main`, whose version in plugin.json no tag names yet:
+#
+# - On that pull request, the plan checks the release's versions and CHANGELOG entry, then the build checks and
+#   the scorer's tests run, and the scorer is packed and dry-run published. They pass, then the user merges.
+# - The merge's push to main runs the same checks on the merge, publishes the tarball they packed from the
+#   `release` environment by npm's trusted publishing, then tags the merge v<version>.
+#
+# Any other pull request into main, or merge to main, finds its version tagged already, and the plan skips the
+# rest. It has no paths filter: GitHub matches one against only the first 300 changed files, and a release can
+# change more. Nothing else runs here: the repo has no CI of its own, and contributors run `node scripts/check.ts`
+# before pushing.
+#
+# A version npm has is never published again, so rerunning a half-done release, its failed jobs or all of them,
+# publishes or tags only what's left.
 name: Release
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    tags: ['v*']
+    branches: [main]
 
 permissions:
   contents: read
-  # npm trusted publishing and provenance: npm trades this OIDC token for a publish token, and the package says
-  # which workflow run built it.
-  id-token: write
 
+# A pull request's newer push cancels its older run. Each push to main runs alone, since a newer pending run in a
+# group replaces an older pending one, which could be a release's.
 concurrency:
-  group: release
-  cancel-in-progress: false
+  group: release-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  publish:
+  check:
+    name: Check the release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: release
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      digest: ${{ steps.pack.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+          package-manager-cache: false
 
-      - name: The tag, the plugin and the package name one version
+      # A release is a version no tag names yet. Its plugin, package and lockfile name that one version, above the
+      # newest tag's, with its own CHANGELOG entry, and npm doesn't have it, but on a rerun of the merge's push,
+      # whose publish may have finished before its tag failed.
+      - name: Plan
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          plugin="$(jq -r .version plugin.json)"
+          version="$(jq -r .version plugin.json)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          tags="$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/v||')"
+          if grep -qxF "$version" <<< "$tags"; then
+            echo "v$version is tagged already: not a release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           package="$(jq -r .version scorer/package.json)"
-          echo "tag $tag, plugin.json $plugin, scorer/package.json $package"
-          test "$tag" = "$plugin" && test "$tag" = "$package"
+          lock="$(jq -r .version scorer/package-lock.json)"
+          lock_root="$(jq -r '.packages[""].version' scorer/package-lock.json)"
+          echo "plugin.json $version, scorer/package.json $package, scorer/package-lock.json $lock and $lock_root"
+          if [ "$package" != "$version" ] || [ "$lock" != "$version" ] || [ "$lock_root" != "$version" ]; then
+            echo "::error::The plugin, the scorer's package and its lockfile must name one version."
+            exit 1
+          fi
+          newest="$(sort -V <<< "$tags" | tail -n 1)"
+          if [ -n "$newest" ] && [ "$(printf '%s\n%s\n' "$newest" "$version" | sort -V | tail -n 1)" != "$version" ]; then
+            echo "::error::$version isn't above the newest tag, v$newest."
+            exit 1
+          fi
+          if ! grep -qxF "## v$version" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no \"## v$version\" entry."
+            exit 1
+          fi
+          if [ "$(npm view "@ref0/ci-doctor@$version" version 2> /dev/null)" = "$version" ]; then
+            if [ "$EVENT" != push ]; then
+              echo "::error::npm has @ref0/ci-doctor $version already."
+              exit 1
+            fi
+            echo "npm has @ref0/ci-doctor $version already: the run only tags it."
+            echo "on-npm=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Releases $version, after v${newest:-nothing}."
+          echo "release=true" >> "$GITHUB_OUTPUT"
 
       - name: Build checks
+        if: steps.plan.outputs.release == 'true'
         run: node scripts/check.ts
 
       - name: Test the built package
+        if: steps.plan.outputs.release == 'true'
         working-directory: scorer
         run: |
           npm ci
           npm test
 
-      - name: Publish
+      # The tarball the publish job publishes, and its digest, so it publishes what these checks packed.
+      - name: Pack
+        id: pack
+        if: steps.plan.outputs.release == 'true'
         working-directory: scorer
-        run: npm publish --provenance --access public
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          ON_NPM: ${{ steps.plan.outputs.on-npm }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+          file="$RUNNER_TEMP/pack/ref0-ci-doctor-$VERSION.tgz"
+          # npm refuses even a dry run of a version it has.
+          if [ "$ON_NPM" != true ]; then
+            npm publish --dry-run --access public "$file"
+          fi
+          digest="$(sha256sum "$file")"
+          echo "digest=${digest%% *}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.plan.outputs.release == 'true' && github.event_name == 'push'
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  # The job checks out nothing and runs nothing of the repo's: only GitHub's actions, pinned by commit, and Node's
+  # own npm 11, which finds the OIDC token itself.
+  publish:
+    name: Publish to npm
+    needs: check
+    if: github.event_name == 'push' && needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: read
+      # npm trusted publishing and provenance: npm trades this OIDC token for a publish token, and the package
+      # says which workflow run built it.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/pack
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Publish
+        working-directory: ${{ runner.temp }}/pack
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          DIGEST: ${{ needs.check.outputs.digest }}
+        run: |
+          file="ref0-ci-doctor-$VERSION.tgz"
+          sha256sum -c --strict <<< "$DIGEST  $file"
+          found="$(tar -xOzf "$file" package/package.json | jq -r '.name + "@" + .version')"
+          if [ "$found" != "@ref0/ci-doctor@$VERSION" ]; then
+            echo "::error::$file holds $found, not @ref0/ci-doctor@$VERSION."
+            exit 1
+          fi
+          if [ "$(npm view "@ref0/ci-doctor@$VERSION" version 2> /dev/null)" = "$VERSION" ]; then
+            echo "npm has @ref0/ci-doctor $VERSION already."
+            exit 0
+          fi
+          npm publish "./$file" --provenance --access public
+
+  # A tag marks a published release, annotated as v0.1.0's and v0.2.0's are. A GITHUB_TOKEN can't create a ref on a
+  # commit whose .github/workflows differs from main's tip, so once main moves past such a merge, the job fails
+  # with the command to tag it by hand.
+  tag:
+    name: Tag the release
+    needs: [check, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+    steps:
+      - name: Tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          # gh prints a 404's body too, so its exit status says whether the tag exists.
+          if ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --jq '.object.type + " " + .object.sha' 2> /dev/null)"; then
+            tagged="${ref#* }"
+            if [ "${ref%% *}" = tag ]; then
+              tagged="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tagged" --jq .object.sha)"
+            fi
+            if [ "$tagged" != "$GITHUB_SHA" ]; then
+              echo "::error::v$VERSION is on $tagged, not $GITHUB_SHA."
+              exit 1
+            fi
+            echo "v$VERSION is on $GITHUB_SHA already."
+            exit 0
+          fi
+          tag="$(gh api "repos/$GITHUB_REPOSITORY/git/tags" -f tag="v$VERSION" -f message="ci-doctor $VERSION" \
+            -f object="$GITHUB_SHA" -f type=commit --jq .sha)"
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$VERSION" -f sha="$tag" > /dev/null; then
+            echo "Tagged $GITHUB_SHA v$VERSION."
+            exit 0
+          fi
+          echo "::error::Tag it by hand: git tag -a v$VERSION -m \"ci-doctor $VERSION\" $GITHUB_SHA && git push origin v$VERSION"
+          exit 1
