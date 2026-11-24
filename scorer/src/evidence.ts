@@ -12,6 +12,8 @@ export const OUTSIDE_DECIDES = 2;
 export const THIN_WAIT = 0.1;
 /** Timed pushes under which confidence is low, and under which it's medium. */
 export const FEW_PUSHES = { low: 10, medium: 20 };
+/** The share of job minutes whose runner's size must be known, or the vCPU-minutes are mostly a guess. */
+export const SIZED_ENOUGH = 0.5;
 /** The share of the score's weight that must be measured for confidence not to be low. */
 export const MEASURED_LOW = 0.8;
 
@@ -162,7 +164,7 @@ export const outsideOn = (gh: Gh, repo: string, pushes: { sha: string; at: numbe
 const MEASURES: Record<string, string> = {
   'reliability.flakes': 'the share of pushes green only on a rerun',
   'reliability.mainRed': "the default branch's red rate",
-  'efficiency.minutesPerPr': 'minutes per merged PR',
+  'efficiency.minutesPerPr': 'vCPU-minutes per merged PR',
   'efficiency.runsPerPr': 'runs per merged PR',
   'efficiency.setup': 'setup time',
   'efficiency.queue': 'queue time',
@@ -191,6 +193,8 @@ export interface EvidenceInputs {
   measured: number;
   missing: string[];
   empty: string[];
+  /** The share of the sampled job minutes whose runner's size is known: NaN when no job was sampled. */
+  sizedShare: number;
   configs: { ci: string; path: string }[];
   /** GitHub cut the file tree short, so a config past the cut wasn't seen. */
   treeTruncated: boolean;
@@ -228,6 +232,8 @@ export const evidenceOf = (o: EvidenceInputs) => {
     unread > 0 && `checks from outside GitHub Actions couldn't be read${o.outside.read ? ` on ${unread} of ${o.outside.sampled} sampled pushes` : ''}${o.configs.length ? `, and the repo keeps a config for ${list(o.configs.map((c) => c.ci))}` : ''}`,
     o.treeTruncated && small && !o.configs.length && "GitHub cut the file tree short, so another CI's config may be past the cut",
     unmeasured.length > 0 && `${list(unmeasured)} couldn't be measured`,
+    // Only where the minutes were scored, and by the share as it's shown.
+    !o.missing.includes('efficiency.minutesPerPr') && Math.round(o.sizedShare * 100) < SIZED_ENOUGH * 100 && `the runners' sizes are known for ${Math.round(o.sizedShare * 100)}% of job minutes, and the rest count as standard runners`,
     o.rerunsUnread > 0 && `${o.rerunsUnread} rerun${o.rerunsUnread === 1 ? "'s first attempt wasn't" : "s' first attempts weren't"} read`,
   ].filter((r): r is string => typeof r === 'string');
   const confidence = thin ? null : o.timed < FEW_PUSHES.low || o.measured < MEASURED_LOW ? ('low' as const) : reasons.length ? ('medium' as const) : ('high' as const);
