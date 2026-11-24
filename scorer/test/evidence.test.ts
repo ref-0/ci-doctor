@@ -264,17 +264,22 @@ describe("scoreOf's weights", () => {
 
     assert.ok(forSize('C') > forSize() && forSize() > forSize('PHP'), `${forSize('C')}, ${forSize()}, ${forSize('PHP')}`);
     assert.equal(forSize('Brainfuck'), forSize());
+    // A name every object has is no language's factor.
+    assert.equal(expectedWait(100_000, 'constructor'), expectedWait(100_000));
     assert.equal(expectedWait(100_000, 'C'), expectedWait(100_000) * LANGUAGE_WAIT.C!);
   });
 });
 
 describe('flagCounts', () => {
   const section = (kinds: string[] = [], unknown: string[] = []) => ({ flags: kinds.map((kind) => ({ kind })), unknown });
-  const graphs = (o: { jobs?: ReturnType<typeof section> | null; packages?: ReturnType<typeof section>; exports?: ReturnType<typeof section>; tasks?: ReturnType<typeof section>; nodes?: number; entries?: number; cached?: number } = {}) => ({
-    jobs: o.jobs === undefined ? section() : o.jobs,
+  type Section = ReturnType<typeof section>;
+  // runs: the sampled runs that fit today's workflows; undecided: entries unread, or that importers not seen could still flag.
+  const graphs = (o: { jobs?: Section | null; runs?: number; packages?: Section; exports?: Section; tasks?: Section; nodes?: number; undecided?: number; cached?: number; unknown?: string[] } = {}) => ({
+    jobs: o.jobs === null ? null : { ...(o.jobs ?? section()), count: { runs: o.runs ?? 3 } },
     packages: { ...(o.packages ?? section()), count: { nodes: o.nodes ?? 5 } },
-    exports: { ...(o.exports ?? section()), count: { packagesWithEntries: o.entries ?? 0 } },
+    exports: { ...(o.exports ?? section()), count: { undecided: o.undecided ?? 0 } },
     tasks: { ...(o.tasks ?? section()), count: { cached: o.cached ?? 0 } },
+    unknown: o.unknown ?? [],
   });
 
   it('counts kinds of flag, not flags', () => {
@@ -285,14 +290,31 @@ describe('flagCounts', () => {
 
   it('is clean only where everything was read', () => {
     assert.deepEqual(flagCounts(graphs()), { pathFlags: 0, graphFlags: 0 });
-    assert.deepEqual(flagCounts(graphs({ jobs: section([], ['a run was left out']), exports: section([], ['2 entries of 9 unknown']) })), { pathFlags: NaN, graphFlags: NaN });
-    assert.deepEqual(flagCounts(graphs({ jobs: section(['hidden-wait'], ['a run was left out']), exports: section(['root-barrel'], ['2 entries of 9 unknown']) })), { pathFlags: 1, graphFlags: 1 });
+    assert.deepEqual(flagCounts(graphs({ jobs: section([], ["a workflow file couldn't be read"]), undecided: 2 })), { pathFlags: NaN, graphFlags: NaN });
+    assert.deepEqual(flagCounts(graphs({ jobs: section(['hidden-wait'], ["a workflow file couldn't be read"]), exports: section(['root-barrel']), undecided: 2 })), { pathFlags: 1, graphFlags: 1 });
+    // No sampled run fits today's workflows: no flag could have been raised.
+    assert.ok(Number.isNaN(flagCounts(graphs({ runs: 0 })).pathFlags));
+    // The packages, the tasks, or the read as a whole partly unknown.
+    for (const partly of [{ packages: section([], ['a manifest was not read']) }, { tasks: section([], ['a task config was not read']) }, { unknown: ['Read the first 300 of 412 task config files'] }])
+      assert.ok(Number.isNaN(flagCounts(graphs(partly)).graphFlags), JSON.stringify(partly));
+  });
+
+  it("takes a note on the entries for unknown only when an entry is undecided", () => {
+    const bounded = section([], ['2 entries of 2 belong to packages with more than one entry']);
+
+    assert.equal(flagCounts(graphs({ exports: bounded })).graphFlags, 0);
+    assert.ok(Number.isNaN(flagCounts(graphs({ exports: bounded, undecided: 1 })).graphFlags));
+  });
+
+  it('ignores a kind of flag the score has no measure for', () => {
+    assert.deepEqual(flagCounts(graphs({ jobs: section(['a-new-kind']), tasks: section(['another-new-kind']) })), { pathFlags: 0, graphFlags: 0 });
   });
 
   it('has no job graph count without a job graph, and no other count for a repo with nothing to read', () => {
     assert.ok(Number.isNaN(flagCounts(graphs({ jobs: null })).pathFlags));
     assert.ok(Number.isNaN(flagCounts(graphs({ nodes: 1 })).graphFlags));
     assert.equal(flagCounts(graphs({ nodes: 1, cached: 2 })).graphFlags, 0);
-    assert.equal(flagCounts(graphs({ nodes: 1, entries: 1 })).graphFlags, 0);
+    // A flag found counts even there: a single package's uncached scripts can still form a cycle.
+    assert.equal(flagCounts(graphs({ nodes: 1, tasks: section(['task-cycle']) })).graphFlags, 1);
   });
 });

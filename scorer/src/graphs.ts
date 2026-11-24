@@ -425,6 +425,15 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
   const worst = entryNodes.find((n) => (known(n) ?? 0) > 0);
   const bounded = entryNodes.filter((n) => n.importedBy.packages === null && n.importedBy.atMost !== undefined && n.reexports !== null);
   const unknownEntries = entryNodes.filter((n) => n.unknown !== undefined);
+  // A bounded entry no flag was raised on, that the importers not seen could still flag: with the package's every
+  // importer it would cross a threshold. A bounded entry that can't is read and clean, whatever imports it.
+  const most = (n: EntryNode) => n.importedBy.atMost ?? 0;
+  const open = bounded.filter(
+    (n) =>
+      !overloaded.includes(n) &&
+      !rootBarrels.includes(n) &&
+      ((n.reexports! >= THRESHOLDS.overloadModules && most(n) >= THRESHOLDS.overloadPackages) || (n.root && n.barrel === true && (n.stars ?? 0) > 0 && most(n) > 0)),
+  );
   const exportsUnknown = [
     ...(graphKnown ? [] : ["The package graph is unknown, so each entry's importers and overload count only what the files read show"]),
     ...(bounded.length
@@ -433,7 +442,7 @@ export const graphsOf = ({ source, stack, jobGraph, limits: given = {} }: Inputs
     ...(unknownEntries.length ? [`${plural(unknownEntries.length, 'entry', 'entries')} of ${entryNodes.length} unknown, such as ${unknownEntries[0]!.id}: ${unknownEntries[0]!.unknown}`] : []),
   ];
   const exportsGraph = {
-    count: { nodes: entryNodes.length, edges: graphKnown ? [...directOf.values()].reduce((a, s) => a + s.size, 0) : null, packages: npmCount, packagesWithEntries: new Set(entryNodes.map((n) => n.pkg)).size, filesRead },
+    count: { nodes: entryNodes.length, edges: graphKnown ? [...directOf.values()].reduce((a, s) => a + s.size, 0) : null, packages: npmCount, packagesWithEntries: new Set(entryNodes.map((n) => n.pkg)).size, filesRead, undecided: (graphKnown ? 0 : 1) + unknownEntries.length + open.length },
     nodes: entryNodes.slice(0, MAX_LISTED),
     // A package importing another, by its manifest: which entry it imports needs the import graph.
     edges: [...directOf].flatMap(([to, froms]) => [...froms].map((from) => ({ from, to, files: null }))).slice(0, MAX_LISTED),

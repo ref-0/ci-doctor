@@ -757,7 +757,7 @@ export const LANGUAGE_WAIT: Record<string, number> = {
 
 /** The p50 wait typical for a repo of this size, in minutes, and of this main language when it's given. */
 export const expectedWait = (linesOfCode: number, language?: string) =>
-  Math.max(2, 10.9 * (Math.max(linesOfCode, 1) / 100_000) ** 0.23) * (LANGUAGE_WAIT[language ?? ''] ?? 1);
+  Math.max(2, 10.9 * (Math.max(linesOfCode, 1) / 100_000) ** 0.23) * (language !== undefined && Object.hasOwn(LANGUAGE_WAIT, language) ? LANGUAGE_WAIT[language]! : 1);
 export const expectedMinutesPerMergedPr = (linesOfCode: number) => Math.max(10, 155 * (Math.max(linesOfCode, 1) / 100_000) ** 0.33);
 /** The same curve in vCPU-minutes: it was fitted on job minutes of repos that mostly ran standard runners. */
 export const expectedVcpuMinutesPerMergedPr = (linesOfCode: number) => STANDARD_VCPUS * expectedMinutesPerMergedPr(linesOfCode);
@@ -901,21 +901,30 @@ const notesOf = (pr: Practices, language: string | undefined) => [
 type Flagged = { flags: { kind: string }[]; unknown: string[] };
 
 /**
- * What the graphs' flags come to for the score. The job graph's count is unknown when it wasn't read, or came back partly unknown with no flag. The
- * other graphs' count is unknown when the repo has nothing for them to read, one package with no entries
- * and no cached task, or when one came back partly unknown with no flag: clean can't be told from unread.
+ * What the graphs' flags come to for the score. A flag found always counts. With none found, a count is 0 only when
+ * the graph was read and could have raised one, and unknown otherwise: clean can't be told from unread.
+ * - The job graph: unknown when it wasn't read, when no sampled run fits today's workflows, or when part of it is unknown.
+ * - The other graphs: unknown when the repo has nothing for them to flag, one package and no cached task, or when the
+ *   packages, the tasks or the read as a whole is partly unknown, or an entry is undecided: unread, or one that the
+ *   importers not seen could still flag.
  */
-export const flagCounts = (graphs: { jobs: Flagged | null; packages: Flagged & { count: { nodes: number | null } }; exports: Flagged & { count: { packagesWithEntries: number } }; tasks: Flagged & { count: { cached: number } } }) => {
+export const flagCounts = (graphs: {
+  jobs: (Flagged & { count: { runs: number } }) | null;
+  packages: Flagged & { count: { nodes: number | null } };
+  exports: Flagged & { count: { undecided: number } };
+  tasks: Flagged & { count: { cached: number } };
+  unknown: string[];
+}) => {
   const kinds = (sections: Flagged[], of: string[]) => new Set(sections.flatMap((section) => section.flags.map((flag) => flag.kind)).filter((kind) => of.includes(kind))).size;
-  const sections = [graphs.packages, graphs.exports, graphs.tasks];
-  const found = kinds(sections, GRAPH_FLAGS);
-  const readable = (graphs.packages.count.nodes ?? 0) > 1 || graphs.exports.count.packagesWithEntries > 0 || graphs.tasks.count.cached > 0;
-  const unsure = found === 0 && sections.some((section) => section.unknown.length > 0);
+  const found = kinds([graphs.packages, graphs.exports, graphs.tasks], GRAPH_FLAGS);
+  const flaggable = (graphs.packages.count.nodes ?? 0) > 1 || graphs.tasks.count.cached > 0;
+  const unsure = graphs.unknown.length > 0 || graphs.packages.unknown.length > 0 || graphs.tasks.unknown.length > 0 || graphs.exports.count.undecided > 0;
   const path = graphs.jobs ? kinds([graphs.jobs], PATH_FLAGS) : 0;
+  const pathRead = graphs.jobs !== null && graphs.jobs.count.runs > 0 && graphs.jobs.unknown.length === 0;
 
   return {
-    pathFlags: graphs.jobs && !(path === 0 && graphs.jobs.unknown.length > 0) ? path : NaN,
-    graphFlags: readable && !unsure ? found : NaN,
+    pathFlags: path > 0 || pathRead ? path : NaN,
+    graphFlags: found > 0 || (flaggable && !unsure) ? found : NaN,
   };
 };
 

@@ -259,7 +259,7 @@ describe('the stack', () => {
     const { graphs } = json(r.stdout);
     assert.deepEqual(Object.keys(graphs), ['schema', 'packages', 'exports', 'layers', 'tasks', 'jobs', 'thresholds', 'read', 'unknown']);
     assert.deepEqual(graphs.read, { files: 0, calls: 0 });
-    assert.deepEqual(graphs.exports.count, { nodes: 0, edges: 0, packages: 1, packagesWithEntries: 0, filesRead: 0 });
+    assert.deepEqual(graphs.exports.count, { nodes: 0, edges: 0, packages: 1, packagesWithEntries: 0, filesRead: 0, undecided: 0 });
     assert.equal(graphs.jobs.count.nodes, 1);
 
     const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });

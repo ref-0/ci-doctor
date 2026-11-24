@@ -23,7 +23,7 @@ The score reads only GitHub Actions. So it's withheld, with the reason, when wha
 
 - **Another CI decides the wait.** On at least 2 of the 3 pushes read, a CI outside Actions, such as Azure Pipelines, CircleCI, Buildkite or Jenkins, was still at work more than a minute after the Actions checks finished. What counts is when each ends after the push, not how long each ran.
 - **The Actions checks are small and another CI's config is in the repo.** The p50 wait is under a tenth of what's typical for the repo's size, and the tree holds a file such as `azure-pipelines.yml` or `.circleci/config.yml`, where that CI reads it: a fixture or a page about one doesn't count. If that file is a leftover, delete it.
-- **A whole part went unmeasured.** None of the reliability measures, or none of the efficiency ones, could be made. Shard balance alone doesn't carry efficiency.
+- **A whole part went unmeasured.** None of the reliability measures, or none of the efficiency ones, could be made. Shard balance and the package and task graphs alone don't carry efficiency.
 
 A scored report carries its confidence, in `evidence.confidence` and on a line under the score:
 
@@ -49,8 +49,8 @@ Three parts, each 0 to 100 from the measures of it that could be made, weighed i
 | Reliability | 20 | Pushes green only on a rerun (14), the default branch's red rate (10) |
 | Efficiency | 20 | vCPU-minutes for each merged PR, for the repo's size (6); runs for each merged PR (4); setup minutes a job (4); queue time (3); how the jobs are wired (3); shard balance (3) and the package and task graphs (3), each only for a repo that has them |
 
-- **How the jobs are wired** takes a third off for each kind of flag the job graph raises: a job that holds the rest, setup on the path that sets the wait, and a wait no job shows.
-- **The package and task graphs** take a quarter off for each kind of flag: a package cycle, an overloaded entry, a root barrel, a cached task with no inputs or with inputs over half the repo, a deep task chain, a task cycle. A repo with one package, no entries and no cached task has no such graph, and isn't measured on it. A graph that came back partly unknown with no flag is unknown, not clean.
+- **How the jobs are wired** takes a third off for each kind of flag the job graph raises: a job that holds the rest, setup on the path that sets the wait, and a wait no job shows. With no flag, it's unknown, not clean, when no sampled run fits today's workflows or part of the job graph couldn't be read.
+- **The package and task graphs** take a quarter off for each kind of flag: a package cycle, an overloaded entry, a root barrel, a cached task with no inputs or with inputs over half the repo, a deep task chain, a task cycle. A repo with one package and no cached task has nothing for them to flag, and isn't measured on it unless a flag is found. A graph that came back partly unknown with no flag is unknown, not clean; so is one with an entry that importers in files not read could still flag, which `graphs.exports.count.undecided` counts.
 - **The wait for the size** compares the p50 wait with what's typical for a repo of that many lines, moved by the main language: `LANGUAGE_WAIT` holds each language's factor, such as 1.64 for C and 0.67 for PHP, and a language not listed is 1. The factors are each language's median wait against the size curve across the scored public repos of 23 Nov 2026, pulled toward 1 where a language has few repos.
 
 `detail` gives each measure's own 0 to 100, and null where it wasn't made.
