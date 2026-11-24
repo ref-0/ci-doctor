@@ -734,15 +734,48 @@ const minutes_ = (a: string, b: string) => minutes(a, b);
 
 // The p50 wait and the PR CI minutes per merged PR expected of a repo with this many lines, fitted log–log
 // over 219 scored repos on 19 Nov (calibration.md). The fits are loose (r² 0.12 each): a fairness adjustment, not a prediction.
-export const expectedWait = (linesOfCode: number) => Math.max(2, 10.9 * (Math.max(linesOfCode, 1) / 100_000) ** 0.23);
+/**
+ * How a repo's main language moves the wait typical for its size: each language's median wait against the
+ * size curve, across the scored repos of 23 Nov 2026 with at least 15 in the language, pulled toward 1 by
+ * n / (n + 20), since 15 to 97 repos a language is a loose fit. A language not listed is 1.
+ */
+export const LANGUAGE_WAIT: Record<string, number> = {
+  C: 1.64,
+  'C++': 1.49,
+  Swift: 1.07,
+  Rust: 1.08,
+  Java: 0.98,
+  TypeScript: 0.96,
+  Go: 0.94,
+  Python: 0.91,
+  'C#': 0.92,
+  Kotlin: 0.86,
+  Elixir: 0.82,
+  JavaScript: 0.79,
+  PHP: 0.67,
+};
+
+/** The p50 wait typical for a repo of this size, in minutes, and of this main language when it's given. */
+export const expectedWait = (linesOfCode: number, language?: string) =>
+  Math.max(2, 10.9 * (Math.max(linesOfCode, 1) / 100_000) ** 0.23) * (language !== undefined && Object.hasOwn(LANGUAGE_WAIT, language) ? LANGUAGE_WAIT[language]! : 1);
 export const expectedMinutesPerMergedPr = (linesOfCode: number) => Math.max(10, 155 * (Math.max(linesOfCode, 1) / 100_000) ** 0.33);
 /** The same curve in vCPU-minutes: it was fitted on job minutes of repos that mostly ran standard runners. */
 export const expectedVcpuMinutesPerMergedPr = (linesOfCode: number) => STANDARD_VCPUS * expectedMinutesPerMergedPr(linesOfCode);
+
+/** Kinds of flag a graph can raise: the job graph's three, and the package, entry and task graphs' seven. */
+export const PATH_FLAGS = ['top-blocker', 'setup-in-path', 'hidden-wait'];
+export const GRAPH_FLAGS = ['package-cycle', 'overloaded-entry', 'root-barrel', 'no-inputs', 'wide-inputs', 'deep-chain', 'task-cycle'];
 
 export interface Inputs {
   p50: number;
   p90: number;
   linesOfCode: number;
+  /** The repo's main language, for the size curve. */
+  language?: string;
+  /** How many of the job graph's three kinds of flag it raised: NaN when the job graph wasn't read. */
+  pathFlags: number;
+  /** How many kinds of flag the package, entry and task graphs raised: NaN when the repo has none to read, or one came back unknown and clean. */
+  graphFlags: number;
   passedOnRerunRate: number;
   mainRedRate: number;
   /** Each job's minutes times its runner's vCPUs, summed, for each merged PR. */
@@ -763,8 +796,8 @@ export const scoreOf = (o: Inputs) => {
       of: {
         // What people feel: 3 minutes is full marks, 8 is 80, 20 is 45, 120 is zero.
         wait: { w: 20, s: anchored(o.p50, WAIT_P50) },
-        // Fair to big repos: half the expected wait for this size is full marks, 2.5× is zero.
-        forSize: { w: 15, s: logScore(o.p50 / expectedWait(o.linesOfCode), 0.5, 2.5) },
+        // Fair to big repos and slow-building languages: half the wait typical for this size and language is full marks, 2.5× is zero.
+        forSize: { w: 15, s: logScore(o.p50 / expectedWait(o.linesOfCode, o.language), 0.5, 2.5) },
         // Light: a p90 many times the p50 is often a wait outside CI, such as an approval gate or a stuck run.
         tail: { w: 5, s: anchored(o.p90, WAIT_P90) },
       },
@@ -787,6 +820,12 @@ export const scoreOf = (o: Inputs) => {
         queue: { w: 3, s: logScore(Math.max(o.queueP90Sec, 1), 10, 300) },
         // Only a repo with shards has this one: without them it isn't a measure that's missing.
         shardIdle: { w: 3, s: linScore(o.shardIdleTail, 0.1, 0.4), optional: true },
+        // How the jobs are wired: a third off for each of a job that holds the rest, setup on the path, and a
+        // wait no job shows. Here and not under speed, where most repos' clean graph would pad a slow wait.
+        path: { w: 3, s: linScore(o.pathFlags, 0, PATH_FLAGS.length) },
+        // What makes work rerun that didn't need to: a quarter off for each kind of flag on the package, entry and
+        // task graphs. Only a repo with such graphs has this one.
+        graphs: { w: 3, s: linScore(o.graphFlags, 0, 4), optional: true },
       },
     },
   };
@@ -858,6 +897,36 @@ const notesOf = (pr: Practices, language: string | undefined) => [
   ...(pr.agentsMd?.length === 0 ? [{ text: 'No AGENTS.md: agents working here have no instructions, such as how to run one test', guide: GUIDE + '15-the-agent-workflow-around-ci.md' }] : []),
   ...stackNote(language),
 ];
+
+type Flagged = { flags: { kind: string }[]; unknown: string[] };
+
+/**
+ * What the graphs' flags come to for the score. A flag found always counts. With none found, a count is 0 only when
+ * the graph was read and could have raised one, and unknown otherwise: clean can't be told from unread.
+ * - The job graph: unknown when it wasn't read, when no sampled run fits today's workflows, or when part of it is unknown.
+ * - The other graphs: unknown when the repo has nothing for them to flag, one package and no cached task, or when the
+ *   packages, the tasks or the read as a whole is partly unknown, or an entry is undecided: unread, or one that the
+ *   importers not seen could still flag.
+ */
+export const flagCounts = (graphs: {
+  jobs: (Flagged & { count: { runs: number } }) | null;
+  packages: Flagged & { count: { nodes: number | null } };
+  exports: Flagged & { count: { undecided: number } };
+  tasks: Flagged & { count: { cached: number } };
+  unknown: string[];
+}) => {
+  const kinds = (sections: Flagged[], of: string[]) => new Set(sections.flatMap((section) => section.flags.map((flag) => flag.kind)).filter((kind) => of.includes(kind))).size;
+  const found = kinds([graphs.packages, graphs.exports, graphs.tasks], GRAPH_FLAGS);
+  const flaggable = (graphs.packages.count.nodes ?? 0) > 1 || graphs.tasks.count.cached > 0;
+  const unsure = graphs.unknown.length > 0 || graphs.packages.unknown.length > 0 || graphs.tasks.unknown.length > 0 || graphs.exports.count.undecided > 0;
+  const path = graphs.jobs ? kinds([graphs.jobs], PATH_FLAGS) : 0;
+  const pathRead = graphs.jobs !== null && graphs.jobs.count.runs > 0 && graphs.jobs.unknown.length === 0;
+
+  return {
+    pathFlags: path > 0 || pathRead ? path : NaN,
+    graphFlags: found > 0 || (flaggable && !unsure) ? found : NaN,
+  };
+};
 
 const shown = <T extends { newest: unknown }>({ newest: _, ...rest }: T) => rest;
 
@@ -988,15 +1057,18 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     expectedVcpuMinutesPerMergedPr: r1(expectedVcpuMinutesPerMergedPr(profile.linesOfCode)),
     sizedShare: Number.isFinite(ci.sizedShare) ? Math.round(ci.sizedShare * 100) / 100 : null,
     expectedMinutesPerMergedPr: r1(expectedMinutesPerMergedPr(profile.linesOfCode)),
-    expectedWait: r1(expectedWait(profile.linesOfCode)),
+    expectedWait: r1(expectedWait(profile.linesOfCode, profile.languages[0]?.[0] as string | undefined)),
     workflowsOnPrs: ci.workflows,
   };
 
   const outcomes = { wait, jobs, tests, jobGraph, graphs };
+  const language = profile.languages[0]?.[0] as string | undefined;
   const { score, parts, detail, measured, missing, empty } = scoreOf({
     p50: wait.p50,
     p90: wait.p90,
     linesOfCode: profile.linesOfCode,
+    language,
+    ...flagCounts(graphs),
     passedOnRerunRate: wait.passedOnRerunRate,
     mainRedRate: main.redRate,
     vcpuMinutesPerMergedPr: ci.vcpuMinutes / mergedInWindow,
@@ -1013,7 +1085,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     timed: wait.timed,
     p50: wait.p50,
     rerunsUnread: wait.rerunsUnread,
-    expectedWait: expectedWait(profile.linesOfCode),
+    expectedWait: expectedWait(profile.linesOfCode, language),
     linesOfCode: profile.linesOfCode,
     measured,
     missing,
