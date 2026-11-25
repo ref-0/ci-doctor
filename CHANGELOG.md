@@ -12,6 +12,8 @@ Under 1.0, a minor release carries what would be a major one.
 
 ### Skills
 
+- **`speed-up-tests`' references,** from a slow-test run on 23 November 2026: count the tries where a test says "at once"; merge two cases only with every assertion of both; prove absence with a marker down the same ordered channel; make a backed-off job due and step it; parse a script's arguments before its module runner loads; a stand-in for a lock must lock; and compare a file's normalized median with its earlier normalized one.
+- **`ci-workflows`' tiers:** time each case before splitting a file for a tier move, and take a covered-only list from the code whose change could alter the proof's result, checked against the modules its run loads, never the whole module graph.
 - **`speed-up-tests` and `fix-flaky-test`:** a saving under a second a case read from the case's own times, not whole files on a loaded machine; and a test that fails only in deep checkouts, from a path filling a fixed-length stack trace.
 
 ### The remote task cache

@@ -33,3 +33,5 @@ Remove a fake only after the runtime that calls it closes. Vitest runs `afterAll
 ## Keep a fake true
 
 A fake drifts from its service. Recorded answers kept beside the contracts keep the shapes honest. To check the behaviour, run the same checks against the fake in CI and against the real service on staging on a schedule; a new scheduled job costs money, so it needs a person's yes.
+
+**A stand-in for a lock must lock.** A stub that runs the command it's handed without taking the lock can't show two runs racing, nor prove a fix: with a stand-in that took a real `flock`, a script missing its lock failed 3 of 20 runs.

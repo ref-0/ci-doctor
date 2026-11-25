@@ -16,6 +16,7 @@ The code waits a period it needs in production: a retry's base, a container's st
 - **Make it a setting,** with production's value where the code is deployed and a shorter one in the test harness, as the repo's `speed-up-tests.md` says. That's legitimate when production has a reason to configure it too; a control only tests use lives in the harness, never as a production export. Where a limits struct already holds the code's bounds, put it there instead.
 - **Choose the test's value from the window other tests need,** not the smallest that passes. The smallest retry base that passed left one still-live assertion only a few seconds, so a base twice that was chosen.
 - **Keep the shape.** The attempt count, the doubling and the final error stay. Only the first period shrinks.
+- **Count the tries where a test says "at once".** A refusal after 21 tries still passed a test that checked only the refusal; asserting one try made it fail.
 - **One period per loop.** Pass the value the consumer needs, not another loop's setting times a hidden factor.
 - **A value that crosses an RPC boundary is part of the contract,** declared in the repo's shared schemas, not a loose interface.
 - **A fake service's period isn't a real one's.** Stops can be short for fake containers and keep production's value where real containers run.
@@ -32,7 +33,7 @@ A test sleeps so that one thing happens before another. In a shared helper, one 
 
 - **Hold the operation the race turns on,** in the test's fake, and release it once the other side is in place. Look for an existing hold with the repo's symbol search before adding one.
 - **Scope the hold to the operation the assertion is about,** by its identity, not "the next call": background work can take a hold on the next arbitrary call. Signal that this exact operation reached the hold, after any state it depends on exists, before starting the other side, and assert which call took it. A hold placed too early, before the row it races on exists, leaves the real race unordered.
-- **Wait for the progress you need, not for absence.** "No second restore" waits for the close retry to end unconfirmed, then checks, rather than checking at once.
+- **Wait for the progress you need, not for absence.** "No second restore" waits for the close retry to end unconfirmed, then checks, rather than checking at once. To prove nothing more arrives, send a marker down the same ordered channel and wait for it: whatever was sent before it has arrived by then. A wait for a message that never comes spends its whole budget; in the source repo, on 23 November 2026, a marker saved 3 s a run for each such wait.
 - **Prove it:** delay the other side on purpose. With a deliberately late deploy, the test passed every repetition with the hold and failed every one without it.
 - **Hold I/O until the answer you test,** then release it and check both sides.
 - **Leave a short wait** when the stronger signal costs as much, or would change what the test records.
@@ -57,6 +58,7 @@ The code delays work on purpose: a fixed sleep beside each read, so a walk stays
 - Change the cadence, never the ceiling: polls got faster in tests while their bounds stayed.
 - A caller that sets its own interval gains nothing from the default, so look at the callers first: one campaign found a dozen helpers polling far slower than the default.
 - A helper that waits for a job, then sleeps one more interval before it checks, pays the whole interval each time: check at once.
+- A loop that steps a job and sleeps while its retry backs off waits out every doubling. Make the job due and step it, keeping its try count; where the doubling is what the test proves, assert each scheduled delay rather than waiting it out. A first test fell from 2.3 s to 0.7 s locally.
 - A poll whose check does the work, such as running the due jobs, isn't overshoot. Measure the sleep past the check that met it before shortening a default ([measuring](measuring.md)).
 
 ## A deadline the test proves
@@ -91,7 +93,11 @@ Cache a tool the tests build, such as pinned Git, keyed by its version, its buil
 
 A skipped suite still runs its file's top-level code, since the runner collects it: create an expensive fixture inside the suite, lazily.
 
+A script that loads its work through a module runner, such as Vite's `runnerImport`, pays that load on every usage error a test checks through its real entry. Parse the arguments in plain code first, and load the runner only once they pass: each usage case fell from 1.6 s to 0.17 s.
+
 A test that runs a CLI against a seeded Git repo, as the selector's tests do: build the seed once per suite and copy it for each test, point the spawned processes at one shared Node compile cache, and run the CLI once per case, reading every field the assertions need from that one run. Keep each call a real process; running it in-process would mean exporting an entry from a production script only for the test.
+
+Merge two cases to share a setup only with every assertion of both. A merged case that compared only totals still passed with a duration missing, and with a part recorded on the wrong run: break what only one of the cases checked, and see the merged one fail.
 
 **Build the immutable part once, and the mutable part per test.** Sort each fixture input before caching it:
 
