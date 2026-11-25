@@ -24,7 +24,7 @@ Read it, then start at the skill's step 1.
 
 ## With no facts file
 
-Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, work from what you find, and at the end offer to write the file from [the template](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/agent-knowledge/templates/repo-facts/speed-up-tests.md), filled with what you learned. Until it exists, say which values you assumed: the source repo's thresholds above are a start, not this repo's.
+Ask the user once whether the repo keeps these facts elsewhere. If it doesn't, work from what you find, and at the end offer to write the file from [the template](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/speed-up-tests.md), filled with what you learned. Until it exists, say which values you assumed: the source repo's thresholds above are a start, not this repo's.
 
 ## A test that's slow locally, or no CI records
 

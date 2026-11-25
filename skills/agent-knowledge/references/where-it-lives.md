@@ -28,7 +28,7 @@ A skill is a folder an agent harness loads when a task matches its description.
 
 ## Checks
 
-A check is one rule per small document, short enough to read at the moment it applies. Each has the moment, yes/no questions, the commands that answer them, and the incident and numbers that motivated it. Skills link checks rather than copying them. Add one when the same mistake has happened twice, or once at real cost; generalize a near-match rather than add a second. The hub's [checks README](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/README.md) has a page's shape.
+A check is one rule per small document, short enough to read at the moment it applies. Each has the moment, yes/no questions, the commands that answer them, and the incident and numbers that motivated it. Skills link checks rather than copying them. Add one when the same mistake has happened twice, or once at real cost; generalize a near-match rather than add a second. The hub's [checks README](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/README.md) has a page's shape.
 
 ## Shared skills, per-repo facts
 
@@ -38,7 +38,7 @@ A check is one rule per small document, short enough to read at the moment it ap
 
 ## The register of what was tried
 
-One place lists every measured-and-dropped idea: when it was tried, its numbers, its evidence (the PR or run, or why there's none), and what would have to change to try it again. The repo's facts name where it is. A later run may propose one again only with new numbers; some ideas do come back once conditions change, which is why each row says when. For CI, the hub's [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md) has the columns and example rows.
+One place lists every measured-and-dropped idea: when it was tried, its numbers, its evidence (the PR or run, or why there's none), and what would have to change to try it again. The repo's facts name where it is. A later run may propose one again only with new numbers; some ideas do come back once conditions change, which is why each row says when. For CI, the hub's [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md) has the columns and example rows.
 
 ## Memories
 

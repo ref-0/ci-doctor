@@ -8,7 +8,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # If your stack runs on Cloudflare Workers
 
-Part of the [`speed-up-tests`](../SKILL.md) skill. The general rules are in [fixes](fixes.md), [fakes](fakes.md) and the check [test a platform's guarantee through its real boundary](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-doctor/references/checks/test-the-real-boundary.md); this page says what they meant for a Workers server, tested in workerd through Vitest, with Durable Objects and Wrangler. [guide section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-faster-test-harness.md) has the harness and what it measured.
+Part of the [`speed-up-tests`](../SKILL.md) skill. The general rules are in [fixes](fixes.md), [fakes](fakes.md) and the check [test a platform's guarantee through its real boundary](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/test-the-real-boundary.md); this page says what they meant for a Workers server, tested in workerd through Vitest, with Durable Objects and Wrangler. [guide section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-faster-test-harness.md) has the harness and what it measured.
 
 ## The harness
 

@@ -48,7 +48,7 @@ to increase deletion counts.
 ## Landing and continuation
 
 Commit, push, or open a PR only when authorized, using the repository's PR
-template, and merge it as [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.2.0/skills/ci-merge-workflow/SKILL.md) says where the repo adopted it, or by the repo's own merge path. Keep one coherent PR at a time; after it merges,
+template, and merge it as [`ci-merge-workflow`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-merge-workflow/SKILL.md) says where the repo adopted it, or by the repo's own merge path. Keep one coherent PR at a time; after it merges,
 refresh from current `main` and rerun read-only discovery for the next
 high-confidence batch.
 

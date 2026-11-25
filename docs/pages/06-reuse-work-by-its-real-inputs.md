@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 6. Reuse work by its real inputs
+# Caching
 
 Cache installs, builds and test results by every input that can change them, so CI replays what hasn't changed and never a stale pass.
 

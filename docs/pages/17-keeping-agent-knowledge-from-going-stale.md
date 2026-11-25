@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 17. Keeping agent knowledge from going stale
+# Agent knowledge
 
 Keep what your agents know about CI where they'll read it, and stop skills and instruction files from collecting stale advice.
 

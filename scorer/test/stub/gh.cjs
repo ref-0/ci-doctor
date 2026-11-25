@@ -7,7 +7,8 @@
 // Every call must pin --hostname=github.com and turn gh's telemetry off, or the stub fails it.
 // An answer is { status, json } or { status, raw } (served only with the raw Accept header) or { status, text };
 // a status of 400 or more prints gh's error line and exits 1. A path with no answer is a 404. A GraphQL query of
-// files is answered from those files' raw answers.
+// files is answered from those files' raw answers. A write, `--method POST` and the like, is keyed by its method
+// and path, such as `POST repos/pip/app/forks`, and its JSON body is logged after its arguments, as a query is.
 const { appendFileSync, readFileSync } = require('node:fs');
 
 const args = process.argv.slice(2);
@@ -33,10 +34,12 @@ if (args[0] !== 'api') {
 }
 
 let path;
+let method = 'GET';
 const headers = [];
 let input;
 for (let i = 1; i < args.length; i++) {
   if (args[i] === '-H') headers.push(args[++i]);
+  else if (args[i] === '--method') method = args[++i];
   else if (args[i] === '--input') input = args[++i];
   else if (args[i].startsWith('-')) continue;
   else path = args[i];
@@ -87,7 +90,7 @@ if (path === 'graphql') {
   answerGraphql({ data: { repository } });
 }
 
-const key = keyOf(path);
+const key = method === 'GET' ? keyOf(path) : `${method} ${keyOf(path)}`;
 const answer = routes[key] ?? { status: 404, message: 'Not Found' };
 const wantsRaw = headers.some((h) => /application\/vnd\.github\.raw/.test(h));
 
