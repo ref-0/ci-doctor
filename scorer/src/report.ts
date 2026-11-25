@@ -42,7 +42,7 @@ export const promptBlock = (r: Report) =>
     .filter(Boolean)
     .join('\n');
 
-const LABELS: Record<Exclude<keyof Practices, 'unknown' | 'workflows'>, string> = {
+const LABELS: Record<Exclude<keyof Practices, 'unknown' | 'workflows' | 'hints' | 'where'>, string> = {
   cancelInProgress: 'Superseded PR runs cancelled',
   pathFilters: 'Path filters on PR workflows',
   affected: 'Affected-only selection',

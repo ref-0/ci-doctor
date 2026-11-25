@@ -13,11 +13,11 @@ export const SETUP_STEP =
 
 // ---------- a small YAML reader: the part of YAML workflow files use ----------
 
-type Yaml = string | Yaml[] | { [key: string]: Yaml } | null;
+export type Yaml = string | Yaml[] | { [key: string]: Yaml } | null;
 interface Line { indent: number; text: string; raw: string }
 
 /** The text before a comment: a # at the start or after a space, outside quotes. */
-const uncomment = (s: string) => {
+export const uncomment = (s: string) => {
   let quote = '';
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
