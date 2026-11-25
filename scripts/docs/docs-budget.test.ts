@@ -1,6 +1,6 @@
 /**
- * docs-budget.test.ts: each budget at and one past its limit, history lines, upstream copies, and
- * the command on a throwaway git repository.
+ * docs-budget.test.ts: each budget at and one past its limit, the skill warning line and its move
+ * message, history lines, upstream copies, and the command on a throwaway git repository.
  *
  *     node --test scripts/docs/docs-budget.test.ts
  *
@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { budgets, description, docsBudget, layout, problems } from './docs-budget.ts';
+import { budgets, description, docsBudget, layout, problems, referenceName, sections, warnings } from './docs-budget.ts';
 
 /** A `SKILL.md` with `about` as its description and a body that makes it `size` bytes long. */
 const skill = (about: string, size = 0) => {
@@ -29,6 +29,27 @@ describe('description', () => {
     assert.equal(description("---\ndescription: 'Single quoted.'\nname: a\n---\n"), 'Single quoted.');
     assert.equal(description('---\nname: a\ndescription: >-\n  Folded over\n  two lines.\n---\n'), 'Folded over two lines.');
     assert.equal(description('---\nname: a\n---\n'), undefined);
+  });
+});
+
+describe('sections', () => {
+  it('sizes each section with its subsections, largest first, and skips fenced headings', () => {
+    const text = '# Title\n\n## Small\n\na\n\n## Large\n\n### Sub\n\n```md\n## Not a heading\n```\n\nbbbbbbbb\n';
+
+    assert.deepEqual(
+      sections(text).map(({ heading }) => heading),
+      ['Large', 'Small'],
+    );
+    assert.equal(sections(text)[0]?.size, Buffer.byteLength('## Large\n\n### Sub\n\n```md\n## Not a heading\n```\n\nbbbbbbbb\n\n'));
+    assert.deepEqual(sections('No sections.\n'), []);
+  });
+});
+
+describe('referenceName', () => {
+  it("names a reference for a heading's first four words, without its step number", () => {
+    assert.equal(referenceName('3. Run a session'), 'run-a-session.md');
+    assert.equal(referenceName('Retries, reruns and infrastructure failures'), 'retries-reruns-and-infrastructure.md');
+    assert.equal(referenceName('`—`'), 'detail.md');
   });
 });
 
@@ -64,6 +85,18 @@ describe('problems', () => {
     );
   });
 
+  it('names the largest sections and says to move one word for word, not trim', () => {
+    const text = skill('Short.') + '## 3. Run a session\n\n' + 'a'.repeat(budgets.skill) + '\n## Tail\n\nb\n';
+    const found = problems([{ path: '.agents/skills/pip/SKILL.md', text }], upstream, shape);
+
+    assert.equal(found.length, 1);
+    assert.match(
+      found[0] ?? '',
+      /over 6\.0 KB\. Largest sections: "3\. Run a session" 6\.0 KB, "Tail" 0\.0 KB\. Move a section only one step or case needs, word for word, to \.agents\/skills\/pip\/references\/<topic>\.md \(for "3\. Run a session", run-a-session\.md\) or an existing reference on its topic, and leave one line in its place: "When <condition>, read \[<topic>\]\(references\/<file>\.md\)\." Don't reword to fit\. The agent-knowledge skill's references\/keeping-it-fresh\.md, "Thinning a skill", says how\.$/,
+    );
+    assert.doesNotMatch(found[0] ?? '', /create-skill/);
+  });
+
   it('refuses a glossary table, and history in your own docs', () => {
     const docs = [
       { path: 'GLOSSARY.md', text: '| Term | Meaning |\n| --- | --- |\n' },
@@ -88,6 +121,36 @@ describe('problems', () => {
 
     assert.equal(found.length, 1);
     assert.match(found[0] ?? '', /^\.agents\/skills\/acme-queues\/SKILL\.md: its description is 321 characters/);
+  });
+});
+
+describe('warnings', () => {
+  const upstream = new Set(['vendor-ui']);
+  const shape = { ...layout, upstreamPrefixes: ['acme-'] };
+
+  it("warns past the warning line and within budget, for the repo's own skills alone", () => {
+    const docs = [
+      { path: '.agents/skills/pip/SKILL.md', text: skill('Short.', budgets.skillWarning) },
+      { path: '.agents/skills/mo/SKILL.md', text: skill('Short.', budgets.skillWarning + 1) },
+      { path: '.agents/skills/ada/SKILL.md', text: skill('Short.', budgets.skill + 1) },
+      { path: '.agents/skills/vendor-ui/SKILL.md', text: skill('Short.', budgets.skillWarning + 1) },
+      { path: '.agents/skills/acme-queues/SKILL.md', text: skill('Short.', budgets.skillWarning + 1) },
+      { path: 'AGENTS.md', text: 'a'.repeat(budgets.skillWarning + 1) },
+    ];
+    const found = warnings(docs, upstream, shape);
+
+    assert.equal(found.length, 1);
+    assert.match(
+      found[0] ?? '',
+      /^\.agents\/skills\/mo\/SKILL\.md: 5\.0 KB, past the 5\.0 KB warning line\. Largest sections: none\. Move a section only one step or case needs, word for word, to \.agents\/skills\/mo\/references\/<topic>\.md or an existing reference/,
+    );
+  });
+
+  it('follows the layout and limits it is given', () => {
+    const docs = [{ path: 'skills/pip/SKILL.md', text: skill('Short.', 3_001) }];
+
+    assert.equal(warnings(docs, new Set(), { ...layout, skillPath: /^skills\/([^/]+)\/SKILL\.md$/ }, { ...budgets, skillWarning: 3_000 }).length, 1);
+    assert.deepEqual(warnings(docs, new Set()), []);
   });
 });
 
@@ -125,7 +188,7 @@ describe('docsBudget', () => {
 
     assert.deepEqual(docs.map(({ path }) => path).sort(), ['.agents/skills/vendor-ui/SKILL.md', 'AGENTS.md', 'docs/notes.md']);
     assert.equal(found.length, 1);
-    assert.match(found[0] ?? '', /^\.agents\/skills\/vendor-ui\/SKILL\.md: 10\.0 KB/);
+    assert.match(found[0] ?? '', /^\.agents\/skills\/vendor-ui\/SKILL\.md: 6\.0 KB, over 6\.0 KB/);
   });
 
   it("leaves the lock's skills as their source wrote them", () => {
@@ -134,17 +197,21 @@ describe('docsBudget', () => {
     assert.deepEqual(docsBudget(root).problems, []);
   });
 
-  it('exits 1 from the command, naming each problem, and 0 within budget', () => {
+  it('exits 1 from the command, naming each problem, and 0 within budget or past only the warning line', () => {
     const script = fileURLToPath(new URL('docs-budget.ts', import.meta.url));
     const over = repo({ 'AGENTS.md': 'a'.repeat(budgets.rootAgents + 1) });
     const within = repo({ 'AGENTS.md': 'Short.\n' });
+    const near = repo({ '.agents/skills/pip/SKILL.md': skill('Short.', budgets.skillWarning + 1) });
 
     const failed = spawnSync(process.execPath, [script], { cwd: over, encoding: 'utf8' });
     const passed = spawnSync(process.execPath, [script], { cwd: within, encoding: 'utf8' });
+    const warned = spawnSync(process.execPath, [script], { cwd: near, encoding: 'utf8' });
 
     assert.equal(failed.status, 1);
     assert.match(failed.stderr, /^AGENTS\.md: 12\.0 KB, over 12\.0 KB/);
     assert.equal(passed.status, 0);
     assert.equal(passed.stderr, 'docs-budget: 1 Markdown files within budget\n');
+    assert.equal(warned.status, 0);
+    assert.match(warned.stderr, /^warning: \.agents\/skills\/pip\/SKILL\.md: 5\.0 KB, past the 5\.0 KB warning line\. .*\ndocs-budget: 1 Markdown files within budget\n$/);
   });
 });
