@@ -65,4 +65,4 @@ A pull request that closes the issue by hand still has to hold: the next occurre
 
 ## Not here
 
-When the test is slow rather than wrong, the question is a PR's CI result, a test's worth or a model check, or you follow a link out of this folder, read [not here](references/not-here.md).
+When the test is slow rather than wrong, the question is a PR's CI result, a test's worth, a model check or a property test, or you follow a link out of this folder, read [not here](references/not-here.md).
