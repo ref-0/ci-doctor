@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # Not here
 
-Part of the [`fix-flaky-test`](../SKILL.md) skill: what other skills own, and where links out of this folder go. Read it when the task is a slow test, a PR's CI result, a test's worth or a model check, or when you follow a link out of this folder.
+Part of the [`fix-flaky-test`](../SKILL.md) skill: what other skills own, and where links out of this skill's folder go. Read it when the task is a slow test, a PR's CI result, a test's worth, a model check or a property test, or when you follow a link out of this skill's folder.
 
 - A test that's slow, not wrong: `speed-up-tests`.
 - Reading a PR's CI result, and whether the run counts: the `ci-doctor` hub's [triage](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/triage/TOPIC.md).

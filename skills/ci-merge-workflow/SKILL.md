@@ -57,4 +57,4 @@ After merging, read [after a merge](references/after-merge.md): the sweep, your 
 
 ## Related
 
-When the work turns to a review, the workflow, caches, runners, a slow or flaky test, or whether a test is worth keeping, read [related skills](references/related.md).
+When the work turns to a review, the workflow, caches, runners or their cost, a slow or flaky test, or whether a test is worth keeping, read [related skills](references/related.md).
