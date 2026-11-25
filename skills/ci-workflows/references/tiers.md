@@ -62,3 +62,7 @@ How often the sweep runs decides how soon a break that PR selection skipped show
 - **Give it a run name of its own.** Where only the daily sweep may close main's failure issue, a narrower run's name mustn't start like the sweep's. A narrower run names the merges since its base when it fails.
 - **Don't trust the cron.** GitHub starts scheduled runs late or skips them. A merge after a slot starts the run when nothing has since, choosing the newest slot and taking turns, so a late cron can't start it twice.
 - **Check its first run at the time it should start,** then read the result: a started run isn't a passing one. List what the new tier lacks next to the sweep, such as a bisect, the health check's counts or saved shard times, as issues.
+
+## Tests against real containers
+
+Tests that run the repo's code against real containers are the slowest, and their imports may not say what they check. Where the repo has them, ci.md's Real-container files table says which file checks which boundary, the hidden inputs (bundles, disks, images) that select it, and the command to run it by hand: read it when a sweep fails one, or to choose which to run by hand before a risky change merges. Update it when you add such a file or move what one covers.
