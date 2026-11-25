@@ -26,3 +26,11 @@ gh issue list --repo <org>/<repo> --label flake --state all --search "<the test 
 If one covers it, comment with the run's link, the commit, the job and the failing line, one comment a sighting, so its comments count how often it fails. Reopen it if it's closed, since its fix didn't hold. Otherwise open one that names the run it came from.
 
 A race you find in the repo's own code, such as two writes landing out of order, goes the same way, labelled `bug` without `flake`, even before a test fails on it.
+
+## The tools
+
+[`scripts/flakes/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/flakes/README.md) in the ci-doctor repo files one issue per flaky test from CI and closes it after clean runs, for a repo with an approved retry policy and none of its own. A skills-only install of this skill's folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`:
+
+```sh
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+```

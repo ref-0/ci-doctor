@@ -30,28 +30,19 @@ The repo's flake policy decides what the gate does with a flake: whether CI retr
 
 ## Retries, reruns and infrastructure
 
-Three different events, each reported apart. Keep the repo's current gate behaviour until the user approves a change.
-
-- **An in-job test retry:** the test runner reruns a failed test inside the job, where the repo turns that on. A pass on the retry is recorded as a flake and doesn't turn the job red, so turning retries on changes what the gate accepts.
-- **One diagnostic job rerun,** where the repo's policy allows one: a failed job rerun once with `--failed`, on the same revision and configuration. A test that failed and then passed that way is a confirmed flake. Where the policy allows none, or there's no policy, don't rerun: report the failure and prove the cause locally.
-- **A second failure:** the rerun failed too. It isn't a flake until shown otherwise: stop and report it to whoever briefed you, with both runs.
-
-A runner or infrastructure failure, such as a lost runner, a full disk, a quota or a network error before any test ran, is none of these: it isn't a flake, and goes to whoever owns the runners.
+When you tell an in-job retry, a diagnostic rerun, a second failure and an infrastructure failure apart, read [retries, reruns and infrastructure](references/policy.md#retries-reruns-and-infrastructure).
 
 Before calling anything a flake, split the failure by commit: a failure on one branch alone is that branch's, and a failure after a fix merged may have run the fix's parent. Read the error, not the test's name. For a confirmed flake, use the issue CI filed for it, or, where CI didn't file one, [file this first sighting](#file-whats-left) yourself.
 
 ## 1. Match the symptom
 
-Compare the failure's exact error with [the symptoms](references/symptoms.md): `ETXTBSY` across fork and exec, Git's background maintenance, a socket path too long, a fixture server that outlives its run, a refused upload that resets, a reporting step that reads an empty tree, and an installer that keeps its log. Each gives the cause to check, the fix, and how to force it. A match is a lead, not a cause: check the cause before taking the fix.
+Compare the failure's exact error with [the symptoms](references/symptoms.md). A match is a lead, not a cause: check the cause before taking the fix.
 
 ## 2. Force the interleaving to prove the cause
 
 No match, or a match to check: [find the cause](references/causes.md). In short:
 
-- **Seen only in CI?** Load the machine as CI's runner is loaded (on Linux, pin the test to two cores with `taskset`, with busy loops beside it), and run it about 30 times with console output kept.
 - **Force each candidate order:** hold one side, delay the other, fork at the moment the copy is open. Ordinary runs often show neither side; a forced run shows the cause on demand.
-- **Can't reproduce it?** Add what the next failure needs to say, such as the read's result or the step a hang stopped at. Don't raise the bound.
-- **A randomized failure:** replay its exact inputs and environment, then check the oracle as well as the code.
 
 ## 3. Fix it
 
@@ -62,22 +53,15 @@ Take the fix that removes the order the test can't control: a lock every start t
 Prove the cause locally: the whole file repeated with no retries, noting how many passed in a row and the load average, and a mutation that reopens the race and fails the test. Then:
 
 - **The PR's own ready run is the CI evidence.** It runs once. Where the repo's policy allows a rerun, a flaky failure in it gets one diagnostic rerun, and a second failure is reported, as [above](#retries-reruns-and-infrastructure) says. Otherwise a failure in it is reported with the run's link, and the proof stays local: the forced interleaving again, then the whole file repeated with retries off.
-- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
 - **The PR body** gives the local count and load, the mutation, and `Closes #<n>`.
+
+When a question needs CI to repeat the test, read [an extra CI repeat](references/policy.md#an-extra-ci-repeat).
 
 A pull request that closes the issue by hand still has to hold: the next occurrence reopens it.
 
 ## File what's left
 
-[Filing](references/filing.md) says what to do when CI files a flake itself, and how to log one it doesn't, the first time you see it: search the `flake` issues, closed ones too, comment one sighting each, reopen one whose fix didn't hold, or open one that names its run. A race in the repo's own code goes the same way, labelled `bug`.
-
-## The tools
-
-[`scripts/flakes/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/flakes/README.md) in the ci-doctor repo files one issue per flaky test from CI and closes it after clean runs, for a repo with an approved retry policy and none of its own. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`:
-
-```sh
-git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
-```
+[Filing](references/filing.md) says what to do when CI files a flake itself, and how to log one it doesn't, the first time you see it. When the repo has an approved retry policy and no flake script of its own, read [the tools](references/filing.md#the-tools).
 
 ## Not here
 
