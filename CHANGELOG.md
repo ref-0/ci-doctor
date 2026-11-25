@@ -20,7 +20,7 @@ Under 1.0, a minor release carries what would be a major one.
 
 ### Scripts
 
-- **`docs-budget.ts`: a `SKILL.md` fails past 6 KB and warns past 5 KB.** It was 10 KB. Both messages name the largest `##` sections, suggest a reference for the largest, and give the pointer line to leave; a warning prints as `warning: …` and exits 0. **Action:** if you copied `docs-budget.ts`, take the new version, keep your CONFIG block and add `skillWarning` to its `budgets`, then run it: a `SKILL.md` between 6 and 10 KB now fails, and one past 5 KB warns. Thin it as `agent-knowledge`'s "Thinning a skill" says, or set `skill` and `skillWarning` to your own lines.
+- **`docs-budget.ts`: a `SKILL.md` fails past 6 KB and warns past 5 KB.** It was 10 KB. Both messages name the largest `##` sections, suggest a reference for the largest, and give the pointer line to leave; a warning prints as `warning: …` and exits 0. **Action:** if you copied `docs-budget.ts`, take the new version, keep your CONFIG block, set `skill: 6_000` and add `skillWarning: 5_000` to its `budgets` (or your own lines), then run it: a `SKILL.md` between 6 and 10 KB now fails, and one past 5 KB warns. Thin it as `agent-knowledge`'s "Thinning a skill" says.
 
 ### The remote task cache
 

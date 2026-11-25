@@ -31,7 +31,7 @@ After approval, do only what the plan's [authorization record](references/phases
 
 ## The phases
 
-When you work the plan, read [the phases](references/playbook.md#the-phases) and [the plan's rules](references/playbook.md#the-plans-rules) before Phase 0 and at the start of every session.
+When you work the plan, read [the phases](references/playbook.md#the-phases) before Phase 0 and at the start of every session.
 
 ## Rules that apply throughout
 
@@ -39,6 +39,8 @@ When you work the plan, read [the phases](references/playbook.md#the-phases) and
 - **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
 - **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
 - **Leave shared state alone:** other people's branches, caches, runners, processes, temp files and credentials. Never read secrets.
+
+Before you propose or change anything, in the plan or day to day, read [the rest of the rules](references/playbook.md#more-rules-that-apply-throughout).
 
 ## Topic map
 
