@@ -7,8 +7,12 @@ import { parameters } from './multipart.ts';
 import type { Observations } from './observations.ts';
 import { contentLength, Deadline, readBody } from './streams.ts';
 
+// local: an exact match answers `entries`, a list of one, as Vite+ 1.7.0 reads it: vite-task
+// cb1ea8d's `Fetched::Exact` in `crates/vt_remote_cache/src/lib.rs`, at least one `Entry` of
+// `value` and a `blob_id` that's present, null for no blob. The pin answered `value` and `blob_id`
+// alone, which 1.7.0 can't decode, so every exact match was a miss.
 type FetchResult =
-  | { kind: 'exact'; value: Uint8Array; blob_id: string | null }
+  | { kind: 'exact'; entries: [{ value: Uint8Array; blob_id: string | null }] }
   | { kind: 'fallback'; key: Uint8Array };
 
 export async function fetchMetadata(
@@ -40,5 +44,5 @@ export async function fetchMetadata(
   if (!object || object.size !== selected.value_size || object.size > limits.value) unavailable();
   const value = await readBody(object.body, limits.value, deadline, lease).catch(() => unavailable());
   if (value.length !== selected.value_size) unavailable();
-  return { kind: 'exact', value, blob_id: selected.blob_id };
+  return { kind: 'exact', entries: [{ value, blob_id: selected.blob_id }] };
 }

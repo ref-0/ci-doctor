@@ -38,17 +38,55 @@ const repository = { name: 'example-org/example-repo', id: '1000001', ownerId: '
 
 export const bytes = (value: string) => new TextEncoder().encode(value);
 
-/** What a fetch or a store answers, in CBOR. */
-export type CacheAnswer = {
-  readonly kind?: 'exact' | 'fallback';
-  readonly value?: Uint8Array;
-  readonly key?: Uint8Array;
-  readonly blob_id?: string | null;
-};
+/** What a store answers, in CBOR. Vite+ reads none of it. */
+export type CacheAnswer = { readonly blob_id?: string | null };
 
 export const decodeResponse = async (response: Pick<Response, 'arrayBuffer'>) =>
-  // SAFETY: the Worker answers a fetch and a store with `cborResponse` of these fields alone.
+  // SAFETY: the Worker answers a store with `cborResponse` of this field alone.
   decode(new Uint8Array(await response.arrayBuffer())) as CacheAnswer;
+
+/**
+ * A fetch's answer as Vite+ 1.7.0 decodes it: vite-task cb1ea8d's `Fetched` in
+ * `crates/vt_remote_cache/src/lib.rs`, tagged by `kind`. An exact match holds at least one `Entry`,
+ * whose `value` is bytes and whose `blob_id` is present, a string or null. A fallback holds its
+ * `key`, bytes. Like serde, it ignores other fields.
+ */
+export type Fetched =
+  | {
+      readonly kind: 'exact';
+      readonly entries: ReadonlyArray<{
+        readonly value: Uint8Array;
+        readonly blob_id: string | null;
+      }>;
+    }
+  | { readonly kind: 'fallback'; readonly key: Uint8Array };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const fetched = (body: unknown): Fetched => {
+  if (!isRecord(body)) throw new Error('a fetch answers a map');
+  if (body.kind === 'fallback') {
+    if (!(body.key instanceof Uint8Array)) throw new Error('a fallback holds its key as bytes');
+    return { kind: 'fallback', key: body.key };
+  }
+  if (body.kind !== 'exact')
+    throw new Error(`a fetch's kind is exact or fallback, not ${String(body.kind)}`);
+  if (!Array.isArray(body.entries) || body.entries.length === 0)
+    throw new Error('an exact match holds at least one of its entries');
+  const entries = body.entries.map((entry: unknown) => {
+    if (!isRecord(entry) || !(entry.value instanceof Uint8Array))
+      throw new Error("an entry's value is bytes");
+    if (!('blob_id' in entry) || (entry.blob_id !== null && typeof entry.blob_id !== 'string'))
+      throw new Error("an entry's blob_id is present, a string or null");
+    return { value: entry.value, blob_id: entry.blob_id };
+  });
+  return { kind: 'exact', entries };
+};
+
+/** A fetch's 200 body as 1.7.0 decodes it, or a throw where 1.7.0 fails the fetch. */
+export const decodeFetched = async (response: Pick<Response, 'arrayBuffer'>): Promise<Fetched> =>
+  fetched(decode(new Uint8Array(await response.arrayBuffer())));
 
 /** Credentials the harness's Worker knows, each token 43 characters. */
 export const credentials = {
