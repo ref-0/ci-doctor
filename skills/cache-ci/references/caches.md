@@ -1,6 +1,6 @@
 <!--
-What: the rules for CI's caches on any provider: who may write a cache, a warm install keyed by the
-manifests, and what not to cache.
+What: the rules for CI's caches on any provider: what setup costs, the key for each kind of cache, who
+may write a cache, a warm install keyed by the manifests, what not to cache, and task results.
 Where: read by an agent before changing cache keys, scopes, setup caches or image reuse.
 Configure: your repo's own caches go in `.agents/repo/ci.md`'s Caches; the shared actions live in <actions-repo>.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -11,6 +11,18 @@ Reference implementation from a production monorepo; adapt to your repo.
 Part of the [`cache-ci`](../SKILL.md) skill: the rules in full. Read it when changing caches or image reuse. Each of the repo's own caches, its key and who writes it, and what's left uncached on purpose, are in `.agents/repo/ci.md`'s Caches. [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md) covers the remote task cache and setup caches.
 
 If you run on Blacksmith, its sticky disks, its Actions cache and its shared Docker disk are in [`blacksmith`'s disks and caches](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and the toolchain are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/rust.md).
+
+## How much setup costs
+
+In 219 public repos, installing and setting up took 15% of a typical repo's job time, and 42% in the most setup-heavy tenth; repos with no dependency cache waited about 40% longer for their size. That gap is a correlation across repos, not a measured cause ([the findings](https://github.com/ref-0/ci-doctor-db/blob/main/FINDINGS.md)).
+
+## The key for each kind of cache
+
+Pick the cache that removes the most measured setup, and key it by what it holds:
+
+- **A package store** (the package manager's download cache, which the install still runs over): the lockfile and the package manager's version. A partial match is a fine start, since the install checks it.
+- **A full install** (`node_modules` and its links, a virtualenv, a vendored tree that a job runs from without installing): the same, plus every manifest and the workspace's settings, the OS, the architecture and the runtime's version. Take it only on an exact match, as [the warm install](#a-warm-install-keyed-by-the-manifests) says.
+- **Build outputs** (`target/`, a compiler cache, transforms, incremental type checks): the sources, the build config, the compiler or tool's version and each environment value the build reads, or leave keying to the build tool's own content hashing and cache its store. The dependency manifests alone say nothing about a build's output. Where to keep it is the provider's question: on GitHub Actions, `actions/cache` works on any runner, at the price of a restore each job; the [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md#without-blacksmith) show it beside each disk action. On Blacksmith, a sticky disk skips the restore: its [disks and caches](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and `rust-cache` are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/rust.md).
 
 ## Who may write a cache
 
@@ -39,3 +51,7 @@ Cache a pinned toolchain by its pin file and the action that installs it. **Take
 ## Not worth caching
 
 Measure before adding a layer. Sub-second generation, a large tarball restore that costs as much as it saves, and an extra layer whose total daily saving is trivial next to its upkeep were each dropped in the source repo ([guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#not-worth-caching)).
+
+## Task results
+
+A remote task cache replays test, build and lint results by their inputs, through the workspace's task runner. Its soundness checks, its trust design and how to probe it for stale replays are [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner). Inputs so wide that an unrelated edit moves every key are a graph to narrow: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md).

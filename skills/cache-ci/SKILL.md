@@ -14,9 +14,11 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # cache-ci
 
-Setup is often the largest share of a job that nobody looks at. In 219 public repos, installing and setting up took 15% of a typical repo's job time, and 42% in the most setup-heavy tenth; repos with no dependency cache waited about 40% longer for their size. That gap is a correlation across repos, not a measured cause ([the findings](https://github.com/ref-0/ci-doctor-db/blob/main/FINDINGS.md)). A cache is only as good as its key, though: leave out an input and a stale result replays; put in one that changes every run and nothing ever hits. **Key a cache by every input that can change its output, and nothing else.**
+Setup is often the largest share of a job that nobody looks at. A cache is only as good as its key, though: leave out an input and a stale result replays; put in one that changes every run and nothing ever hits. **Key a cache by every input that can change its output, and nothing else.**
 
 This skill covers the caches a CI job restores before its work: dependency installs, the package manager's store, toolchains, build caches such as Rust's `target/`, and images. [Guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md) has the design, what each cache measured, and the remote task cache.
+
+When you need the numbers behind setup's share of a job, read [how much setup costs](references/caches.md#how-much-setup-costs).
 
 ## Start here
 
@@ -28,11 +30,9 @@ This skill covers the caches a CI job restores before its work: dependency insta
 ## Rules
 
 - **Measure first.** Time each job's setup steps apart from its work, and a restore apart from the install it replaces, from the jobs API's step timestamps. Propose a cache only where setup is a real share of the run, and only one whose restore costs less than the work it skips.
-- **Key by every input that can change the output,** by what the cache holds, as [the recipes](#2-add-or-change-a-cache) say. Nothing that changes every run, such as a timestamp, the run's ID or the commit, goes in.
+- **Key by every input that can change the output,** by what the cache holds, as [the recipes](references/caches.md#the-key-for-each-kind-of-cache) say. Nothing that changes every run, such as a timestamp, the run's ID or the commit, goes in.
 - **Take only an exact match** for anything a job runs from, such as a whole install. A partial match (`restore-keys`) is a start for a package store that the install then checks, never a finished install.
 - **Only main's own runs write** what every run reads. A pull request reads its own caches and its base's, and writes nothing others trust.
-- **Probe before trusting a restored toolchain,** and install fresh with a warning when the probe fails or stalls.
-- **Some jobs always install,** with the lockfile and policy checks on, so drift and supply-chain rules are still caught.
 
 [The rules in full](references/caches.md) have why, with what each measured: who may write a cache, a warm install keyed by the manifests, a toolchain cache, images by digest, and what isn't worth caching.
 
@@ -42,17 +42,13 @@ From recent runs of the workflow, for each job: queue, checkout, toolchain, inst
 
 ## 2. Add or change a cache
 
-Pick the cache that removes the most measured setup, and key it by what it holds:
-
-- **A package store** (the package manager's download cache, which the install still runs over): the lockfile and the package manager's version. A partial match is a fine start, since the install checks it.
-- **A full install** (`node_modules` and its links, a virtualenv, a vendored tree that a job runs from without installing): the same, plus every manifest and the workspace's settings, the OS, the architecture and the runtime's version. Take it only on an exact match, as [the warm install](references/caches.md#a-warm-install-keyed-by-the-manifests) says.
-- **Build outputs** (`target/`, a compiler cache, transforms, incremental type checks): the sources, the build config, the compiler or tool's version and each environment value the build reads, or leave keying to the build tool's own content hashing and cache its store. The dependency manifests alone say nothing about a build's output. Where to keep it is the provider's question: on GitHub Actions, `actions/cache` works on any runner, at the price of a restore each job; the [workflow templates](https://ci-doctor.ref0.dev/guide/templates/github/README.md#without-blacksmith) show it beside each disk action. On Blacksmith, a sticky disk skips the restore: its [disks and caches](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md). If your stack uses Rust, the pass key, the binary key and `rust-cache` are in `ci-workflows`' [Rust page](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/rust.md).
+Pick the cache that removes the most measured setup. To key a package store, a full install or build outputs, read [the key for each kind of cache](references/caches.md#the-key-for-each-kind-of-cache).
 
 Record the cache in ci.md's Caches: its key, who writes it, who reads it.
 
 ## 3. A cache that never hits
 
-Read the restore step's log in a job that should have hit, and find which of [the usual causes](references/misses.md) it is: a key that moves every run, a scope the reading job can't see, nothing ever written, eviction, a path that differs between save and restore, or a partial match taken as a hit.
+When a cache misses on runs that should have hit, read [the usual causes](references/misses.md).
 
 ## 4. Show it
 
@@ -60,7 +56,7 @@ Measure the same jobs the same way after the change: a hit and a miss each, sinc
 
 ## Task results
 
-A remote task cache replays test, build and lint results by their inputs, through the workspace's task runner. Its soundness checks, its trust design and how to probe it for stale replays are [guide section 6](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner). Inputs so wide that an unrelated edit moves every key are a graph to narrow: [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md).
+When the cache is a remote task cache of test, build or lint results, read [task results](references/caches.md#task-results).
 
 ## Not here
 
