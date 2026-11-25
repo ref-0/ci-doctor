@@ -50,16 +50,11 @@ Give each claim in the shape [the report](references/report.md) has: the claim, 
 
 ## A claim that something works or is fixed
 
-Check the artifact itself: run the feature, read the actual value, inspect the diff, read the log for what ran. When a check fails, suspect how you observed it before you suspect the system. To show a test catches what it guards, break the code on purpose and watch it fail for the intended reason. [Outputs](references/outputs.md) has the proxies to distrust, how to script the check, and the rules for a deliberate mutation.
+Read [outputs](references/outputs.md) for the proxies to distrust, how to script the check, and the rules for a deliberate mutation.
 
 ## Where this applies in CI
 
-CI's records and the rules particular to them are in the `ci-doctor` plugin's hub. Links go to the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.4.0) at this skill's release:
-
-- A CI baseline or a before and after: [measuring](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/measuring.md) for where the records are and the test-specific rules, [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/ci-history-data.md) for history from the API, and the check [measure CI before changing it](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-measure-before-changing-it.md).
-- A cost: [budget CI at list price](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md), as a monthly projection from measured frequency.
-- A slow-test campaign's report: its template carries [the report](references/report.md)'s fields for each headline number.
-- A spike or research result that decides what gets built: an experiment and a skeptic reviewer, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/review-gate/SKILL.md) says.
+When the claim is about CI, its history or its cost, read [where this applies in CI](references/ci.md).
 
 ## Not here
 
