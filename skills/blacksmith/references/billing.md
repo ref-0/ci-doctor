@@ -1,5 +1,6 @@
 <!--
-What: how Blacksmith bills: vCPU-minutes, architectures, macOS, the free allowance, sticky disks and its spend limit.
+What: how Blacksmith bills: vCPU-minutes, architectures, macOS, the free allowance, sticky disks, its spend limit
+and `ci-time.ts`'s billing adapter.
 Where: read by an agent costing a job on Blacksmith, or setting its spend limit.
 Configure: <price-per-vcpu-minute> and <monthly-cap> in your repo's ci.md.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -16,3 +17,14 @@ Part of the [`blacksmith`](../SKILL.md) skill. The general rules, packing agains
 - **A sticky disk bills by the GB-month** until a week after its last use. Keep one disk per install, not one per lockfile ([disks](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/disks.md)).
 - **Blacksmith's own spend limit,** where the account's dashboard offers one, sits above the cap a watcher enforces, so the watcher gets the first chance to stop CI. Neither is guaranteed: Blacksmith's public docs don't say what its limit does when it's reached, and [guide section 12](https://ci-doctor.ref0.dev/guide/docs/pages/12-budgets-health-and-spend.md) warns that a provider-side limit can strand jobs in queues with no explanation, and a watcher acts on reported spend, so billing lag, a failed read and cancellation delay can carry spend past its cap ([the check](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/budget-ci-at-list-price.md)). Leave headroom, and ask Blacksmith or test a stop before relying on either. The watcher in [`scripts/budgets/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/budgets/README.md#3-the-spend-watcher) reads spend with this CLI.
 - **`ci-time.ts --bill blacksmith`** prices runs from Blacksmith's own records, not from labels.
+
+## The billing adapter
+
+`ci-time.ts --bill blacksmith`, in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/SKILL.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through this skill's [`scripts/blacksmith-bill.ts`](../scripts/blacksmith-bill.ts). It finds the adapter when this skill is installed beside `ci-workflows`, as a plugin install has it. The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`, on Node 24 with nothing installed.
+
+A skills-only install of this folder carries the adapter but not `ci-time.ts`: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point it at this folder:
+
+```sh
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <skills-dir>/blacksmith/scripts
+```

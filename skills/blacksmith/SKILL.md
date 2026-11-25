@@ -14,7 +14,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # blacksmith
 
-[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. On GitHub Actions with GitHub-hosted or self-hosted runners we recommend it, backed by the repo's baseline and with the optimization period priced, never as a requirement: the user decides, and off GitHub Actions it doesn't apply. [`ci-runners`' providers](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/references/providers.md#choosing) says how a plan makes the case. This skill holds only what's specific to Blacksmith. The general rules are in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/SKILL.md) (workflows, tiers), [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/cache-ci/SKILL.md) (caches) and [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/SKILL.md) (sizing, packing, queues, cost). [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
+[Blacksmith](https://blacksmith.sh) runs GitHub Actions jobs on its own runners: a job moves by changing its `runs-on` label. This skill holds only what's specific to Blacksmith. [Guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#setting-up-blacksmith) has the setup in order. [The checks](references/checks.md) it follows are here in short.
 
 ## Start here
 
@@ -28,6 +28,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 - **Labels, sticky disks, the Actions cache and the Docker disk:** [disks and caches](references/disks.md). Read it before changing a disk action, its key or who commits it.
 - **How it bills,** a sticky disk's cost and the free allowance: [billing](references/billing.md).
 - **Moving a repo from GitHub-hosted or self-hosted runners,** once the user said yes: [migrate](references/migrate.md).
+- **`ci-time.ts --bill blacksmith`,** its adapter and running it from a skills-only install: [the billing adapter](references/billing.md#the-billing-adapter).
 
 ## Rules
 
@@ -37,27 +38,9 @@ Reference implementation from a production monorepo; adapt to your repo.
 - **Run macOS only in a release, or by hand with a person's yes:** a Mac minute costs several Linux ones.
 - **Check current pricing and labels** in [Blacksmith's docs](https://docs.blacksmith.sh) before quoting either; they change.
 
-## The billing adapter
-
-`ci-time.ts --bill blacksmith`, in [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/SKILL.md#measuring-a-run), takes each job's billed vCPU-minutes and each shard's CPU from Blacksmith through this skill's [`scripts/blacksmith-bill.ts`](scripts/blacksmith-bill.ts). It finds the adapter when this skill is installed beside `ci-workflows`, as a plugin install has it. The bill counts every attempt, while ci-time.ts's minutes count the latest. Its tests: `node --test blacksmith-bill.test.ts`, from `scripts/`, on Node 24 with nothing installed.
-
-A skills-only install of this folder carries the adapter but not `ci-time.ts`: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point it at this folder:
-
-```sh
-git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
-node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <skills-dir>/blacksmith/scripts
-```
-
 ## Why we recommend it
 
-These are what the source repo leaned on, as [guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#why-we-recommend-blacksmith) says. Measure each on your workload before counting on it:
-
-- **A size per job,** billed per vCPU-minute, so the plan, static checks and test shards each get the size their work needs, and a small selection runs on 2 vCPU.
-- **Jobs that start in seconds,** where GitHub-hosted runners had kept jobs queued for minutes at busy times ([`ci-runners`' queues](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/references/queues.md)).
-- **Native arm64 and macOS,** so a Rust service builds on both Linux architectures with no emulation.
-- **Sticky disks,** so a job whose manifests match main's skips the install.
-- **An Actions cache beside the runners,** whose reservations also served as atomic claims for work stealing and as transport for small cross-job records.
-- **A CLI** that prices jobs, reads each job's CPU and compares runner choices.
+When the user weighs a move to Blacksmith, or a plan makes the case for it, read [why we recommend it](references/why.md).
 
 ## Not here
 
