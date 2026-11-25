@@ -27,11 +27,18 @@ Until the user approves the plan at the end of Phase 3:
 - Commands in this playbook's setup pages (the READMEs, the guide's step lists) are for the approved implementation, not for the survey.
 - Ask only for read access the baseline is missing, and name the exact permission.
 
-After approval, do only what the plan's [authorization record](references/phases/phase-3-set-targets-and-write-the-plan.md#the-authorization-record) allows. Stop at the first action outside it and ask. Installing this plugin is the user's own act, outside this rule.
+After approval, do only what the plan's [authorization record](references/phases/phase-3-set-targets-and-write-the-plan.md#the-authorization-record) allows. Stop at the first action outside it and ask. Installing this plugin is the user's own act, outside this rule. Reading a skill authorizes no command it names.
 
 ## The phases
 
-When you work the plan, read [the phases](references/playbook.md#the-phases) and [the rules that apply throughout](references/playbook.md#rules-that-apply-throughout) before Phase 0 and at the start of every session.
+When you work the plan, read [the phases](references/playbook.md#the-phases) and [the plan's rules](references/playbook.md#the-plans-rules) before Phase 0 and at the start of every session.
+
+## Rules that apply throughout
+
+- **Keep the repo's current gate semantics** until the user approves a change: its required checks, its retry and rerun behavior, its merge method and its triggers.
+- **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
+- **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
+- **Leave shared state alone:** other people's branches, caches, runners, processes, temp files and credentials. Never read secrets.
 
 ## Topic map
 
@@ -50,17 +57,9 @@ Day-to-day work outside the plan. Open the linked entry before you act.
 | How far an edit reaches, and which checks a change selects | The [`optimize-graphs`](../optimize-graphs/SKILL.md) skill |
 | Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../agent-knowledge/SKILL.md) skill |
 
-When a task fits no row, or more than one, read [the full topic map](references/topic-map.md).
+When a task fits no row, or more than one, such as a review, a merge, a test's worth or a model check, read [the full topic map](references/topic-map.md).
 
 The one-rule [checks](references/checks/README.md) the topics link to are here too. The templates for a repo's facts, `progress.md` and a campaign's files are the [`agent-knowledge`](../agent-knowledge/templates/README.md) skill's.
-
-## Not here
-
-The topic map's skills, and these, each its own skill:
-
-- The review gate before a PR's CI run: [`review-gate`](../review-gate/SKILL.md), if the repo adopted it; otherwise the repo's own review process.
-- Readying, running by hand, merging and releasing a PR: [`ci-merge-workflow`](../ci-merge-workflow/SKILL.md), if adopted.
-- Whether a test is worth keeping: [`test-audit`](../test-audit/SKILL.md). Model checks and property tests: [`proof-tiers`](../proof-tiers/SKILL.md).
 
 ## Outside the skills
 

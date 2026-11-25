@@ -53,6 +53,8 @@ When the adopted skills read facts files, read [the repo's facts](references/whe
 
 When a run learned something, a `SKILL.md` nears its budget, or you propose the sweep, the budget or the upstream check, read [keeping it fresh](references/keeping-it-fresh.md).
 
+Propose the sweep, the budget and any schedule as their own steps: each is a change to the user's repo or CI and needs its own yes.
+
 ## Not here
 
 When the work is the ci-doctor plan's Phase 6 or the register's CI template, read [not here](references/where-it-lives.md#not-here).

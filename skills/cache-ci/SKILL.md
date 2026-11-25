@@ -33,6 +33,8 @@ When you need the numbers behind setup's share of a job, read [how much setup co
 - **Key by every input that can change the output,** by what the cache holds, as [the recipes](references/caches.md#the-key-for-each-kind-of-cache) say. Nothing that changes every run, such as a timestamp, the run's ID or the commit, goes in.
 - **Take only an exact match** for anything a job runs from, such as a whole install. A partial match (`restore-keys`) is a start for a package store that the install then checks, never a finished install.
 - **Only main's own runs write** what every run reads. A pull request reads its own caches and its base's, and writes nothing others trust.
+- **Probe before trusting a restored toolchain,** and install fresh with a warning when the probe fails or stalls.
+- **Some jobs always install,** with the lockfile and policy checks on, so drift and supply-chain rules are still caught.
 
 [The rules in full](references/caches.md) have why, with what each measured: who may write a cache, a warm install keyed by the manifests, a toolchain cache, images by digest, and what isn't worth caching.
 

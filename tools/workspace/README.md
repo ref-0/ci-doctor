@@ -249,7 +249,7 @@ Each of these is your repo's to write, or is ported elsewhere in this playbook. 
 | Tool | Command | Input | Output |
 | --- | --- | --- | --- |
 | Type coverage | `node scripts/docs/type-coverage.ts` ([ported](../../scripts/docs/)) | Root tsconfig, tracked files, your linter's file list | Nonzero, naming each tracked `.ts` no project includes or lint skips |
-| Docs budget | `node scripts/docs/docs-budget.ts` ([ported](../../scripts/docs/)) | Tracked Markdown agents load | Nonzero, naming each file over budget |
+| Docs budget | `node scripts/docs/docs-budget.ts` ([ported](../../scripts/docs/)) | Tracked Markdown agents load | Nonzero, naming each file over budget. A warning, exit 0, for a `SKILL.md` past 5 KB, naming its largest sections |
 | Complete build inputs (a lint rule) | your linter | Each production build task's declared inputs, and the workspace packages it imports | A finding when a task's inputs miss a transitive workspace source, manifest or tsconfig. Without it a broken dependency can replay a green build. |
 | Isolate imports (a lint rule) | your linter | Each restricted runtime's entry files (sandbox, isolate), and the modules they import | A finding for any import in an entry's transitive closure that the runtime can't run. Name your restricted entries first. |
 | Environment at entry points (a lint rule) | your linter | Each module | A finding for environment access (`process.env`) outside declared entry points |

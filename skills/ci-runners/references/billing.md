@@ -37,7 +37,7 @@ Making a slow CI fast costs money and weeks before it pays off: broad runs while
 
 ## A spot check of recent runs
 
-`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/SKILL.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run it from there:
+`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/tools.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this skill's folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run it from there:
 
 ```sh
 git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>

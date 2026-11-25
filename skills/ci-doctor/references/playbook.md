@@ -16,7 +16,7 @@ Part of the [`ci-doctor`](../SKILL.md) hub: the plan's rules and phases, what th
 
 ## The phases
 
-Work through them in order, **one at a time**: open a phase's file, finish it, then open the next. Stop at the end of Phase 3 for the user's approval. Sign-ins are in [logins](phases/logins.md); what this repo carries, and a common reading route, in [the playbook](#whats-here).
+Work through them in order, **one at a time**: open a phase's file, finish it, then open the next. Stop at the end of Phase 3 for the user's approval. Sign-ins are in [logins](phases/logins.md); what this repo carries, and a common reading route, in [what's here](#whats-here), below.
 
 | Phase | File |
 | --- | --- |
@@ -28,25 +28,21 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
 | 5 | [Make it stay fast](phases/phase-5-make-it-stay-fast.md) |
 | 6 | [Put the knowledge where agents will find it](phases/phase-6-put-the-knowledge-where-agents-will-find-it.md) |
 
-## Rules that apply throughout
+## The plan's rules
 
 - **Never trade proof for speed.**
   - No added retries, no timeout raised on its own, no skipped or deleted tests to save time, and no smaller fixture that no longer proves its bound.
   - Every test you speed up must still fail when you break what it guards. After approval, show that with a deliberate mutation, as Phase 4 says.
   - If a change does give up some proof on purpose, name it as a tradeoff in the plan and get the user's yes, as guide section 7 does for the debug-profile Rust run.
-- **Keep the repo's current gate semantics** until the user approves a change: its required checks, its retry and rerun behavior, its merge method and its triggers.
 - **Measure before you propose, and label every number:** measured (where and when), modelled, replayed or guessed. Give cost changes as a **monthly projection** from measured frequency at the provider's list price. Follow the [`prove-it`](../../prove-it/SKILL.md) skill: write the decision and noise floor before measuring, and keep count, spread and limiter with every number.
 - **The code is the source of truth.** If the user's docs disagree with their code, say so in the plan.
-- **Ask before anything that adds recurring spend,** a new scheduled job, a bigger runner, or a change to what runs where. That's the user's call, even after the plan is approved.
-- **Don't spend the user's CI to learn things you can read from history.** Prefer existing run logs and records.
-- **Leave shared state alone:** other people's branches, caches, runners, processes, temp files and credentials. Never read secrets.
 - **Don't build what [the playbook lists](#what-not-to-build)** unless measurement says otherwise.
 
 ## Outside the skills
 
 Links that leave `skills/` lead to the rest of the ci-doctor repo: the guide in `docs/`, the reference implementations in `scripts/`, `templates/`, `tools/` and `cache/`, and the `README.md` and `CHANGELOG.md`. A plugin install usually has them beside the skills. Where it doesn't, as after `npx skills add` or a copy of the skill folders, read them at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), at the same path they have in the repo (`docs/pages/06-reuse-work-by-its-real-inputs.md` is `https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md`), or in [the repo](https://github.com/ref-0/ci-doctor) at the release tag `v<version>`, where the version is the hub's `metadata.version`.
 
-Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside this one; [Phase 0](phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`. Reading a skill authorizes no command it names.
+Links to a sibling skill, `../<name>/SKILL.md`, need it installed beside the hub; [Phase 0](phases/phase-0-know-your-harness-and-your-helpers.md#which-ci-doctor-skills-you-have) checks which are and how the user adds a missing one. Until then, read it at `https://github.com/ref-0/ci-doctor/blob/v<version>/skills/<name>/SKILL.md`.
 
 ## What's here
 

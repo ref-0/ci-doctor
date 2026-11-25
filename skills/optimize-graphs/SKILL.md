@@ -13,7 +13,15 @@ Use it when a small edit runs or rebuilds far more than it touches, before addin
 
 ## The five graphs
 
-When you need which graph is which, or to map one, read [the graphs](references/graphs.md).
+| # | Graph | Decided by | Decides |
+|---|---|---|---|
+| 1 | Package dependencies | Each package's imports of the others | Which packages' tests and builds an edit reaches |
+| 2 | Package export paths | `exports` maps and the entry files behind them | Which of a package's importers an edit reaches |
+| 3 | Layers inside a package | Imports between a package's folders | How far an edit climbs inside a package |
+| 4 | Workspace tasks | Each task's dependencies, inputs and outputs | Which cache keys an edit moves |
+| 5 | CI jobs | `needs:`, waits and runner queues | How long a run waits for its result |
+
+The first three are one graph at three sizes, and the last two are built on them. [The graphs](references/graphs.md) says, for each, where it's declared, what holds it and what to count.
 
 ## Rules
 
@@ -27,6 +35,7 @@ When you need which graph is which, or to map one, read [the graphs](references/
 ## 1. Measure
 
 When you measure, read [measure](references/measure.md): the graph tool and getting it, graph 5, the scorer, and counting by hand.
+
 ## 2. Read the five
 
 Paste the tool's headline, one line per graph, then read it [as measure says](references/measure.md#read-the-headline).

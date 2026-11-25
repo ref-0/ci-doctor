@@ -30,7 +30,7 @@ The repo's flake policy decides what the gate does with a flake: whether CI retr
 
 ## Retries, reruns and infrastructure
 
-When you tell an in-job retry, a diagnostic rerun, a second failure and an infrastructure failure apart, read [retries, reruns and infrastructure](references/policy.md#retries-reruns-and-infrastructure).
+Before you rerun a job or call a failure a flake, and to tell an in-job retry, a diagnostic rerun, a second failure and an infrastructure failure apart, read [retries, reruns and infrastructure](references/policy.md#retries-reruns-and-infrastructure).
 
 Before calling anything a flake, split the failure by commit: a failure on one branch alone is that branch's, and a failure after a fix merged may have run the fix's parent. Read the error, not the test's name. For a confirmed flake, use the issue CI filed for it, or, where CI didn't file one, [file this first sighting](#file-whats-left) yourself.
 
@@ -52,7 +52,7 @@ Take the fix that removes the order the test can't control: a lock every start t
 
 Prove the cause locally: the whole file repeated with no retries, noting how many passed in a row and the load average, and a mutation that reopens the race and fails the test. Then:
 
-- **The PR's own ready run is the CI evidence.** It runs once. Where the repo's policy allows a rerun, a flaky failure in it gets one diagnostic rerun, and a second failure is reported, as [above](#retries-reruns-and-infrastructure) says. Otherwise a failure in it is reported with the run's link, and the proof stays local: the forced interleaving again, then the whole file repeated with retries off.
+- **The PR's own ready run is the CI evidence.** It runs once. Where the repo's policy allows a rerun, a flaky failure in it gets one diagnostic rerun, and a second failure is reported, as [retries, reruns and infrastructure](references/policy.md#retries-reruns-and-infrastructure) says. Otherwise a failure in it is reported with the run's link, and the proof stays local: the forced interleaving again, then the whole file repeated with retries off.
 - **The PR body** gives the local count and load, the mutation, and `Closes #<n>`.
 
 When a question needs CI to repeat the test, read [an extra CI repeat](references/policy.md#an-extra-ci-repeat).

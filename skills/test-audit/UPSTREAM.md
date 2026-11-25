@@ -31,7 +31,7 @@ The tests-reviewer pointers go to [`review-gate`](https://github.com/ref-0/ci-do
 
 ## Layout
 
-To keep `SKILL.md` under the docs budget's 5 KB, these sections moved out of it word for word, each leaving one pointer line. An upstream change to one of them goes in the file named here, not in `SKILL.md`:
+To keep `SKILL.md` under the docs budget's 5 KB warning line, these sections moved out of it word for word, each leaving one pointer line. An upstream change to one of them goes in the file named here, not in `SKILL.md`:
 
 - **Junk patterns:** the whole section, its intro and list, to [`references/junk-patterns.md`](references/junk-patterns.md) under `## Junk patterns`. Its heading left `SKILL.md`; the authoring gate's link to it points there.
 - **Retention bar:** the whole section to [`references/junk-patterns.md`](references/junk-patterns.md) under `## Retention bar`. Its heading left `SKILL.md`; the authoring gate's link and a pointer line under Value bar point there.

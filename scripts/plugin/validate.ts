@@ -8,7 +8,8 @@
  * - `plugin.json` at the root is the source of truth: the Claude Code, Codex and Cursor manifests
  *   repeat its name, version, description and keywords, and each marketplace lists the plugin.
  * - Every folder in `skills/` is a skill: a `SKILL.md` whose frontmatter `name` is the folder's
- *   name, a description of at most 320 characters, and at most 10 KB in all. Each skill's
+ *   name, a description of at most 320 characters, and at most 10 KB in all, a ceiling for every skill,
+ *   upstream copies too (the docs budget holds the repo's own to 6 KB). Each skill's
  *   `metadata.version` is `plugin.json`'s version, the tag its full links to GitHub name.
  * - No other file under `skills/` is named `SKILL.md`. Codex registers one at any depth as a
  *   skill of its own, so a hub's topic named that would load beside the hub.

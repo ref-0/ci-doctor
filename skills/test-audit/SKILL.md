@@ -74,4 +74,4 @@ For an existing-test sweep, read [audit discovery, evidence and handoff](referen
 
 Never edit source or tests while a test runner is running in the checkout. This skill owns test value; [make the test fail first](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/make-the-test-fail-first.md) and [test the real boundary](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/test-the-real-boundary.md) are the checks behind it. [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/prove-it/SKILL.md) owns evidence quality: what a check really saw, and what a number really measured.
 
-When you have edited tests or source, read [the validation steps](references/validation.md).
+Before you run any test, and after you edit tests or source, read [the validation steps](references/validation.md).

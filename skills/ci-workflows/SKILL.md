@@ -30,7 +30,7 @@ The rules hold on any provider. Where a rule turns on how runners are sized or b
 
 Before changing CI, read [the checks for a workflow change](references/change-checks.md): which check applies before you design it, while you build it, when a run is slow and before it merges. Measure first, check real output and budget at list price.
 
-When a change adds a job or moves one, or you test it by its run, read [a job's runner and budget](references/change-checks.md#a-jobs-runner-and-budget).
+Before you test a workflow change by its own run, or when a change adds a job or moves one, read [a job's runner and budget](references/change-checks.md#a-jobs-runner-and-budget).
 
 ## Measuring a run
 
