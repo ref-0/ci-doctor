@@ -17,7 +17,7 @@ Use it when asked to write or tidy `AGENTS.md`, `CLAUDE.md`, Cursor rules or a s
 - **One home per fact.** Every other place links to it. Two copies drift apart.
 - **The method in skills, the values in facts files.** A skill says how; the repo's `.agents/repo/*.md` say with what: its commands, settings, thresholds, holds and fakes.
 - **Fit the user's layout,** not ours. If they have `AGENTS.md`, `CLAUDE.md`, Cursor rules, a skills folder or a wiki, use it, and put the map in the file the active harness actually loads.
-- **Cut, don't move.** A budget is there to force deleting what no longer earns its place, not to push it into another file.
+- **Move, don't reword.** Delete what no longer earns its place. Move a section only one step or case needs, word for word, to the skill's `references/`, with a pointer where it was. Never reword a rule to fit a budget.
 
 ## 1. Map what's there
 
@@ -47,33 +47,18 @@ Keep it a map: the repo's layout, the commands with their arguments adapted whol
 
 ## 4. Write the repo's facts
 
-Copy each template the adopted skills read into `.agents/repo/`, fill its placeholders, and delete the source repo's commented examples once yours are in. [The templates](templates/README.md) lists each, where it goes and what reads it. Then check every link and anchor in them resolves, as the templates' README says.
+When the adopted skills read facts files, read [the repo's facts](references/where-it-lives.md#the-repos-facts).
 
 ## 5. Keep it fresh
 
-- **Date every lesson, with its PR or issue,** so a later agent can check the code it describes still exists. Dates go on the lesson, not as "Changed on…" history lines in the file: history belongs in git.
-- **One register of what was tried.** Every measured-and-dropped idea gets a row in the same change that drops it. A later run proposes one again only with new numbers.
-- **Generalize, don't append.** A new lesson replaces the rule it refines. A rule any repo could use goes into the shared skill, with repo paths removed; a repo fact into its facts file; wrong advice is fixed or deleted; a rule a lint, check or script now enforces is removed; a run that learned nothing general changes nothing.
-- **Memories graduate or die.** An agent memory that a skill now covers is deleted.
-- **Sweep for drift** every two weeks, read-only, then fix in one change. [Keeping it fresh](references/keeping-it-fresh.md#the-drift-sweep) has the slices and the finding format.
-- **Hold a size budget in CI:** descriptions at most 320 characters, your own `SKILL.md` at most 10 KB, the root `AGENTS.md` at most 12 KB. [Keeping it fresh](references/keeping-it-fresh.md#the-budget) says how to run the checker.
-- **Pin what comes from upstream,** and diff it on a schedule instead of overwriting local edits, as [keeping it fresh](references/keeping-it-fresh.md#upstream-skills) says.
-
-Propose the sweep, the budget and any schedule as their own steps: each is a change to the user's repo or CI and needs its own yes.
+When a run learned something, a `SKILL.md` nears its budget, or you propose the sweep, the budget or the upstream check, read [keeping it fresh](references/keeping-it-fresh.md).
 
 ## Not here
 
-- What CI's skills, the slow-test topic and the evidence check should hold, for the ci-doctor plan: the `ci-doctor` hub's Phase 6, which uses this skill for the layout.
-- The register's CI template, with its columns and example rows: the hub's check [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md).
+When the work is the ci-doctor plan's Phase 6 or the register's CI template, read [not here](references/where-it-lives.md#not-here).
 
 ## Outside this skill
 
 This skill owns where knowledge lives and how it stays fresh, not what it says: a skill's technical content belongs to that skill.
 
-Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.4.0) at the tag `v<version>`, where the version is this file's `metadata.version`. To run the docs budget or the link checker from a skills-only install, clone ci-doctor once, outside the user's repo, at that release:
-
-```sh
-git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
-```
-
-Once a release carries this skill, use the tag `v<version>` instead, where the version is this file's `metadata.version`.
+Every link out of this folder is a full URL into the [ci-doctor repo](https://github.com/ref-0/ci-doctor/tree/v0.4.0) at the tag `v<version>`, where the version is this file's `metadata.version`. When you run the docs budget or the link checker from a skills-only install, read [keeping it fresh](references/keeping-it-fresh.md#running-the-checkers).
