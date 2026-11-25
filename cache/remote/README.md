@@ -182,4 +182,5 @@ the guide, section 6 has the detail. The ones that cost the most:
 - **Duplicating the remote cache in the Actions cache** hides whether remote reuse works at all.
 - **Mutation probes** write their altered state and evict useful entries. Run them with `VP_REMOTE_CACHE=off`.
 - **Rotating the read token** gives 401s until the new digest deploys.
+- **A Vite+ upgrade that reads a new reply shape:** every hit prints `remote cache fetch failed` and runs the task, and the job still passes. Vite+ 1.7.0 reads an exact match as a list of `entries`, which this Worker answers, as [the vendored README](vendor/vite-plus-remote-cache-cloudflare/README.md) says. After moving Vite+, check that a task `main` ran replays.
 - **A client and Worker policy that disagree:** an action asking to write where the Worker says no gets 403s on every upload, which Vite+ treats as uploads not made.

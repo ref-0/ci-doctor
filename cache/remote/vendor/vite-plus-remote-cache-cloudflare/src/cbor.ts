@@ -120,26 +120,38 @@ function header(major: number, length: number): Uint8Array {
   );
 }
 
-export function encodeEnvelope(
-  fields: Record<string, string | Uint8Array | null>,
-): Uint8Array<ArrayBuffer> {
-  const chunks = [header(5, Object.keys(fields).length)];
+type Scalar = string | Uint8Array | null;
+
+/** A response's fields: strings, bytes, nulls, and arrays of maps of those. */
+// local: arrays of maps, for a fetch's `entries`, which Vite+ 1.7.0 reads (see `fetch.ts`).
+export type ResponseFields = Record<string, Scalar | ReadonlyArray<Record<string, Scalar>>>;
+
+export function encodeEnvelope(fields: ResponseFields): Uint8Array<ArrayBuffer> {
+  const chunks: Uint8Array[] = [];
   const string = (value: string | Uint8Array) => {
     const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
     chunks.push(header(typeof value === 'string' ? 3 : 2, bytes.length), bytes);
   };
-  for (const [key, value] of Object.entries(fields)) {
-    string(key);
-    if (value === null) chunks.push(Uint8Array.of(246));
-    else string(value);
-  }
+  const map = (record: ResponseFields) => {
+    chunks.push(header(5, Object.keys(record).length));
+    for (const [key, value] of Object.entries(record)) {
+      string(key);
+      if (value === null) chunks.push(Uint8Array.of(246));
+      else if (typeof value === 'string' || value instanceof Uint8Array) string(value);
+      else {
+        chunks.push(header(4, value.length));
+        for (const entry of value) map(entry);
+      }
+    }
+  };
+  map(fields);
   return join(
     chunks,
     chunks.reduce((sum, chunk) => sum + chunk.length, 0),
   );
 }
 
-export function cborResponse(fields: Record<string, string | Uint8Array | null>): Response {
+export function cborResponse(fields: ResponseFields): Response {
   const body = encodeEnvelope(fields);
   return new Response(body, {
     headers: {
