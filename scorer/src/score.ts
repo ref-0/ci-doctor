@@ -10,13 +10,13 @@ import { graphsFixes, graphsOf } from './graphs.ts';
 import { graphFixes, jobGraphOf, SETUP_STEP, type ApiJob } from './job-graph.ts';
 import { vcpusOf } from './runners.ts';
 import { githubSource, localSource, remembered, type Source, type Tree } from './source.ts';
+import { historyOf, practices, workflowFiles, type Practices } from './practices.ts';
 import { ecosystemOf, stackOf } from './stack.ts';
 import { VERSION } from './version.ts';
 
 const DAY = 24 * 3600e3;
 const MAX_RUN_PAGES = 10;
 const JOB_SAMPLE = 6;
-const MAX_WORKFLOWS = 40;
 export const GUIDE = 'https://github.com/ref-0/ci-doctor/blob/main/docs/pages/';
 
 // ---------- small helpers ----------
@@ -406,124 +406,6 @@ const slowTests = (gh: Gh, repo: string, jobs: { id: number; name: string }[]) =
   return { logsRead: read, filesTimed: byFile.length, over10s: byFile.filter((f) => f.sec > 10).length, top: byFile.slice(0, 5) };
 };
 
-// ---------- static practices: the tree and the workflow files ----------
-
-/** The default branch's workflow files, up to MAX_WORKFLOWS, and whether every one was read. */
-const workflowFiles = (source: Source) => {
-  const all = source.tree.blobs.map((b) => b.path).filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p));
-  const read = all.slice(0, MAX_WORKFLOWS).map((p) => ({ p, text: source.read(p) }));
-  const texts = read.map((r) => r.text).filter((x): x is string => x !== undefined);
-  const unknown: string[] = [];
-  if (all.length > MAX_WORKFLOWS) unknown.push(`Read the first ${MAX_WORKFLOWS} of ${all.length} workflow files`);
-  for (const r of read) if (r.text === undefined) unknown.push(`${r.p} is in the tree but couldn't be found`);
-  return { all, texts, complete: !source.tree.truncated && all.length <= MAX_WORKFLOWS && texts.length === read.length, unknown };
-};
-
-/** Found is true; not found where everything was read is false (absent); not found otherwise is null (unknown). */
-const tri = (found: boolean, complete: boolean): boolean | null => (found ? true : complete ? false : null);
-const named = <T>(found: T | undefined, complete: boolean): T | false | null => (found !== undefined ? found : complete ? false : null);
-
-const RENOVATE_CONFIG = /^(\.github\/)?renovate\.json5?$|^\.renovaterc(\.json5?)?$/;
-const RENOVATE_BATCHES = /groupName|\bgroup:|config:(recommended|base|best-practices)|schedule/;
-// A schedule for lock-file maintenance alone doesn't batch the updates themselves.
-const LOCK_FILE_MAINTENANCE = /"?lockFileMaintenance"?\s*:\s*\{[^{}]*\}/g;
-// A preset kept in another repo: what it sets can't be read from here.
-const RENOVATE_SHARED_PRESET = /\b(github|gitlab|bitbucket|gitea|local)>/;
-
-export const practices = (source: Source) => {
-  const tree = new Set(source.tree.blobs.map((b) => b.path));
-  const treeComplete = !source.tree.truncated;
-  const has = (p: string | RegExp) => (typeof p === 'string' ? tree.has(p) : [...tree].some((x) => p.test(x)));
-  const unknown: string[] = [];
-  if (!treeComplete) unknown.push("GitHub cut the file tree short, so a file past the cut can't be checked");
-
-  const { all: allWorkflows, texts: workflows, complete: workflowsComplete, unknown: workflowsUnknown } = workflowFiles(source);
-  unknown.push(...workflowsUnknown);
-
-  // A file read only if the tree has it: '' when it's known to be absent, undefined when that's unknown.
-  const optional = (p: string) => {
-    if (!has(p)) return treeComplete ? '' : undefined;
-    const text = source.read(p);
-    if (text === undefined) unknown.push(`${p} is in the tree but couldn't be found`);
-    return text;
-  };
-  const pkg = optional('package.json');
-  const nx = optional('nx.json');
-  const dependabot = optional('.github/dependabot.yml');
-  // Renovate batches only when its config groups updates, extends a preset that does, or holds them to a schedule.
-  const renovatePath = [...tree].find((path) => RENOVATE_CONFIG.test(path));
-  const renovate = renovatePath === undefined ? (treeComplete ? '' : undefined) : optional(renovatePath);
-  const pkgKnown = pkg !== undefined;
-
-  const all = workflows.join('\n');
-  const onPr = workflows.filter((w) => /pull_request/.test(w)).join('\n');
-  const yes = (re: RegExp, text = all) => tri(re.test(text), workflowsComplete);
-  const inPkg = (re: RegExp) => re.test(pkg ?? '');
-
-  // Vite+ bundles Vitest and Oxlint, so a Vite+ repo names neither in its package.json.
-  const vitePlus = inPkg(/"vite-plus"/);
-  const testRunner =
-    inPkg(/"vitest"/) || has(/^vitest\.(config|workspace)\./)
-      ? 'vitest'
-      : inPkg(/"jest"/) || has(/^jest\.config\./)
-        ? 'jest'
-        : vitePlus
-          ? 'vitest'
-        : /cargo nextest/.test(all) || has('.config/nextest.toml')
-          ? 'nextest'
-          : /pytest[^\n]*-n\s/.test(all) ? 'pytest-xdist' : undefined;
-  const agentsMd = ['AGENTS.md', 'CLAUDE.md', '.github/copilot-instructions.md'].filter((p) => has(p));
-
-  const depsBatched = RENOVATE_BATCHES.test((renovate ?? '').replace(LOCK_FILE_MAINTENANCE, '')) || /groups:/.test(dependabot ?? '');
-  const sharedPreset = RENOVATE_SHARED_PRESET.test(renovate ?? '');
-  if (!depsBatched && sharedPreset) unknown.push(`${renovatePath} extends a preset kept in another repo, so whether it batches updates can't be read here`);
-
-  return {
-    workflows: allWorkflows.length,
-    // B. Running less
-    cancelInProgress: yes(/cancel-in-progress:\s*(true|\$\{\{)/, onPr),
-    pathFilters: yes(/^\s*paths(-ignore)?:|dorny\/paths-filter|changed-files/m, onPr),
-    affected: yes(/--affected|nx affected|--filter=[^\s]*\.\.\.\[|vitest[^\n]*--changed|bazel-diff|target-determinator|turbo-ignore/),
-    draftSkip: yes(/draft\s*==\s*false|!\s*github\.event\.pull_request\.draft|ready_for_review/, onPr),
-    mergeQueue: yes(/merge_group/),
-    scheduled: yes(/^\s*schedule:/m),
-    // C. Reusing work
-    depCache: yes(/actions\/cache|cache:\s*['"]?(npm|pnpm|yarn|pip|poetry|gradle|maven|bun|sbt)|enable-cache|cache-dependency-path|rust-cache|setup-gradle/),
-    remoteCache: tri(
-      /TURBO_TOKEN|TURBO_REMOTE|NX_CLOUD|nx-cloud|--remote_cache|--remote_executor|buildbuddy|VP_REMOTE|gradle-enterprise|develocity/i.test(all) || /nxCloud/.test(nx ?? ''),
-      workflowsComplete && nx !== undefined,
-    ),
-    compilerCache: yes(/rust-cache|sccache|ccache/),
-    frozenInstall: yes(/--frozen-lockfile|npm ci\b|--immutable|--locked|--frozen\b/),
-    // D. Shards and runners
-    shardsConfigured: yes(/--shard|shardIndex|shard_index|total-shards|split-tests|knapsack|--partition/i),
-    timeouts: yes(/timeout-minutes/),
-    // E. Workspace tooling
-    taskRunner: named(
-      ['turbo.json', 'nx.json', 'MODULE.bazel', 'WORKSPACE', 'moon.yml', '.moon/workspace.yml', 'pants.toml'].find((p) => has(p)) ??
-        (vitePlus ? 'vite-plus' : undefined),
-      treeComplete && pkgKnown,
-    ),
-    packageManager: named(
-      has('pnpm-lock.yaml') ? 'pnpm' : has(/^bun\.lockb?$/) ? 'bun' : has('yarn.lock') ? (has('.yarnrc.yml') ? 'yarn berry' : 'yarn 1') : has('package-lock.json') ? 'npm' : undefined,
-      treeComplete,
-    ),
-    fastLint: tri(has(/^biome\.jsonc?$/) || has(/^(\.?oxlintrc\.json|oxlint\.config\.[cm]?[jt]s)$/) || inPkg(/"(oxlint|@biomejs\/biome|vite-plus)"/), treeComplete && pkgKnown),
-    eslint: tri(inPkg(/"eslint"/) || has(/^(\.eslintrc(\.\w+)?|eslint\.config\.[cm]?[jt]s)$/), treeComplete && pkgKnown),
-    testRunner: named(testRunner, treeComplete && pkgKnown && workflowsComplete),
-    // F. Tests and flakes
-    testResults: yes(/junit|buildpulse|trunk-io|test-results|test-reporter|codecov\/test-results-action/i),
-    // G. Health
-    depBotsBatched: tri(depsBatched, treeComplete && dependabot !== undefined && renovate !== undefined && !sharedPreset),
-    // H. Ready for agents
-    agentsMd: agentsMd.length || treeComplete ? agentsMd : null,
-    agentRules: tri(has(/^\.cursor\/rules\//) || has(/^\.(agents|claude)\/skills\//), treeComplete),
-    preCommit: tri(has('lefthook.yml') || has(/^\.husky\//) || has('.pre-commit-config.yaml'), treeComplete),
-    /** Why any practice above is null. */
-    unknown,
-  };
-};
-
 // ---------- profile: how big, how busy, how fast it moves ----------
 
 export const CODE_EXT = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|rs|py|go|vue|svelte|astro|java|kt|kts|scala|c|h|cc|cpp|hpp|cs|swift|rb|php|ex|exs|zig|dart|lua|css|scss)$/i;
@@ -603,7 +485,7 @@ const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: numb
 
   // Merged PRs in the window the runs were read over: how many a week, and opened (or marked ready) to merged.
   const weeks = (Date.now() - Date.parse(since)) / (7 * DAY);
-  const merged = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr is:merged merged:>=${since}`)}&per_page=100&sort=updated`);
+  const merged = mergedPrs(gh, meta.full_name, since);
   const opened = gh.json(`search/issues?q=${encodeURIComponent(`repo:${meta.full_name} is:pr created:>=${since}`)}&per_page=1`);
   const items: any[] = merged?.items ?? [];
   const isBot = (i: any) => i.user?.type === 'Bot' || /\[bot\]$|^(renovate|dependabot)/.test(i.user?.login ?? '');
@@ -635,12 +517,17 @@ const profileOf = (gh: Gh, repo: string, meta: any, tree: Tree, prRunCount: numb
   };
 
   // The rate as counted, for what's worked out from it: the profile's is rounded for reading.
-  return { profile, mergedPerWeek };
+  return { profile, mergedPerWeek, merged };
 };
+
+/** The window's merged pull requests, newest updated first: one page of search, which the profile and the practices share. */
+const mergedPrs = (gh: Gh, fullName: string, since: string) =>
+  gh.json(`search/issues?q=${encodeURIComponent(`repo:${fullName} is:pr is:merged merged:>=${since}`)}&per_page=100&sort=updated`);
 
 // ---------- score and fixes ----------
 
-export type Practices = ReturnType<typeof practices>;
+export { practices };
+export type { Practices };
 
 // The larger of two classes: by code and by PR traffic.
 export const sizeClass = (headsPerWeek: number, linesOfCode: number) => {
@@ -930,13 +817,18 @@ export const flagCounts = (graphs: {
 
 const shown = <T extends { newest: unknown }>({ newest: _, ...rest }: T) => rest;
 
-/** One repo's report through this Gh: what `scoreRepo` and the CLI return, without the `read` provenance. */
-export const measure = (gh: Gh, repo: string, days: number) => {
+const metaOf = (gh: Gh, repo: string) => {
   const meta = gh.json(`repos/${repo}`, { absentOn: [404] });
   if (!meta)
     throw new CliError(`GitHub has no repo ${repo} that this gh account can see. If it's private, the account needs access to it and the \`repo\` scope (\`gh auth refresh -s repo\`).`);
+  return meta;
+};
+const sinceOf = (days: number) => new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
 
-  const since = new Date(Date.now() - days * DAY).toISOString().slice(0, 10);
+/** One repo's report through this Gh: what `scoreRepo` and the CLI return, without the `read` provenance. */
+export const measure = (gh: Gh, repo: string, days: number) => {
+  const meta = metaOf(gh, repo);
+  const since = sinceOf(days);
   // PR runs and pushes to main are read as separate streams, so a busy repo's bots, schedules and
   // other events don't crowd the PR runs out of the window.
   const prStream = readRuns(gh, repo, since, 'event=pull_request', MAX_RUN_PAGES);
@@ -1030,8 +922,9 @@ export const measure = (gh: Gh, repo: string, days: number) => {
 
   // Remembered, so the graphs reread the stack's manifests from memory.
   const source = remembered(githubSource(gh, repo, meta.default_branch));
-  const pr = practices(source);
-  const { profile, mergedPerWeek } = profileOf(gh, repo, meta, source.tree, prRuns.length, covered, since);
+  const { profile, mergedPerWeek, merged } = profileOf(gh, repo, meta, source.tree, prRuns.length, covered, since);
+  // The bots' merged pull requests come from the profile's search, remembered: no new call.
+  const pr = practices(source, historyOf(merged));
   // Workflow files and the languages answer are remembered from the reads before: no second call.
   const stack = stackOf({
     source,
@@ -1168,6 +1061,30 @@ export const scoreRepo = (repo: string, { days = 7, token, cacheDir }: ScoreOpti
   const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined, token);
   const report = measure(gh, repo, days);
   return { ...report, read: provenanceOf(gh, cacheDir) };
+};
+
+/**
+ * A stored report, the JSON `--json` prints, with its practices, fixes and notes read again from the repo as it is now,
+ * and `practicesDate`, the day they were. Everything else is as stored. It reads only what the practices need: the repo,
+ * its tree and files, and the window's merged pull requests, one search, over `days` back from now.
+ */
+export const rereadPractices = <R extends { repo: string | null }>(report: R, { days = 7, token, cacheDir }: ScoreOptions = {}) => {
+  if (typeof report.repo !== 'string') throw new CliError("A checkout's report has no GitHub repo to read again.", 2);
+
+  const r = report as any;
+  const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined, token);
+  const meta = metaOf(gh, report.repo);
+  const source = remembered(githubSource(gh, report.repo, meta.default_branch));
+  const pr = practices(source, historyOf(mergedPrs(gh, meta.full_name, sinceOf(days))));
+  const outcomes = { wait: r.wait ?? {}, jobs: r.jobs, tests: r.tests, jobGraph: r.jobGraph, graphs: r.graphs };
+
+  return {
+    ...report,
+    practices: pr,
+    fixes: pr.workflows === 0 ? [] : fixesOf(outcomes, pr),
+    notes: notesOf(pr, r.profile?.languages?.[0]?.[0]),
+    practicesDate: new Date().toISOString().slice(0, 10),
+  };
 };
 
 /** No GitHub history to read: what the checkout's own files say, unscored, with the reason. */
