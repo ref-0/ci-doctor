@@ -30,17 +30,11 @@ The rules hold on any provider. Where a rule turns on how runners are sized or b
 
 Before changing CI, read [the checks for a workflow change](references/change-checks.md): which check applies before you design it, while you build it, when a run is slow and before it merges. Measure first, check real output and budget at list price.
 
-Each job a pull request can run has a runner and a budget, where the repo keeps them, as ci.md's Runners, budgets and records says. A change that adds a job, or moves one's time or runner, updates them, and its pull request states its modelled effect on a full and a small run's time and its cost a month, which numbers are observed, and which normal run will observe the rest.
-
-A pull request that changes a workflow runs its own version, so its run is the test. A run by hand runs the workflow from the branch it's started on, `--ref`.
+Before you test a workflow change by its own run, or when a change adds a job or moves one, read [a job's runner and budget](references/change-checks.md#a-jobs-runner-and-budget).
 
 ## Measuring a run
 
-[`scripts/ci-time.ts`](scripts/ci-time.ts) is a spot check of the newest runs' latest attempts, from GitHub's jobs API: started minutes and vCPU-minutes by job and by event, each run's checks span and time to the gate, the job that ended last, and the slowest file lines in the newest large run's shard logs. Its help says exactly what each number is and leaves out. The job that ended last isn't proof of the limiter, and its file times may come from a replay. It isn't a baseline or a spend audit: those page a closed window and read every attempt, as [CI history data](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/ci-history-data.md) says.
-
-It estimates vCPU-minutes from runner labels, as the `runners` setting maps them, and money only when `prices` prices every label. With `--bill blacksmith`, on Blacksmith only, it takes billed minutes from [Blacksmith's adapter](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/scripts/blacksmith-bill.ts), found beside this skill or passed with `--adapter-dir`. Pass `--repo`, `--workflow` and a `--shard` for each sharded job, as ci.md names them, or set them in the repo's `.agents/repo/ci-time.json` ([template](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/agent-knowledge/templates/repo-facts/ci-time.json)). Its tests run with this skill installed alone: `node --test ci-time.test.ts`, from `scripts/`.
-
-Where CI's records are and how to read them is `speed-up-tests`' [measuring](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/references/measuring.md). Judging what a number means is the [`prove-it`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/prove-it/SKILL.md) skill.
+When you measure a run with `ci-time.ts`, or run this skill's scripts, read [the tools](references/tools.md).
 
 ## Where each value lives
 
@@ -50,24 +44,14 @@ Read a value from its file; don't copy it here or into a plan. ci.md's Runners, 
 
 Each of these is a choice a change could undo. Keep it, or measure first.
 
-- A slow run or a long test file: read [slow runs](references/performance.md). How many shards, how they split by measured time, and a runner's size: [`ci-runners`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-runners/references/shards.md), which owns the shard scripts.
-- What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.
-- Moving a test off pull requests, choosing how often the sweep runs, or adding a scheduled run: read [the tiers](references/tiers.md). [`sweep-cadence.ts`](scripts/sweep-cadence.ts) prices sweep schedules, each a cron, from the repo's merges and a sweep's cost; the user chooses. To make a slow test faster, use [`speed-up-tests`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/speed-up-tests/SKILL.md).
-- Cache keys, scopes, setup caches or image reuse: the [`cache-ci`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/cache-ci/SKILL.md) skill. If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).
+- A slow run or a long test file: read [slow runs](references/performance.md).
+- Moving a test off pull requests, choosing how often the sweep runs, or adding a scheduled run: read [the tiers](references/tiers.md).
+- If your stack uses Rust, its pass and binary keys and build caches are in [Rust](references/rust.md).
 - Draft, push, sweep, pack and proof behaviour: read the headers and job dependencies of the workflows ci.md names.
 
 ## Tests against real containers
 
-Tests that run the repo's code against real containers are the slowest, and their imports may not say what they check. Where the repo has them, ci.md's Real-container files table says which file checks which boundary, the hidden inputs (bundles, disks, images) that select it, and the command to run it by hand: read it when a sweep fails one, or to choose which to run by hand before a risky change merges. Update it when you add such a file or move what one covers.
-
-## The tools
-
-`ci-time.ts`, `sweep-cadence.ts` and their tests are in this skill's `scripts/`, and run on Node 24 with nothing installed, logged in to `gh`: `node <skills-dir>/ci-workflows/scripts/ci-time.ts --help`. With `--bill blacksmith`, it looks for `blacksmith-bill.ts` among the installed skills; a skills-only install of this folder doesn't carry it, so clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and point `--adapter-dir` at the adapter's folder:
-
-```sh
-git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
-node <skills-dir>/ci-workflows/scripts/ci-time.ts --bill blacksmith --adapter-dir <ci-doctor>/skills/blacksmith/scripts
-```
+When a sweep fails a test against real containers, or you add or move one, read [tests against real containers](references/tiers.md#tests-against-real-containers).
 
 ## Not here
 

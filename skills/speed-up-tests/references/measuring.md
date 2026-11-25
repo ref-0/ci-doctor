@@ -11,6 +11,14 @@ Part of the [`speed-up-tests`](../SKILL.md) skill. Read it before you rank files
 
 The records themselves: per-file times written by the test reporter into the job's log ([`scripts/records/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/records/README.md)), collected nightly and ranked; each job's start and end in the CI provider's jobs API ([`ci-time.ts`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/scripts/ci-time.ts)); and, if you run on Blacksmith, its job records and CPU stats ([CLI](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/cli.md)). The repo's own collector and paths are in `.agents/repo/speed-up-tests.md`.
 
+## Finding the slow files
+
+Collect CI's records of each test file's time, then rank them, with the commands in the repo's `speed-up-tests.md`. A file is slow past the triage cutoff its Thresholds name (10 s in CI in the source repo). Many files just past it can hold more test time than the few far past it, so review every file past it, not the top of the list.
+
+Rank by the median of each file's newest passing runs, over the window its Thresholds name (the newest five in the source repo), the widest spreads, each test that failed or passed only on a retry, and total test-seconds, as [reading CI's records](#reading-cis-records) says: count only what ran, say what the sample is, and split a failure by commit before calling it a flake. `ci-time.ts` ([`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/tools.md#measuring-a-run)) prints where a run's time went by job and shard. For API history, read [CI history data](ci-history-data.md).
+
+Start from the issues CI files for flakes and failures on `main`, and what other threads already own: `gh pr list --search "<file name>"`.
+
 ## Reading CI's records
 
 - **Time only passing, complete file runs.** Keep failed and cut-short runs for failure analysis, but leave them out of a file's median. Carry each observation's commit, run attempt and time.
@@ -37,3 +45,12 @@ The records themselves: per-file times written by the test reporter into the job
 - **A cache's replay rate isn't a saving.** Compare full runs with full runs, keep cold, partly reused and warm cohorts apart, and count the task runner's and test runner's start-up and the idle tail at each shard's end. Set the rollback criterion before adopting it.
 - **Three numbers:** test-seconds summed over files, a run's wall time, which the slowest shard sets, and billed minutes, which round up each job's minutes times its vCPUs. A cache that saved seconds a job can barely move wall time, and a shared database that saved many lane-seconds can save almost no billed minutes.
 - **A narrowed margin passes repeated runs with no retry,** and a mutation still fails it.
+
+## The tools
+
+The records collector is [`scripts/records/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/records/README.md) in the ci-doctor repo, and `ci-time.ts` is in the `ci-workflows` skill, at `<skills-dir>/ci-workflows/scripts/ci-time.ts` in a plugin install. Both run on Node 24 with nothing installed. A skills-only install of this skill's folder carries neither: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run them from there:
+
+```sh
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
+```

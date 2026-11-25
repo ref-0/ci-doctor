@@ -19,7 +19,7 @@
  *    working tree, with its anchor, so links to a tag not yet pushed check before the release: a
  *    relative link out of the folder fails, since it dangles in the copy, and so does a link to
  *    GitHub at any other tag. The hub alone may also link out relatively, to a file the
- *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
+ *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" points to.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
  *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md` and
@@ -27,7 +27,8 @@
  *    (now `ci-runners`' own; `scripts/shards/` stays only as the copy's path in a user's repo),
  *    `<root>`, `install.ts`, or `PROMPT.md`, `docs/prompts/`, `checks/` and
  *    `templates/agent-knowledge/` as paths.
- * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`.
+ * 7. **Docs budget:** `scripts/docs/docs-budget.ts`'s budgets, with the skills at `skills/`. Its warnings, a
+ *    `SKILL.md` past 5 KB, print under it and pass.
  * 8. **Site:** the guide for ci-doctor.ref0.dev, built into a temporary folder (`scripts/site/build.ts`). Every
  *    relative link in a served Markdown file must land on a served file or folder, and `llms.txt` must
  *    name every guide page, skill and reference README, and only what's served.
@@ -57,7 +58,7 @@ import { stale } from './skills/excerpts.ts';
 export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 'README.md', 'CHANGELOG.md'];
 
 /** Test files the build runs besides every one under `skills/`. */
-export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci-time.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/graph/test/graph.test.ts'];
+export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci-time.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/docs/docs-budget.test.ts', 'scripts/graph/test/graph.test.ts'];
 
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
 export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
@@ -90,7 +91,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
 /** Files that may still name PROMPT.md as a path: the pointer itself, and the README's clone prompt. */
 const PROMPT_OK = new Set(['PROMPT.md', 'README.md']);
 
-type Result = { readonly name: string; readonly problems: ReadonlyArray<string>; readonly summary: string };
+type Result = { readonly name: string; readonly problems: ReadonlyArray<string>; readonly summary: string; readonly warnings?: ReadonlyArray<string> };
 
 const tracked = (root: string) =>
   spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
@@ -353,7 +354,7 @@ export const checks = (root: string): Result[] => {
     { name: 'links, skills only', problems: skillsOnly(root), summary: 'resolve in the copy, or leave it only for the fallback' },
     { name: 'links, each skill alone', problems: alone.flatMap((s) => s.problems), summary: alone.map((s) => `${s.name} ok`).join(', ') },
     { name: 'old names', problems: oldNames(root), summary: 'none' },
-    { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget` },
+    { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget`, warnings: budget.warnings },
     { name: 'site', problems: built.problems, summary: `${built.files} files; every link lands on one, and llms.txt names every page` },
     { name: 'descriptions', problems: descriptions(root), summary: 'each in the shape skills/README.md gives' },
     { name: 'tests', problems: run.problems, summary: `${run.ran} files, ${run.passed} tests passed, none skipped` },
@@ -362,9 +363,10 @@ export const checks = (root: string): Result[] => {
 
 if (argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(argv[1])) {
   const results = checks(cwd());
-  for (const { name, problems, summary } of results) {
+  for (const { name, problems, summary, warnings = [] } of results) {
     if (problems.length === 0) console.log(`ok   ${name}: ${summary}`);
     else console.log(`FAIL ${name}:\n${problems.map((p) => `  ${p}`).join('\n')}`);
+    for (const warning of warnings) console.log(`  warning: ${warning}`);
   }
   const failed = results.filter((r) => r.problems.length > 0).length;
   console.log(failed === 0 ? 'every check passed' : `${failed} of ${results.length} checks failed`);
