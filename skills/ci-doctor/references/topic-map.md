@@ -23,3 +23,11 @@ Day-to-day work outside the plan. Open the linked entry before you act.
 | A measurement, a before/after, a cost or a claim about CI: whether the evidence holds | The [`prove-it`](../../prove-it/SKILL.md) skill |
 | How far an edit reaches, and which checks a change selects: the package graph, entry points and `exports`, layers inside a package, the task graph and the CI job graph | The [`optimize-graphs`](../../optimize-graphs/SKILL.md) skill |
 | Where agents' instructions, skills and a repo's facts live, and keeping them true | The [`agent-knowledge`](../../agent-knowledge/SKILL.md) skill |
+
+## Not here
+
+The topic map's skills, and these, each its own skill:
+
+- The review gate before a PR's CI run: [`review-gate`](../../review-gate/SKILL.md), if the repo adopted it; otherwise the repo's own review process.
+- Readying, running by hand, merging and releasing a PR: [`ci-merge-workflow`](../../ci-merge-workflow/SKILL.md), if adopted.
+- Whether a test is worth keeping: [`test-audit`](../../test-audit/SKILL.md). Model checks and property tests: [`proof-tiers`](../../proof-tiers/SKILL.md).

@@ -9,21 +9,9 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`agent-knowledge`](../SKILL.md) skill. Knowledge goes stale in three ways: the code moves under it, a second copy says it differently, or it grows until nobody reads it. Each section below holds off one of them. Read it when a run learned something, when a `SKILL.md` nears its budget, or when you propose the sweep, the budget or the upstream check.
 
-## The rules
-
-- **Date every lesson, with its PR or issue,** so a later agent can check the code it describes still exists. Dates go on the lesson, not as "Changed on…" history lines in the file: history belongs in git.
-- **One register of what was tried.** Every measured-and-dropped idea gets a row in the same change that drops it. A later run proposes one again only with new numbers.
-- **Generalize, don't append.** A new lesson replaces the rule it refines. A rule any repo could use goes into the shared skill, with repo paths removed; a repo fact into its facts file; wrong advice is fixed or deleted; a rule a lint, check or script now enforces is removed; a run that learned nothing general changes nothing.
-- **Memories graduate or die.** An agent memory that a skill now covers is deleted.
-- **Sweep for drift** every two weeks, read-only, then fix in one change. [The drift sweep](#the-drift-sweep) has the slices and the finding format.
-- **Hold a size budget in CI:** descriptions at most 320 characters, your own `SKILL.md` at most 6 KB with a warning past 5 KB, the root `AGENTS.md` at most 12 KB. [The budget](#the-budget) says how to run the checker, and [thinning a skill](#thinning-a-skill) what to do when one nears its line.
-- **Pin what comes from upstream,** and diff it on a schedule instead of overwriting local edits, as [upstream skills](#upstream-skills) says.
-
-Propose the sweep, the budget and any schedule as their own steps: each is a change to the user's repo or CI and needs its own yes.
-
 ## Lessons
 
-- **Date each one, and name its PR or issue,** so a later agent can check whether the code it describes still exists.
+- **Date every lesson, with its PR or issue,** so a later agent can check the code it describes still exists. Dates go on the lesson, not as "Changed on…" history lines in the file: history belongs in git.
 - **Write lessons back at the end of a run.** Ask each engineer, or yourself, for what was learned, then sort it:
   - a rule any repo could use goes into the shared skill, with its example kept and repo paths removed;
   - a repo fact goes into the repo's facts file;
@@ -31,6 +19,11 @@ Propose the sweep, the budget and any schedule as their own steps: each is a cha
   - a rule a lint, check or script now enforces is removed;
   - a run that learned nothing general changes nothing.
 - **A new lesson replaces the rule it refines.** Search for a near-match first and generalize it, rather than add a second rule beside it.
+
+## The register and memories
+
+- **One register of what was tried.** Every measured-and-dropped idea gets a row in the same change that drops it. A later run proposes one again only with new numbers.
+- **Memories graduate or die.** An agent memory that a skill now covers is deleted.
 
 ## The drift sweep
 
@@ -53,13 +46,11 @@ Both messages, the warning and the failure, name the `SKILL.md`'s largest `##` s
 
 ### Running the checkers
 
-To run the docs budget or the link checker from a skills-only install, clone ci-doctor once, outside the user's repo, at that release:
+To run the docs budget or the link checker from a skills-only install, clone ci-doctor once, outside the user's repo, at the release tagged `v<version>`, where the version is the skill's `metadata.version`:
 
 ```sh
 git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
 ```
-
-Once a release carries this skill, use the tag `v<version>` instead, where the version is the skill's `metadata.version`.
 
 ## Thinning a skill
 
@@ -88,7 +79,7 @@ What stays: the order of the steps, each step's rules that always apply, and the
 3. Leave one pointer line in `SKILL.md` that names the condition: `When <condition>, read [<topic>](references/<file>.md).`
 4. A new reference starts with `# <Title>`, then a line saying which skill it's part of and when to read it. Point to every reference from `SKILL.md`: a reference nobody points to is never read.
 5. For a rule repeated from another skill, read the owner first. Replace the copy with a link only when the owner says the same. When the owner says less, keep the text, and tell whoever owns that skill. Where a skill must work installed alone, link the owner by a full URL, not a relative path.
-6. For a story behind a rule, keep the rule in `SKILL.md` and move the story beside its step's reference or to `references/examples.md`.
+6. For a story behind a rule, keep the rule in `SKILL.md` and move the story beside its step's reference or to `references/examples.md`, with its date and PR.
 
 ### Check the move
 

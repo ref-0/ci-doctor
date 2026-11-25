@@ -45,6 +45,6 @@ In the source repo (amounts are relative to the same repo's earlier runs):
 
 ## Pointed at from
 
-- [`ci-workflows`](../../../ci-workflows/SKILL.md#measuring-a-run), measuring and slow runs.
+- [`ci-workflows`](../../../ci-workflows/references/tools.md#measuring-a-run), measuring and slow runs.
 - [`speed-up-tests`](../../../speed-up-tests/references/measuring.md).
 - [Budget CI at list price](budget-ci-at-list-price.md).

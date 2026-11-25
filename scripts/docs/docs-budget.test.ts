@@ -40,8 +40,15 @@ describe('sections', () => {
       sections(text).map(({ heading }) => heading),
       ['Large', 'Small'],
     );
-    assert.equal(sections(text)[0]?.size, Buffer.byteLength('## Large\n\n### Sub\n\n```md\n## Not a heading\n```\n\nbbbbbbbb\n\n'));
+    assert.equal(sections(text)[0]?.size, Buffer.byteLength('## Large\n\n### Sub\n\n```md\n## Not a heading\n```\n\nbbbbbbbb\n'));
+    assert.equal(sections(text)[1]?.size, Buffer.byteLength('## Small\n\na\n\n'));
     assert.deepEqual(sections('No sections.\n'), []);
+  });
+
+  it('closes a fence only with a bare run of its own marker, at least as long', () => {
+    const text = '## Real\n\n````md\n```sh\n## Inside four\n```\n````\n\n~~~\n## Inside tildes\n```\n~~~\n\n```\n```sh\n## Inside, after an info-string line\n```\n\n## Also real\r\n';
+
+    assert.deepEqual(sections(text).map(({ heading }) => heading).sort(), ['Also real', 'Real']);
   });
 });
 
@@ -151,6 +158,16 @@ describe('warnings', () => {
 
     assert.equal(warnings(docs, new Set(), { ...layout, skillPath: /^skills\/([^/]+)\/SKILL\.md$/ }, { ...budgets, skillWarning: 3_000 }).length, 1);
     assert.deepEqual(warnings(docs, new Set()), []);
+  });
+
+  it('warns at the budget alone when a copied CONFIG has no warning line', () => {
+    const { skillWarning: _none, ...old } = budgets;
+    const docs = [
+      { path: '.agents/skills/pip/SKILL.md', text: skill('Short.', 100) },
+      { path: '.agents/skills/mo/SKILL.md', text: skill('Short.', budgets.skill) },
+    ];
+
+    assert.deepEqual(warnings(docs, new Set(), layout, old as typeof budgets), []);
   });
 });
 

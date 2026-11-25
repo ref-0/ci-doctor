@@ -33,3 +33,6 @@ A step marked `continue-on-error`, such as one that files flakes or posts a repo
 - **Test the workflow's shape:** a test over the workflow file that each step's scripts exist after the last checkout before it, and that no sparse checkout shares the workspace.
 - **Read the step's `outcome`,** not its `conclusion`, in a step after it, and post a warning to the run's summary when the checkout, setup or the step itself failed. The run stays green.
 
+## What selects a change's checks
+
+- What selects a change's checks, lockfile routing or test selection: the [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/SKILL.md) skill's [selection](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/references/selection.md), since a selector is only as narrow as the graph it walks. Verify the selected jobs against real output.

@@ -112,14 +112,19 @@ const kb = (size: number) => `${(size / 1000).toFixed(1)} KB`;
 export const sections = (text: string) => {
   const found: Array<{ heading: string; size: number }> = [];
   let fence: string | undefined;
+  const lines = text.split('\n');
+  if (lines.at(-1) === '') lines.pop();
 
-  for (const line of text.split('\n')) {
-    const marker = /^(```|~~~)/.exec(line)?.[1];
-    if (marker !== undefined) fence = fence === undefined ? marker : fence === marker ? undefined : fence;
+  for (const [index, line] of lines.entries()) {
+    // A fence opens with three or more backticks or tildes, and only a run of the same marker, at
+    // least as long and with nothing after it, closes it.
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence === undefined && marker !== undefined) fence = marker;
+    else if (fence !== undefined && marker !== undefined && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = undefined;
+    else if (fence === undefined && line.startsWith('## ')) found.push({ heading: line.slice(3).trimEnd(), size: 0 });
 
-    if (fence === undefined && line.startsWith('## ')) found.push({ heading: line.slice(3), size: 0 });
     const last = found.at(-1);
-    if (last !== undefined) last.size += bytes(line) + 1;
+    if (last !== undefined) last.size += bytes(line) + (index < lines.length - 1 || text.endsWith('\n') ? 1 : 0);
   }
 
   return found.toSorted((a, b) => b.size - a.size);
@@ -149,7 +154,7 @@ export const referenceName = (heading: string) => {
  */
 const move = (path: string, text: string) => {
   const [first] = sections(text);
-  const references = `${path.slice(0, -'SKILL.md'.length)}references/`;
+  const references = `${path.replace(/[^/]+$/, '')}references/`;
   const named = first === undefined ? '' : ` (for "${first.heading}", ${referenceName(first.heading)})`;
 
   return [
@@ -225,10 +230,12 @@ export const warnings = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>
     const skill = shape.skillPath.exec(path)?.[1];
     if (skill === undefined || !own(skill, upstream, shape)) return [];
 
+    // A CONFIG block copied before the warning line existed has no skillWarning: warn at the budget.
+    const line = limits.skillWarning ?? limits.skill;
     const size = bytes(text);
-    if (size <= limits.skillWarning || size > limits.skill) return [];
+    if (size <= line || size > limits.skill) return [];
 
-    return [`${path}: ${kb(size)}, past the ${kb(limits.skillWarning)} warning line. ${move(path, text)}`];
+    return [`${path}: ${kb(size)}, past the ${kb(line)} warning line. ${move(path, text)}`];
   });
 
 /** The skills the skills CLI installed, by folder name, from the lock at `root`: none without one. */
