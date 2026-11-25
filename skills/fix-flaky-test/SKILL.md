@@ -65,10 +65,4 @@ A pull request that closes the issue by hand still has to hold: the next occurre
 
 ## Not here
 
-- A test that's slow, not wrong: `speed-up-tests`.
-- Reading a PR's CI result, and whether the run counts: the `ci-doctor` hub's [triage](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/triage/TOPIC.md).
-- Whether a test is worth keeping: `test-audit`. Model checks and property tests: `proof-tiers`.
-
-## Outside this skill
-
-Every link that leaves this folder is a full link, so it reads the same with this skill installed alone: the guide at [ci-doctor.ref0.dev/guide/](https://ci-doctor.ref0.dev/guide/), and the hub, the other skills and the tools in [the ci-doctor repo](https://github.com/ref-0/ci-doctor) at the tag `v<version>`, the release this skill names in `metadata.version`.
+When the test is slow rather than wrong, the question is a PR's CI result, a test's worth or a model check, or you follow a link out of this folder, read [not here](references/not-here.md).
