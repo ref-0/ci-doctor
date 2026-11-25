@@ -9,6 +9,8 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`speed-up-tests`](../SKILL.md) skill. Which start fits depends on what the repo has and what was asked.
 
+The method behind this skill is [guide section 10](https://ci-doctor.ref0.dev/guide/docs/pages/10-slow-tests-the-method.md), and the harness around the tests [section 8](https://ci-doctor.ref0.dev/guide/docs/pages/08-a-faster-test-harness.md).
+
 ## With the repo's facts file
 
 `.agents/repo/speed-up-tests.md` names, for this repo:

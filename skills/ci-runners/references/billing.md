@@ -10,6 +10,11 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`ci-runners`](../SKILL.md) skill. Read when costing a run or a change, or changing runner sizes or job packing. [guide section 7](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md) and [section 12](https://ci-doctor.ref0.dev/guide/docs/pages/12-budgets-health-and-spend.md) say how this shaped the design. If you run on Blacksmith, its own billing (per vCPU-minute, sticky disks, the free allowance) is in [`blacksmith`'s billing](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/blacksmith/references/billing.md).
 
+## Pricing a job and a change
+
+- **A job pays for the time it holds a runner,** busy or waiting, in the unit and rounding its provider bills. Find both, per label, before packing or pricing ([billing](#packing-against-minute-rounding)).
+- **Cost a change as a monthly projection,** from its measured frequency at each label's list price, and say what it changes in median and p90 wall time. Quote a money total only when every label it covers has a price.
+
 ## Packing against minute rounding
 
 - **Find your provider's unit and rounding first,** for each label, and record them with the label's list price in ci.md. GitHub-hosted runners price each runner type per minute ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)); Blacksmith prices per vCPU-minute; a self-hosted runner costs its machines whatever runs. Where a pricing page doesn't say how a job's time rounds, read it from billed job records: compare each job's billed minutes with its runtime.
@@ -29,6 +34,15 @@ An external watcher that disables workflows is a separate item the user approves
 ## The cost of getting fast
 
 Making a slow CI fast costs money and weeks before it pays off: broad runs while selection is narrowed, measurement runs, bisects and experiments. In the source repo, one audit week spent about two thirds more than the week before, before spend fell. So put the cap and alerts in place first, with headroom for the work; read history before buying runs; model a change before dispatching it, with stop rules; and approve experiment spend like any other spend. [guide section 2](https://ci-doctor.ref0.dev/guide/docs/pages/02-runners-blacksmith-and-the-cost-of-getting-fast.md#getting-fast-costs-money-and-time-first) has the list.
+
+## A spot check of recent runs
+
+`ci-time.ts`, in the [`ci-workflows`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-workflows/references/tools.md#measuring-a-run) skill, is a spot check of recent runs: minutes and vCPU-minutes by job and event, from runner labels, or from Blacksmith's bill with `--bill blacksmith`. A spend audit reads a complete window instead, as [billing](#auditing-spend) says. In a plugin install it's at `<skills-dir>/ci-workflows/scripts/ci-time.ts`. It runs on Node 24 with `gh` and nothing installed. A skills-only install of this skill's folder doesn't carry it: clone ci-doctor once, outside the user's repo, at the release this skill names in `metadata.version`, and run it from there:
+
+```sh
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+node <ci-doctor>/skills/ci-workflows/scripts/ci-time.ts --help
+```
 
 ## Auditing spend
 

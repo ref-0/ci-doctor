@@ -43,3 +43,12 @@ One place lists every measured-and-dropped idea: when it was tried, its numbers,
 ## Memories
 
 An agent's own memory holds what no doc covers yet. When a skill or facts file comes to cover it, the memory goes. A memory that keeps being needed is a lesson to write down.
+
+## The repo's facts
+
+Copy each template the adopted skills read into `.agents/repo/`, fill its placeholders, and delete the source repo's commented examples once yours are in. [The templates](../templates/README.md) lists each, where it goes and what reads it. Then check every link and anchor in them resolves, as the templates' README says.
+
+## Not here
+
+- What CI's skills, the slow-test topic and the evidence check should hold, for the ci-doctor plan: the `ci-doctor` hub's Phase 6, which uses this skill for the layout.
+- The register's CI template, with its columns and example rows: the hub's check [read what was tried](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/checks/ci-read-what-was-tried.md).

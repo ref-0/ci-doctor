@@ -9,6 +9,14 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`optimize-graphs`](../SKILL.md) skill. Each fix is a change to the user's code: its own step, its own yes, one package per change, measured before and after as [measure](measure.md#verify-a-change) says. [Guide section 21](https://ci-doctor.ref0.dev/guide/docs/pages/21-optimize-all-of-your-graphs.md) has what each cost and saved in the source repo.
 
+## The order to propose them
+
+1. **No check on the package graph:** declare the current graph as it is, and hold it in CI. It narrows nothing by itself; it stops the graph widening unseen.
+2. **One module's edit selects most of a package's importers:** split the root barrel into entry points, one package per change, with the selection measured before and after. Name the modules you'll measure.
+3. **Cycles inside a large package make near selection climb to most of it:** declare layers with today's imports as exceptions, then move code down change by change.
+4. **Cache keys a one-line edit moves, or a long `dependsOn` chain:** narrow task inputs, as guide section 6 [keys by real inputs](https://ci-doctor.ref0.dev/guide/docs/pages/06-reuse-work-by-its-real-inputs.md#checking-a-cache-on-another-task-runner).
+5. **Blocked time on the critical path:** reshape the job graph, as guide section 7 [shortens the critical path](https://ci-doctor.ref0.dev/guide/docs/pages/07-shards-runners-and-billing.md#shorten-the-critical-path-before-buying-cores).
+
 ## 1. Declare and hold the package graph
 
 **When:** nothing but review stops a new import across packages.

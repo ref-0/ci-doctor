@@ -22,28 +22,24 @@ Read `.agents/repo/ci.md` first (template: [`repo-facts/ci.md`](https://github.c
 
 ## 1. Open it as a draft
 
-Push the branch and open the PR as a draft:
+When you open the PR, read [opening the draft](references/branches.md#open-the-draft); when it needs another's code, [a stacked PR](references/branches.md#a-stacked-pr).
 
-```sh
-gh pr create --repo <org>/<repo> --draft --title "<area>: <what changes>" --body-file <body-file>
-```
-
-Where the repo skips CI on drafts, a draft runs none, or only a gate that shows skipped. It stays a draft through every review round, and is marked ready once, so CI runs once. A PR that needs another's code is stacked on it: start its branch from the parent's tip and pass `--base <parent-branch>`. Its target is then the parent, not `main`, until the parent merges.
+It stays a draft through every review round, and is marked ready once, so CI runs once.
 
 Run the tests your change touches locally, by file, while you work. Leave the full suite to the PR's one run.
 
 ## 2. Review it while it's a draft
 
-Where the repo adopted [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/review-gate/SKILL.md), follow it and the repo's `.agents/repo/review.md`: what gets reviewers and what gets behaviour checks and a `No review:` line, at most three rounds, and the session's comment in the record's format, checked with its `review-record.ts`, before marking ready.
+Where the repo adopted [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/review-gate/SKILL.md), read [the review](references/review.md) before marking ready.
 
 ## 3. Read the PR's CI result
 
-1. Find the PR's target, `<base>`: `gh pr view <pr> --repo <org>/<repo> --json baseRefName`. Update the branch from `origin/<base>`, merged rather than rebased where the repo allows it, so the reviewed commits stay, and push. After each update, `git diff --stat origin/<base>...HEAD` must list only the files the PR meant to change: a bad conflict resolution can revert another's work. Where ci.md says CI runs ready PRs only against `main`, a stacked PR stays a draft until its parent merges; then retarget it to `main`, update it, check that diff, and only then mark it ready. Check again anything CI checks against the base as it was when the run started, such as migration ids, as ci.md lists them. Every dependency from another of your repos is at a released version, as [releases](references/releases.md) says.
+1. Update the branch from its base as [the update before ready](references/branches.md#update-the-branch-before-ready) says, and push.
 2. Mark it ready with `gh pr ready <pr> --repo <org>/<repo>`. That starts its one run, on the PR merged into its base. Each push while ready starts another and cancels the last. Whether an old run still counts, and what to do when it doesn't, is [the decision table](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/triage/ci-result.md#does-this-run-count).
 
 Read its result as the hub's [triage](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/triage/TOPIC.md) says: which job failed and on what line, whether the run counts, and the exceptions, such as a missing review record, a failure outside the PR's files, a cancelled run or a moving base.
 
-When two open PRs change one shared test helper, the second to merge updates its branch and reruns its type check.
+When a property test fails, read [property tests in CI](references/property-tests.md).
 
 ## 4. Run CI by hand
 
@@ -51,23 +47,13 @@ Only to answer what a local run can't, such as a failure CI shows and your machi
 
 ## 5. Post Verification and merge
 
-Post one comment that starts with `Verification:`, naming the run, the PR's head, the `main` it merged, each job's result with test and file totals, and what didn't run and why. The format is in the hub's [CI result](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-doctor/references/triage/ci-result.md#the-verification-comment).
+Merge only when the gate **passed**, not skipped, in a run on the current head after it was marked ready.
 
-Merge only when the gate **passed**, not skipped, in a run on the current head after it was marked ready. `gh pr checks` can exit 0 when every check was skipped, and GitHub's required-check setting can accept a skipped job, so read the state yourself. `gh pr view <pr> --repo <org>/<repo> --json mergeable` must answer `MERGEABLE`; `UNKNOWN` means ask again a minute later.
-
-```sh
-gh pr merge <pr> --repo <org>/<repo> <merge-method> --match-head-commit <full-head-sha>
-```
-
-Use the merge method ci.md names (`--merge`, `--squash` or `--rebase`) and the repo's approvals. Where the repo has a merge queue, merge through it: the queue's run tests its own SHA, and that run's gate is the one that counts. The source repo merged with `--merge` and never auto-merged. In a stack, merge from the bottom up and retarget each next PR to `main` first.
+Before you merge, read [merging](references/merge.md): the `Verification:` comment, the gate's state and `mergeable`, the command, the method, a merge queue and a stack.
 
 ## 6. Check main and the deploy
 
 After merging, read [after a merge](references/after-merge.md): the sweep, your merge's own run and the deploy. Near a release PR or workflow, read [releases](references/releases.md) first.
-
-## Property tests in CI
-
-A PR runs property tests from one fixed seed; `main`'s sweep runs them deeper from a new seed. Replay a failure's exact inputs and environment to tell a counterexample in the code from a nondeterministic harness. [`proof-tiers`' properties](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/proof-tiers/references/properties.md#how-ci-runs-them), if the repo adopted it, owns seeds and replay; [`fix-flaky-test`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/fix-flaky-test/SKILL.md) owns intermittent failures.
 
 ## Related
 

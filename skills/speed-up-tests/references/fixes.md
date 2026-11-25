@@ -9,6 +9,8 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 Part of the [`speed-up-tests`](../SKILL.md) skill. Read it once you've named what a slow file waits for. Each kind gives the fix that worked and the rule that kept the test's proof. The examples are from campaigns on a server tested in a local copy of its runtime; durations in them are illustrative. If your stack runs on Cloudflare Workers, [Workers](workers.md) has what's specific to it. Your repo's `.agents/repo/speed-up-tests.md` names its own settings and holds.
 
+The kinds and their fixes give the fix that worked for each: a production period or retry the test inherits; a sleep that arranges a race; a poll; a pace or floor in production code; a rate limit; a slow fake; a wall-clock window; a fake clock; a long file; an expensive prerequisite; a fixture builder's own CPU; deep setup built one step at a time; a proof that waits for a terminal to go still; and real work, which stays or moves to a later tier.
+
 ## A production period or retry the test inherits
 
 The code waits a period it needs in production: a retry's base, a container's stop bound, a poll, a token's propagation, a receive deadline.
@@ -63,6 +65,7 @@ The code delays work on purpose: a fixed sleep beside each read, so a walk stays
 
 ## A deadline the test proves
 
+- **Keep both sides of a deadline:** nothing cut before it, and a cut within a bound after it.
 - Shrink a synthetic deadline only after measuring the work it bounds, leaving a wide margin over it.
 - Keep production's own margins, with room for admission.
 - Scale leases and injected delays together, but keep the scheduler's slack absolute.
@@ -139,6 +142,8 @@ With the same sessions, checks and end state, the proof step shrank by about a t
 ## Real work
 
 Many checks with full outputs, a large graph, a tree of tens of thousands of files: smaller would no longer prove the bound. Leave these, or move them to a later tier with the paths they cover ([guide section 5](https://ci-doctor.ref0.dev/guide/docs/pages/05-tiers-what-runs-where.md)), keeping them honest as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/proof-tiers/SKILL.md) says.
+
+- **Moving a proof to a slower tier must keep it honest:** its breaks still run, as [`proof-tiers`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/proof-tiers/SKILL.md) says for models and property tests.
 
 ## What not to build
 
