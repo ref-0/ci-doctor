@@ -8,7 +8,41 @@ Each release is a git tag, `vMAJOR.MINOR.PATCH`. To update, fetch the tags, read
 
 Under 1.0, a minor release carries what would be a major one.
 
-## Unreleased
+## v0.4.0
+
+Released 24 November 2026. The scorer gives no score on thin evidence and says how sure a score is, weighs minutes by the runner's vCPUs and setup in minutes a job, counts the graphs' findings, fits the wait to the main language, and `--submit` adds a public repo's report to ci-doctor-db. Pull requests go to `main`.
+
+### Do first
+
+1. **Take a new baseline for your score.** The score's measures changed, so a score from 0.4.0 doesn't compare with one from 0.3.0, and a repo whose pull requests wait on another CI may now be unscored, with the reason. If you track the score over time, start again from a 0.4.0 run.
+2. **`scoreOf`'s inputs:** if you call it yourself, pass `vcpuMinutesPerMergedPr` and `setupMinPerJob` in place of `minutesPerMergedPr` and `setupShare`, and `pathFlags` and `graphFlags` from `flagCounts` (below, under the scorer).
+3. **The `next` branch is gone.** If a clone, pin or pull request of yours names `next`, point it at `main`, or at a tag.
+4. **Your skill copies:** every skill names 0.4.0 in its `metadata.version` and links this repo at `v0.4.0`. If you keep copies of the skills, copy them again.
+
+### The scorer, `@ref0/ci-doctor`
+
+- **`--submit`.** `npx @ref0/ci-doctor --repo pip/garden --submit` scores the repo, prints the report, then adds it to [ci-doctor-db](https://github.com/ref-0/ci-doctor-db) as a pull request from your fork, through `gh api` with your own sign-in. It says what it sends and where first, refuses a private repo, a checkout with no GitHub history and an unscored report, and prints the link of a pull request of yours that already adds the file. The file is the `--json` report with `submitted: { by, at }`, filed under the repo's name as GitHub spells it. `smokeCheck`, exported, is what it and ci-doctor-db's check both run on the file: its fields and types; strings with no control or bidi characters, code fences or `</ci-report`, and none too long; a score; its path and date; the scorer's version; numbers in range and in order; guide links; and a score, parts, `detail` and size that agree with its own measures, with enough of them to score. `inputsOf` reads a stored report's `scoreOf` inputs, and `shown` prints a value from a file safely.
+- **Reports name their scorer.** Every report carries `scorerVersion`, and the package exports `VERSION` and `MIN_TIMED`.
+- **No score on thin evidence.** The score reads only GitHub Actions, so a repo whose pull requests wait on another CI scored top marks on whatever small checks it also ran there. A report now reads the check runs and commit statuses on 3 of people's newest PR pushes, 6 calls, and looks for other CIs' configs in the tree, at the paths each CI reads. It's unscored, with the reason, when another CI was still at work more than a minute after the Actions checks finished on 2 of those pushes, when the repo keeps another CI's config and its p50 wait is under a tenth of what's typical for its size, or when none of a part's measures could be made. Another CI's work counts for a push only when it starts with it, so a rerun's or another pull request's checks on the same commit aren't mixed in.
+- **A confidence beside the score.** `evidence.confidence` is `high`, `medium` or `low`, with `evidence.reasons`: few pushes timed, a measure missing, reruns unread, another CI seen, checks that couldn't be read on any push asked about, or a file tree cut short. `evidence.measured` is the share of the score's weight that was measured, and `scoreOf` returns it unrounded with `missing` and `empty`, the parts with none of their measures made. The terminal report and the `<ci-report>` block carry the line, and the terminal report says under every score what it doesn't see: what the tests prove, what CI costs in money, and checks outside GitHub Actions.
+- **Minutes are weighed by the runner's vCPUs.** Minutes per merged PR counted a job on a 16-vCPU runner the same as one on a standard runner, so buying bigger runners read as efficiency. The measure is now vCPU-minutes: each job's minutes times its runner's vCPUs, with a runner of unknown size counted as a standard one's 4. `efficiency` gains `vcpuMinutesPerMergedPr`, `prVcpuMinutesPerDay`, `expectedVcpuMinutesPerMergedPr` and `sizedShare`, the share of job minutes whose runner's size was known, each workflow's counted by its runs, and the confidence drops to medium when that's under half. GitHub's larger macOS runners have their documented sizes, 12 and 5 vCPUs. `scoreOf` takes `vcpuMinutesPerMergedPr` in place of `minutesPerMergedPr`.
+- **Setup is scored in minutes a job, not as a share of job time.** A share called a fast job wasteful: a repo with a 2-minute wait and 20 seconds of setup a job scored 28 of 100 on setup, and one whose long tests hid 4 minutes of setup scored 100. `jobs.setupMinPerJob` is the mean across a run's jobs; 30 seconds is full marks and 4 minutes is none. The setup fix shows when a job spends over a minute on it, unless that's under 5% of job time, and gives the minutes. `scoreOf` takes `setupMinPerJob` in place of `setupShare`, which the report still gives.
+- **The graphs' findings count.** Efficiency gains two measures. How the jobs are wired takes a third off for each kind of flag on the job graph: a job that holds the rest, setup on the path, a wait no job shows. The package and task graphs take a quarter off for each kind of flag, only for a repo that has such a graph; one that came back partly unknown with no flag is unknown, not clean. Together they're about 5 of the 100 points. `detail.efficiency` gains `path` and `graphs`, and `scoreOf` takes `pathFlags` and `graphFlags`, which `flagCounts` works out from a report's graphs.
+- **The wait for the size follows the main language.** A C or C++ repo builds slower for its lines than a PHP or JavaScript one, and one curve called the first slow and the second fast. `expectedWait` takes the main language, and `LANGUAGE_WAIT` holds each one's factor: its median wait against the size curve across the scored public repos, pulled toward 1 where a language has few repos.
+
+### Releasing
+
+- **Pull requests go to `main`, and there's no `next` branch.** A release is one pull request into `main` that bumps the version; `release.yml` publishes and tags on its merge, as before. Merging a release from `next` deleted that branch each time, which moved every open pull request onto `main`.
+
+## v0.3.0
+
+Released 23 November 2026. `ci-runners` owns shard splitting, shard times come from each file's newest 3, `ci-workflows` prices the sweep's cadence, the scorer leaves runs that never ran out of the wait, and the guide's titles are short.
+
+### Do first
+
+1. **Shard scripts moved:** refresh your `scripts/shards/` from `skills/ci-runners/scripts/`, less its `*.test.ts`, and point any link to `scripts/shards/README.md` at `skills/ci-runners/references/shards.md` (below, under Shards).
+2. **The sweep's cron:** `sweep.yml`'s `SWEEP_AT` and `SERVER_AT` are now `SWEEP_CRON` and `SERVER_CRON`. Copy `skills/ci-workflows/scripts/cron.ts` to `scripts/sweeps/cron.ts` and take `sweep.yml`'s `env` and both jobs' checkout, Node and newest-slot steps (below, under Shards).
+3. **Your skill copies:** every skill names 0.3.0 in its `metadata.version` and links this repo at `v0.3.0`. If you keep copies of the skills, copy them again.
 
 ### Shards
 
@@ -35,6 +69,26 @@ Under 1.0, a minor release carries what would be a major one.
 
 - **A run that never ran isn't CI time.** A failed first attempt on a pull request that took over an hour and has no jobs, such as a fork's run nobody approved that GitHub failed days later, is left out of the PR wait and the red heads, and counted as `wait.neverRan`. One jobs call per such run, at most 60 a report. On two popular repos, such runs had stretched the PR wait p90 to 11 and 58 hours; without them it is 16 and 17 minutes.
 - **An unscored repo whose pushes nearly all came from bots says so,** naming the bots, instead of saying that too few pushes ran the main workflows. `wait.botPushes` and `wait.bots` count them.
+- **Each job's runner and its vCPUs.** The job graph's nodes and each replayed run's jobs carry `runner`, the first runner label past `self-hosted`, and `vcpus`: the size a label names (`-4core`, `4vcpu`, Namespace's `4x16`, Depot's trailing `-8`), else GitHub's documented size for its standard runners (Linux and Windows 4 on a public repo and 2 on a private one, Intel macOS 4, Apple silicon macOS 3, `ubuntu-slim` 1), else null.
+- **A run that hit its time limit is a failed run.** A `timed_out` run was neither red nor timed, so a push whose checks hung for hours dropped out of the wait and the red rate. It now counts as a failure in both, on pull requests and on the default branch, and its minutes count as CI minutes.
+- **Reruns past the read cap count at the rate of the ones read.** A rerun's first attempt is one call, at most 25 a report. Past that, a rerun was taken as not flaky, so a repo with many reruns scored full marks on flakes. Those now count as green only on a rerun as often as the ones read did, and `wait.rerunsUnread` says how many weren't read. With none read, the rate is unknown. Only a green rerun's first attempt is asked for, so the reads go where a flake can be.
+- **Rates a week are over the days read.** The window was the span from the oldest run to the newest, so a week with one afternoon of runs read as an afternoon, and PR pushes, runs per merged PR and minutes per merged PR came out up to 14 times too high. It's now the whole window when every run in it was read, and from the oldest run read to now when GitHub had more than 1,000. `pull_request_target` runs were read over their own days and divided by the `pull_request` runs' days: they're now read back over the same days, up to 10 pages, and counted over them. `window.days` and `headsPerWeek` change with it, and so can the size class.
+- **Merged and opened PRs follow `--days`.** They were counted over 7 days whatever `--days` was. `profile.prsMergedPerWeek` and `prsOpenedPerWeek` are now rates a week over the days read, to one decimal.
+- **A push whose runs were all skipped is in no rate.** `wait.redRate`, `rerunRate`, `passedOnRerunRate` and `cancelledRate` are shares of the pushes that ran something, `wait.ranHeads`; `wait.heads` still counts every push.
+- **Job minutes are unknown, not zero, when no sampled run ran a job.** Zero minutes scored 100 on minutes per merged PR. A workflow whose sampled runs ran no job, beside ones that did, still adds none.
+- **Workflows are told apart by file.** Two workflow files with one name were counted as one workflow. `wait.heavyWorkflows` and `wait.lastToFinish` still give names; `wait.lastWorkflow` is the file of the one that most often finishes last.
+- **A larger runner named without a size has no known vCPUs.** `ubuntu-latest-large` read as a standard runner's 4, or 2 on a private repo. Only GitHub's standard labels, such as `ubuntu-latest`, `ubuntu-24.04-arm` and `windows-2022`, take the standard size.
+- **Renovate counts as batching only when its config says so:** a `groupName`, a `group:` preset, `config:recommended`, `config:base` or `config:best-practices`, or a schedule. Any Renovate config counted before. A schedule for lock-file maintenance alone doesn't count, and a config that only extends a preset kept in another repo is unknown, with the reason. One more file read for a repo that has one.
+- **The shard group reported is the slowest in the most sampled runs,** not the newest run's.
+
+### The guide and the plugins
+
+- **Short guide titles.** Each page's title is one to three words, without its number or subtitle, and the guide's front page is "Guides". The Contents, the hub's excerpts and the phases' anchors follow; file names stay, so every link to a page still lands.
+- **The plugins describe ci-doctor as skills that teach coding agents to make CI fast, reliable and efficient,** and the plugin's icon is ref0's zero on its tile.
+
+### Releasing
+
+- **A release is a pull request, `Release: <version>`, from `next` into `main`.** `release.yml` checks it, and its merge publishes `@ref0/ci-doctor` to npm by trusted publishing, with provenance, from the `release` environment, then tags the merge `v<version>`. The README's Contributing says how.
 
 ## v0.2.0
 

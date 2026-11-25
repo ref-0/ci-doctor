@@ -2,12 +2,12 @@
 name: ci-doctor
 description: "Plans CI speed and cost work and triages a failed PR check: the PR, a flake or the runner. Use when asked to make CI faster or cost less, review CI, or say why a check failed. Not for workflow edits (ci-workflows); runners or the bill (ci-runners); flaky tests (fix-flaky-test); slow tests (speed-up-tests)."
 metadata:
-  version: "0.2.0"
+  version: "0.4.0"
 ---
 
 # ci-doctor
 
-Make CI faster, more trustworthy and cost less. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
+Make CI faster, more reliable and more efficient. This file holds the rules and routes: read the phase or topic it names, then work from that file. For the plan, **your first job is a plan, not a change.** Survey, measure and map, then write a plan the user reviews.
 
 ## Pick up where the last session stopped
 

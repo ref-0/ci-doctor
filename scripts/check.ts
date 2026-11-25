@@ -15,7 +15,7 @@
  * 5. **Links, each skill alone:** each skill's folder copied alone, as `npx skills add` with one skill
  *    chosen, or a copy of that folder, installs it. A link that stays in the folder must resolve in the
  *    copy. A skill leaves its folder only by a full link, to ci-doctor.ref0.dev/guide/<path> or to
- *    GitHub at the release tag (`v` and `plugin.json`'s version) or `next`, naming a file in the
+ *    GitHub at the release tag (`v` and `plugin.json`'s version) or `main`, naming a file in the
  *    working tree, with its anchor, so links to a tag not yet pushed check before the release: a
  *    relative link out of the folder fails, since it dangles in the copy, and so does a link to
  *    GitHub at any other tag. The hub alone may also link out relatively, to a file the
@@ -84,7 +84,7 @@ export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
   [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
   [/(?<![\w-])scripts\/shards\/README\.md|\]\((?:\.\.\/)+(?:scripts\/)?shards\/|(?<![\w-])scripts\/shards\/[\w-]+\.test\.ts/, 'skills/ci-runners/references/shards.md and skills/ci-runners/scripts/'],
-  [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "A faster test harness"'],
+  [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "Test harness"'],
 ];
 
 /** Files that may still name PROMPT.md as a path: the pointer itself, and the README's clone prompt. */
@@ -148,12 +148,12 @@ export const HUB = 'ci-doctor';
 
 /**
  * Where a skill's full links to the rest of ci-doctor point: the guide site, and the repo on GitHub at the release
- * tag `plugin.json` names, or at `next` for what only `next` has until the release points it at the new tag.
+ * tag `plugin.json` names, or at `main` for what no release has yet, until the release points it at the new tag.
  */
 export const GUIDE_URL = `${ORIGIN}/${BASE}/`;
 export const GITHUB_URL = 'https://github.com/ref-0/ci-doctor/';
 export const GITHUB_REF = `v${String((JSON.parse(readFileSync(new URL('../plugin.json', import.meta.url), 'utf8')) as { version?: unknown }).version)}`;
-export const GITHUB_REFS: readonly string[] = [GITHUB_REF, 'next'];
+export const GITHUB_REFS: readonly string[] = [GITHUB_REF, 'main'];
 
 /** A full link to this repo on GitHub, as its ref and path, or undefined for any other URL. */
 const githubLink = (base: string): { ref: string; path: string } | undefined => {

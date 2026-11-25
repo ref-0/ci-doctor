@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 10. Slow tests: the method
+# Slow tests
 
 Find the slow tests in CI's records, name what each one waits on, and make it faster without losing what it proves.
 

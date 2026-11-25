@@ -122,11 +122,11 @@ The measurements behind the score live in [ci-doctor-db](https://github.com/ref-
 
 ## Updating
 
-Releases are tags, and `main` is always the newest release, which is what each harness's plugin install reads. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
+Releases are tags. Each harness's plugin install reads `main`, which between releases also holds work no release has yet; to stay on a release, clone or copy at its tag. Read [`CHANGELOG.md`](CHANGELOG.md) from your tag to the newest, do its **Action** lines, then move your pin.
 
 ## Contributing
 
-Branch from `next` and open pull requests against it. Before pushing, run the checks (Node 24, `git` and `jq`):
+Branch from `main` and open pull requests against it. Between releases `main` holds work no release has yet, so install at a tag. Before pushing, run the checks (Node 24, `git` and `jq`):
 
 ```sh
 node scripts/check.ts
@@ -134,7 +134,7 @@ node scripts/check.ts
 
 After editing a source an excerpt copies, run `node scripts/skills/excerpts.ts` first. `node scripts/site/build.ts` builds the guide site into `dist/site/`; `scripts/site/README.md` says how it's deployed.
 
-A release merges `next` into `main`, bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag, and pushes the tag, which publishes the scorer to npm.
+A release is a pull request into `main`, `Release: <version>`, that bumps every `version` (the checks keep them equal, and Claude Code updates a plugin only when it changes), points the skills' GitHub links at the new tag and turns the CHANGELOG's Unreleased section into the version's entry. [`release.yml`](.github/workflows/release.yml) checks the release pull request, and once it passes, merging it publishes the scorer to npm and tags the merge.
 
 ## License
 

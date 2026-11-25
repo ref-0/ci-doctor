@@ -1,6 +1,6 @@
 [Guide](../README.md)
 
-# 5. Tiers: what runs where
+# Tiers
 
 Decide which checks run on every PR, which on merges and which in a scheduled sweep, and release only what the sweep checked.
 

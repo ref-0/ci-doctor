@@ -93,6 +93,11 @@ export const fakeRepo = ({ repo, private: isPrivate = false, heads = 20, truncat
         ],
       });
       routes[`repos/${repo}/actions/jobs/${jobId}/logs`] = { status: 200, text: `${LOG_LINE}\n` };
+      // No check from outside GitHub Actions, and no commit status.
+      if (event === 'pull_request') {
+        routes[`repos/${repo}/commits/${event}-sha-${i}/check-runs`] = ok({ total_count: 0, check_runs: [] });
+        routes[`repos/${repo}/commits/${event}-sha-${i}/statuses`] = ok([]);
+      }
     }
     return { total_count: runs.length, workflow_runs: runs };
   };
