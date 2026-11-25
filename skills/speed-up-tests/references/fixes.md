@@ -58,7 +58,7 @@ The code delays work on purpose: a fixed sleep beside each read, so a walk stays
 - Change the cadence, never the ceiling: polls got faster in tests while their bounds stayed.
 - A caller that sets its own interval gains nothing from the default, so look at the callers first: one campaign found a dozen helpers polling far slower than the default.
 - A helper that waits for a job, then sleeps one more interval before it checks, pays the whole interval each time: check at once.
-- A loop that steps a job and sleeps while its retry backs off waits out every doubling. Make the job due and step it, keeping its try count so the backoff's shape is still what's checked: a first test fell from 2.3 s to 0.7 s locally.
+- A loop that steps a job and sleeps while its retry backs off waits out every doubling. Make the job due and step it, keeping its try count; where the doubling is what the test proves, assert each scheduled delay rather than waiting it out. A first test fell from 2.3 s to 0.7 s locally.
 - A poll whose check does the work, such as running the due jobs, isn't overshoot. Measure the sleep past the check that met it before shortening a default ([measuring](measuring.md)).
 
 ## A deadline the test proves
@@ -97,7 +97,7 @@ A script that loads its work through a module runner, such as Vite's `runnerImpo
 
 A test that runs a CLI against a seeded Git repo, as the selector's tests do: build the seed once per suite and copy it for each test, point the spawned processes at one shared Node compile cache, and run the CLI once per case, reading every field the assertions need from that one run. Keep each call a real process; running it in-process would mean exporting an entry from a production script only for the test.
 
-Merge two cases to share a setup only with every assertion of both. Equal totals still passed with a duration missing or a part on the wrong run: mutate what only one case checked.
+Merge two cases to share a setup only with every assertion of both. A merged case that compared only totals still passed with a duration missing, and with a part recorded on the wrong run: break what only one of the cases checked, and see the merged one fail.
 
 **Build the immutable part once, and the mutable part per test.** Sort each fixture input before caching it:
 

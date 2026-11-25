@@ -20,7 +20,6 @@ Part of the [`speed-up-tests`](../SKILL.md) skill. Read it when a test talks to 
 - **Faults are opt-in.** A delay, a 429, a hang or a propagation window happens only in the tests that ask for it. A fake that always waits, as one fake source host's token propagation did on every token, charges every test for what a few prove.
 - **A fake is never slowed to match production.** If the code paces itself or waits a deadline, that's the code's period: make it a setting, as [the fixes](fixes.md#a-production-period-or-retry-the-test-inherits) say.
 - **Holds beat delays.** A fake that holds a call until the test releases it orders a race with no clock. Hold the exact call: a one-shot fault let the client's own second try reach a hold keyed more broadly, which then waited out a 30 s deadline.
-- **A stand-in for a lock must lock.** One that ran its command unlocked could neither show the race nor prove its fix. With a stand-in that took a real `flock`, the unfixed script failed 3 of 20 runs.
 - **Pick a fault's status for what the test proves.** A 500 took a retry's wait before the refusal the test was about; a 404 takes none.
 - **Make a request's promise in that request.** A fake that handed one promise to later requests failed once the runtime (workerd) began rejecting an await on a promise whose request had ended.
 - **Cache a module's settled value, never its pending promise.** In a runtime that ties I/O to the request that started it, such as workerd, a module-level cache that keeps the promise a request created hands later requests I/O owned by a request that may have ended. Await it, then keep the value. Test it by ending the creating request before another request reads the value.
@@ -34,3 +33,5 @@ Remove a fake only after the runtime that calls it closes. Vitest runs `afterAll
 ## Keep a fake true
 
 A fake drifts from its service. Recorded answers kept beside the contracts keep the shapes honest. To check the behaviour, run the same checks against the fake in CI and against the real service on staging on a schedule; a new scheduled job costs money, so it needs a person's yes.
+
+**A stand-in for a lock must lock.** A stub that runs the command it's handed without taking the lock can't show two runs racing, nor prove a fix: with a stand-in that took a real `flock`, a script missing its lock failed 3 of 20 runs.
