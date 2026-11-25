@@ -14,13 +14,17 @@
  *
  * - Every skill's description, upstream copies too: at most 320 characters. An upkeep run that
  *   updates a copy can bring its source's longer description back, and fails here until it's cut.
- * - The repo's own `SKILL.md`: at most 10 KB. Upstream copies, those `skills-lock.json` names and
- *   those `upstreamPrefixes` match, are left as their source wrote them.
+ * - The repo's own `SKILL.md`: at most 6 KB, with a warning past 5 KB, so each change has room to
+ *   move a section to `references/` instead of trimming words to fit. Both name the largest
+ *   sections. Upstream copies, those `skills-lock.json` names and those `upstreamPrefixes` match,
+ *   are left as their source wrote them.
  * - Root `AGENTS.md`: at most 12 KB. Any other `AGENTS.md`: at most 8 KB. A shared rules file every
  *   `AGENTS.md` imports, so it loads beside each one: at most 8 KB.
  * - `GLOSSARY.md`: no tables, since formatters pad each cell to its column's widest, and no entry
  *   over 400 characters.
  * - None of these keeps history, such as "Changed 15 Oct 2026": `git log` holds it.
+ *
+ * A warning passes: it prints as `warning: …` and the command still exits 0.
  *
  * Runs: in CI's static job, and locally before a push. Node 24 and `git` only.
  * Configure: the CONFIG block: budgets, where skills live, the upstream lock and prefixes, and
@@ -39,7 +43,8 @@ import { fileURLToPath } from 'node:url';
 
 export const budgets = {
   description: 320,
-  skill: 10_000,
+  skill: 6_000,
+  skillWarning: 5_000,
   rootAgents: 12_000,
   agents: 8_000,
   rules: 8_000,
@@ -100,6 +105,63 @@ const bytes = (text: string) => Buffer.byteLength(text, 'utf8');
 
 const kb = (size: number) => `${(size / 1000).toFixed(1)} KB`;
 
+/**
+ * The `## ` sections of a Markdown doc, largest first, each with its heading and its size in bytes,
+ * subsections included. Headings inside fenced blocks don't count.
+ */
+export const sections = (text: string) => {
+  const found: Array<{ heading: string; size: number }> = [];
+  let fence: string | undefined;
+
+  for (const line of text.split('\n')) {
+    const marker = /^(```|~~~)/.exec(line)?.[1];
+    if (marker !== undefined) fence = fence === undefined ? marker : fence === marker ? undefined : fence;
+
+    if (fence === undefined && line.startsWith('## ')) found.push({ heading: line.slice(3), size: 0 });
+    const last = found.at(-1);
+    if (last !== undefined) last.size += bytes(line) + 1;
+  }
+
+  return found.toSorted((a, b) => b.size - a.size);
+};
+
+/** The largest sections of `text`, for a message: at most three, each with its size. */
+const largest = (text: string) =>
+  sections(text)
+    .slice(0, 3)
+    .map(({ heading, size }) => `"${heading}" ${kb(size)}`)
+    .join(', ');
+
+/** A reference's file name for a section: its heading's first words in kebab case, no step number. */
+export const referenceName = (heading: string) => {
+  const words = heading
+    .replace(/^\d+\.\s*/, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word !== '');
+
+  return `${words.slice(0, 4).join('-') || 'detail'}.md`;
+};
+
+/**
+ * What to do about a `SKILL.md` at `path` past a line: move a section only one step or case needs,
+ * word for word, to a reference beside it, and leave a pointer. Never trim words.
+ */
+const move = (path: string, text: string) => {
+  const [first] = sections(text);
+  const references = `${path.slice(0, -'SKILL.md'.length)}references/`;
+  const named = first === undefined ? '' : ` (for "${first.heading}", ${referenceName(first.heading)})`;
+
+  return [
+    `Largest sections: ${largest(text) || 'none'}.`,
+    `Move a section only one step or case needs, word for word, to ${references}<topic>.md${named} or an existing reference on its topic, and leave one line in its place: "When <condition>, read [<topic>](references/<file>.md)."`,
+    "Don't reword to fit. The agent-knowledge skill's references/keeping-it-fresh.md, \"Thinning a skill\", says how.",
+  ].join(' ');
+};
+
+/** Whether the skill in folder `skill` is the repo's own, not an upstream copy left as its source wrote it. */
+const own = (skill: string, upstream: ReadonlySet<string>, shape: Layout) => !(upstream.has(skill) || shape.upstreamPrefixes.some((prefix) => skill.startsWith(prefix)));
+
 /** What the docs break, one line each, with what to do about it. */
 export const problems = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>, shape = layout, limits = budgets) => {
   const found: Array<string> = [];
@@ -111,7 +173,7 @@ export const problems = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>
     const glossary = path === shape.glossary;
     if (skill === undefined && !agents && !rules && !glossary) continue;
 
-    const ours = skill === undefined || !(upstream.has(skill) || shape.upstreamPrefixes.some((prefix) => skill.startsWith(prefix)));
+    const ours = skill === undefined || own(skill, upstream, shape);
     const said = history.exec(text)?.[0];
 
     if (ours && said !== undefined) found.push(`${path}: "${said}" is history; leave it to git log and say what holds now.`);
@@ -125,7 +187,7 @@ export const problems = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>
         );
 
       if (ours && bytes(text) > limits.skill)
-        found.push(`${path}: ${kb(bytes(text))}, over ${kb(limits.skill)}. Move what one step or case needs to references/, and point to code instead of restating it.`);
+        found.push(`${path}: ${kb(bytes(text))}, over ${kb(limits.skill)}. ${move(path, text)}`);
     }
 
     if (agents || rules) {
@@ -154,6 +216,21 @@ export const problems = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>
   return found;
 };
 
+/**
+ * The repo's own `SKILL.md`s past the warning line but within budget, one line each: they pass,
+ * and the next addition should move a section out.
+ */
+export const warnings = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>, shape = layout, limits = budgets) =>
+  docs.flatMap(({ path, text }) => {
+    const skill = shape.skillPath.exec(path)?.[1];
+    if (skill === undefined || !own(skill, upstream, shape)) return [];
+
+    const size = bytes(text);
+    if (size <= limits.skillWarning || size > limits.skill) return [];
+
+    return [`${path}: ${kb(size)}, past the ${kb(limits.skillWarning)} warning line. ${move(path, text)}`];
+  });
+
 /** The skills the skills CLI installed, by folder name, from the lock at `root`: none without one. */
 export const upstreamSkills = (root: string, shape = layout): ReadonlySet<string> => {
   if (shape.upstreamLock === undefined) return new Set();
@@ -174,12 +251,13 @@ export const trackedDocs = (root: string): ReadonlyArray<Doc> =>
     .filter((path) => path !== '')
     .map((path) => ({ path, text: readFileSync(join(root, path), 'utf8') }));
 
-/** The checkout `from` is in: its root, its tracked docs, and what they break. */
+/** The checkout `from` is in: its root, its tracked docs, what they break and what nears a line. */
 export const docsBudget = (from: string, shape = layout) => {
   const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: from, encoding: 'utf8' }).trim();
   const docs = trackedDocs(root);
+  const upstream = upstreamSkills(root, shape);
 
-  return { root, docs, problems: problems(docs, upstreamSkills(root, shape), shape) };
+  return { root, docs, problems: problems(docs, upstream, shape), warnings: warnings(docs, upstream, shape) };
 };
 
 if (argv[1] === fileURLToPath(import.meta.url)) {
@@ -188,7 +266,9 @@ if (argv[1] === fileURLToPath(import.meta.url)) {
     exit(2);
   }
 
-  const { docs, problems: found } = docsBudget(cwd());
+  const { docs, problems: found, warnings: near } = docsBudget(cwd());
+
+  for (const line of near) console.error(`warning: ${line}`);
 
   for (const line of found) console.error(line);
 
