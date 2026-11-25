@@ -19,9 +19,15 @@ run parallel discovery lanes when available:
 - a cross-cutting pattern sweep.
 
 Outside campaign mode, prefer a few high-confidence candidates over a large
-speculative inventory. Hunt for the [junk patterns](../SKILL.md#junk-patterns).
+speculative inventory. Hunt for the [junk patterns](junk-patterns.md).
 
 ## Candidate evidence
+
+Before judging a candidate, read the complete test and production owner, its
+entry point, callers, callees, sibling implementations, overlapping tests, CI
+routing, and relevant history. Read root and scoped `AGENTS.md` files first.
+When the test claims dependency-backed behavior, inspect the dependency source
+or types directly.
 
 Record every field below before editing. A missing field means the candidate is
 not ready for deletion:
