@@ -13,6 +13,8 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. Count before you move code, 
 
 [`scripts/graph/`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/graph/README.md) reads a JavaScript or TypeScript workspace's committed trees with `git ls-tree` and `git cat-file`, never its working tree, so nothing in the repo runs. It needs Node 24 and `git`, and the repo's history as deep as the replay: a shallow clone needs `--depth` past `--commits`.
 
+For a JavaScript or TypeScript workspace, run the graph tool. It measures graphs 1–4 and replays recent merges through them, with Node 24 and `git`, and nothing installed:
+
 ```sh
 node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo> --commits 0     # the shape only
 node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo>                 # the default branch, the last 200 commits
@@ -20,10 +22,26 @@ node <ci-doctor>/scripts/graph/graph.ts --repo <path-to-repo> --json > graph.jso
 ```
 
 - `--rev <ref>` measures another branch; `--tests <regex>` says what a test file's path looks like; `--conditions <a,b>` prefers `exports` conditions, such as the repo's source condition; `--layers <file.json>` checks declared layers instead of proposing them. [Its README](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/graph/README.md#run-it) has every option, and [its JSON](https://github.com/ref-0/ci-doctor/blob/v0.4.0/scripts/graph/README.md#json) every field.
-- `<ci-doctor>` is a ci-doctor checkout, outside the user's repo. From a skills-only install, clone it at the release tag, as the [skill says](../SKILL.md#1-measure).
+- `<ci-doctor>` is a ci-doctor checkout, outside the user's repo. From a skills-only install, clone it at the release tag, as [getting the tool](#getting-the-tool) says.
 - On a 206-package workspace of 2,666 files, the shape and a 200-commit replay took 23 seconds on one core.
 
 It reads what the code draws today, declared or not. It doesn't enforce: `package-graph` holds a declared graph in CI ([fixes](fixes.md#adopt-the-checks)).
+
+## Getting the tool
+
+`<ci-doctor>` is a ci-doctor checkout. A skills-only install, by `npx skills add` or a copy of this skill's folder, doesn't carry the tool: clone it once, outside the user's repo, at the release this skill names in `metadata.version`:
+
+```sh
+git clone --depth 1 --branch v0.4.0 https://github.com/ref-0/ci-doctor.git <ci-doctor>
+```
+
+## Graph 5, from CI's records
+
+Graph 5 comes from CI's records. On GitHub Actions, the scorer reads it from the workflow files and recent PR runs, through `gh` with the user's own sign-in: `npx @ref0/ci-doctor`, then its "Job graph" block, or `jobGraph` in `--json`. Elsewhere, the provider's jobs API, as guide section 13's [collection recipe](https://ci-doctor.ref0.dev/guide/docs/pages/13-records-evidence-of-what-ran.md#collecting-from-the-api-without-losing-runs) says.
+
+## Without a checkout
+
+Without a checkout, the scorer's "Graphs" block, or `graphs` in `--json`, has graphs 2 and 4 from outside too. For export paths, it lists each entry's re-exported modules, its importing packages and its overload. The importer count is exact for a package with one entry; otherwise it's a range, from the packages seen in the files read up to the package's importers by manifest, and only the seen ones flag `overloaded-entry`. For tasks, it reads each runner's config by that runner's rules and flags `no-inputs`, `wide-inputs` and `deep-chain`. Graph 3 still needs the tool. An entry the scorer couldn't follow is marked unknown, with why.
 
 ## Read the headline
 

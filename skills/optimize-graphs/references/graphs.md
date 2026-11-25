@@ -19,6 +19,18 @@ Part of the [`optimize-graphs`](../SKILL.md) skill. For each graph, record where
 
 Counting the first three takes the repo's imports, read without running anything: the graph tool, a parser over tracked files, or the test runner's own listing where it lists without running (`vitest list --filesOnly --changed` builds the import graph but runs no test; ask before you run it).
 
+## The five graphs
+
+| # | Graph | Decided by | Decides |
+|---|---|---|---|
+| 1 | Package dependencies | Each package's imports of the others | Which packages' tests and builds an edit reaches |
+| 2 | Package export paths | `exports` maps and the entry files behind them | Which of a package's importers an edit reaches |
+| 3 | Layers inside a package | Imports between a package's folders | How far an edit climbs inside a package |
+| 4 | Workspace tasks | Each task's dependencies, inputs and outputs | Which cache keys an edit moves |
+| 5 | CI jobs | `needs:`, waits and runner queues | How long a run waits for its result |
+
+The first three are one graph at three sizes, and the last two are built on them.
+
 ## 1. Package dependencies
 
 An edge is one package importing another. A selector that follows package edges runs every test of the package at the edge's end, and a cache key that hashes a package's closure misses whenever anything in it moves.
