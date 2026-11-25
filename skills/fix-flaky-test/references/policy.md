@@ -21,6 +21,20 @@ Where the repo has one, it's in `.agents/repo/ci.md`'s **Verifying a flake's fix
 - **Proof of a fix:** the one way a fix is verified: in the source repo, the cause proved locally with no retries and a mutation, then the PR's own ready run, once.
 - **Extra CI repeats:** how many repeats of a file a run by hand may ask for, and whose yes it needs.
 
+## Retries, reruns and infrastructure
+
+Three different events, each reported apart. Keep the repo's current gate behaviour until the user approves a change.
+
+- **An in-job test retry:** the test runner reruns a failed test inside the job, where the repo turns that on. A pass on the retry is recorded as a flake and doesn't turn the job red, so turning retries on changes what the gate accepts.
+- **One diagnostic job rerun,** where the repo's policy allows one: a failed job rerun once with `--failed`, on the same revision and configuration. A test that failed and then passed that way is a confirmed flake. Where the policy allows none, or there's no policy, don't rerun: report the failure and prove the cause locally.
+- **A second failure:** the rerun failed too. It isn't a flake until shown otherwise: stop and report it to whoever briefed you, with both runs.
+
+A runner or infrastructure failure, such as a lost runner, a full disk, a quota or a network error before any test ran, is none of these: it isn't a flake, and goes to whoever owns the runners.
+
+## An extra CI repeat
+
+- **An extra CI repeat needs a reason and a yes:** a specific question a local run can't answer, such as a failure seen only on CI's runners, and the approval of whoever briefed you, as [manual runs](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/ci-merge-workflow/references/manual-runs.md) says. A repeat of no-retry runs then also measures the failure rate: a test that failed 1 in 10 repetitions passes 50 in a row by chance about 1 time in 200.
+
 ## When the repo has none
 
 Ask the user once whether the repo keeps this policy elsewhere, such as a contributing guide or CI's own workflow. Until there's an answer, work to the strictest reading:
