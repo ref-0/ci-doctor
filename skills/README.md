@@ -98,7 +98,7 @@ The map's **Applies when** says when each one applies. `blacksmith` applies only
 
 The [`agent-knowledge`](agent-knowledge/SKILL.md) skill has the method: code wins, dated lessons, one register of what was tried, generalize don't append, a drift sweep every two weeks, size budgets and pinned upstream skills. For these skills in particular:
 
-- **The budget:** every description under 320 characters, upstream copies' too, in the shape [Writing a description](#writing-a-description) gives, and each of your own `SKILL.md` under 10 KB. Point the [docs budget](../scripts/docs/README.md)'s `layout.skillPath` at the installed skills and run it in CI.
+- **The budget:** every description under 320 characters, upstream copies' too, in the shape [Writing a description](#writing-a-description) gives, and each of your own `SKILL.md` under 6 KB, with a warning past 5 KB. Near the line, move a whole section only one step or case needs to the skill's `references/`, word for word, and never reword to fit, as [thinning a skill](agent-knowledge/references/keeping-it-fresh.md#thinning-a-skill) says. Point the [docs budget](../scripts/docs/README.md)'s `layout.skillPath` at the installed skills and run it in CI.
 - **The register** is the one `.agents/repo/ci.md` names (template: [read what was tried](ci-doctor/references/checks/ci-read-what-was-tried.md)).
 - **Upstream:** `test-audit` records its source commit and stays out of any skills lock. [Upstream sync](../tools/upstream-sync/README.md) diffs upstream weekly and files what changed as one issue; a person applies it, and nothing merges automatically.
 
