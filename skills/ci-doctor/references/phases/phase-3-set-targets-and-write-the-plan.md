@@ -79,7 +79,7 @@ Some changes need their own explicit yes even inside an approved plan: a tier or
 
 1. **The plan:** write in what they cut, reordered or resized.
 2. **The authorization record:** who approved, and the date.
-3. **`progress.md`:** the plan approved `<date>` by `<who>`, the phase as 4 and the step as "the approved setup". Move it to the path the authorization record's Progress file row names. If you can't write it there, give the user its contents to save, as [the router](../../SKILL.md#pick-up-where-the-last-session-stopped) says.
+3. **`progress.md`:** the plan approved `<date>` by `<who>`, the phase as 4 and the step as "the approved setup". Move it to the path the authorization record's Progress file row names. If you can't write it there, give the user its contents to save, as [the playbook](../playbook.md#keeping-progressmd) says.
 
 Then open [Phase 4](phase-4-after-approval-climb-the-hill.md).
 
