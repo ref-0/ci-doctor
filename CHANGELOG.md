@@ -15,6 +15,12 @@ Under 1.0, a minor release carries what would be a major one.
 - **`speed-up-tests`' references,** from a slow-test run on 23 November 2026: count the tries where a test says "at once"; merge two cases only with every assertion of both; prove absence with a marker down the same ordered channel; make a backed-off job due and step it; parse a script's arguments before its module runner loads; a stand-in for a lock must lock; and compare a file's normalized median with its earlier normalized one.
 - **`ci-workflows`' tiers:** time each case before splitting a file for a tier move, and take a covered-only list from the code whose change could alter the proof's result, checked against the modules its run loads, never the whole module graph.
 - **`speed-up-tests` and `fix-flaky-test`:** a saving under a second a case read from the case's own times, not whole files on a loaded machine; and a test that fails only in deep checkouts, from a path filling a fixed-length stack trace.
+- **Thinner `SKILL.md`s.** Every skill past 6 KB moved one step's or one case's detail to its `references/`, word for word, with a pointer line where it was. No rule changed. The hub's changelog link is a full URL, so it resolves in a skills-only install.
+- **`agent-knowledge`: move whole sections, never reword to fit.** "Cut, don't move" became: delete what no longer earns its place, move a section only one step or case needs to `references/` word for word, and never reword to fit a budget. `references/keeping-it-fresh.md` has the new "Thinning a skill".
+
+### Scripts
+
+- **`docs-budget.ts`: a `SKILL.md` fails past 6 KB and warns past 5 KB.** It was 10 KB. Both messages name the largest `##` sections, suggest a reference for the largest, and give the pointer line to leave; a warning prints as `warning: …` and exits 0. **Action:** if you copied `docs-budget.ts`, take it, and run it: a `SKILL.md` between 6 and 10 KB now fails. Thin it as `agent-knowledge`'s "Thinning a skill" says, or set `budgets.skill` and `budgets.skillWarning` in its CONFIG block to your own lines.
 
 ### The remote task cache
 
