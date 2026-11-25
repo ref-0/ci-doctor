@@ -51,8 +51,8 @@ Your agent maps your stack, measures your CI's median and p90, and writes a plan
 ### Claude Code
 
 ```sh
-claude plugin marketplace add ref-0/ci-doctor
-claude plugin install ci-doctor@ref0
+claude plugin marketplace add ref-0/ci-doctor  # add the marketplace
+claude plugin install ci-doctor@ref0           # install the skills
 ```
 
 Start a new session, or run `/reload-plugins` in an open one. Inside Claude Code the same commands are `/plugin marketplace add ref-0/ci-doctor` and `/plugin install ci-doctor@ref0`. The skills are namespaced, such as `/ci-doctor:review-gate`. To update, run `claude plugin marketplace update ref0`, then `claude plugin update ci-doctor@ref0`.
@@ -60,8 +60,8 @@ Start a new session, or run `/reload-plugins` in an open one. Inside Claude Code
 ### Codex
 
 ```sh
-codex plugin marketplace add ref-0/ci-doctor
-codex plugin add ci-doctor@ref0
+codex plugin marketplace add ref-0/ci-doctor  # add the marketplace
+codex plugin add ci-doctor@ref0               # install the skills
 ```
 
 Start a new Codex session after installing. To update, run `codex plugin marketplace upgrade ref0`.
@@ -79,7 +79,7 @@ Open **Customize**, select **Plugins**, choose **From GitHub Repository**, and e
 ### Any other agent
 
 ```sh
-npx skills add https://github.com/ref-0/ci-doctor
+npx skills add https://github.com/ref-0/ci-doctor  # copy the skills to your agent
 ```
 
 Select your agent when it asks, and update with `npx skills update`. This copies the skill folders only; the guide and the reference scripts they link to stay in this repo, at the release tag.
