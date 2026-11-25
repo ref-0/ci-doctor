@@ -1,5 +1,5 @@
 <!--
-What: the hub's full topic map: each day-to-day task with the cases it covers, and the topic or skill it goes to.
+What: the hub's full topic map: each day-to-day task with the cases it covers, the topic or skill it goes to, and the skills outside the map.
 Where: read by an agent doing day-to-day CI work outside the plan, from the hub's SKILL.md.
 Configure: nothing.
 Reference implementation from a production monorepo; adapt to your repo.
@@ -7,7 +7,7 @@ Reference implementation from a production monorepo; adapt to your repo.
 
 # The full topic map
 
-Part of the [`ci-doctor`](../SKILL.md) hub: the topic map's rows with every case each covers. Read it when a task fits no row of the hub's topic map, or more than one.
+Part of the [`ci-doctor`](../SKILL.md) hub: the topic map's rows with every case each covers, and the skills outside it. Read it when a task fits no row of the hub's topic map, or more than one.
 
 Day-to-day work outside the plan. Open the linked entry before you act.
 

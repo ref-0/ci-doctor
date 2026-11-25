@@ -28,7 +28,7 @@ Work through them in order, **one at a time**: open a phase's file, finish it, t
 | 5 | [Make it stay fast](phases/phase-5-make-it-stay-fast.md) |
 | 6 | [Put the knowledge where agents will find it](phases/phase-6-put-the-knowledge-where-agents-will-find-it.md) |
 
-## The plan's rules
+## More rules that apply throughout
 
 - **Never trade proof for speed.**
   - No added retries, no timeout raised on its own, no skipped or deleted tests to save time, and no smaller fixture that no longer proves its bound.

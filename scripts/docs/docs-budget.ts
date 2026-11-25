@@ -116,9 +116,9 @@ export const sections = (text: string) => {
   if (lines.at(-1) === '') lines.pop();
 
   for (const [index, line] of lines.entries()) {
-    // A fence opens with three or more backticks or tildes, and only a run of the same marker, at
-    // least as long and with nothing after it, closes it.
-    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    // A fence opens with three or more backticks (with no backtick after them) or tildes, and only a
+    // run of the same marker, at least as long and with nothing after it, closes it.
+    const marker = /^ {0,3}(?:(`{3,})(?!.*`)|(~{3,}))/.exec(line)?.slice(1).find((run) => run !== undefined);
     if (fence === undefined && marker !== undefined) fence = marker;
     else if (fence !== undefined && marker !== undefined && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = undefined;
     else if (fence === undefined && line.startsWith('## ')) found.push({ heading: line.slice(3).trimEnd(), size: 0 });
@@ -230,7 +230,8 @@ export const warnings = (docs: ReadonlyArray<Doc>, upstream: ReadonlySet<string>
     const skill = shape.skillPath.exec(path)?.[1];
     if (skill === undefined || !own(skill, upstream, shape)) return [];
 
-    // A CONFIG block copied before the warning line existed has no skillWarning: warn at the budget.
+    // A CONFIG block copied before the warning line existed has no skillWarning: no warning band,
+    // only the budget's failure.
     const line = limits.skillWarning ?? limits.skill;
     const size = bytes(text);
     if (size <= line || size > limits.skill) return [];

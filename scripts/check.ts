@@ -19,7 +19,7 @@
  *    working tree, with its anchor, so links to a tag not yet pushed check before the release: a
  *    relative link out of the folder fails, since it dangles in the copy, and so does a link to
  *    GitHub at any other tag. The hub alone may also link out relatively, to a file the
- *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" says.
+ *    guide site serves (`served` in `scripts/site/build.ts`), as its "Outside the skills" points to.
  * 6. **Old names:** no Markdown, script or workflow, in prose or in a fenced command, names what this
  *    release replaced: `code-review`, the hub's `graphs`, `speed-up-tests`, `verify-evidence`,
  *    `ci-workflows`, `ci-runners` and `blacksmith` topics, `ci-workflows`' `selection.md` and
