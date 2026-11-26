@@ -44,7 +44,11 @@ describe('standingBody', () => {
 
 describe('practices', () => {
   const of = (files: Record<string, string>) =>
-    practices({ tree: { truncated: false, blobs: Object.keys(files).map((path) => ({ path, size: 1 })) }, read: (path) => files[path] } as Parameters<typeof practices>[0]);
+    practices({
+      tree: { truncated: false, blobs: Object.keys(files).map((path) => ({ path, size: 1 })) },
+      read: (path) => files[path],
+      readMany: (paths) => ({ texts: new Map(paths.flatMap((p) => (files[p] === undefined ? [] : [[p, files[p]] as const]))), failed: new Map() }),
+    });
 
   it('takes Vite+ for Oxlint and Vitest, which it bundles', () => {
     const found = of({ 'package.json': JSON.stringify({ devDependencies: { 'vite-plus': '1.7.0', eslint: '9.0.0' } }) });
@@ -58,7 +62,8 @@ describe('practices', () => {
     assert.equal(of({ '.github/renovate.json5': '{ packageRules: [{ groupName: "lint" }] }' }).depBotsBatched, true);
     assert.equal(of({ 'renovate.json': '{ "enabled": true }' }).depBotsBatched, false);
     assert.equal(of({ '.github/dependabot.yml': 'updates:\n  - groups:\n      all: {}\n' }).depBotsBatched, true);
-    assert.equal(of({ 'package.json': '{}' }).depBotsBatched, false);
+    // No bot config and no pull requests to read: nothing says there are updates to batch.
+    assert.equal(of({ 'package.json': '{}' }).depBotsBatched, null);
   });
 
   it("leaves batching unknown when Renovate's rules are a preset kept in another repo, and says why", () => {
