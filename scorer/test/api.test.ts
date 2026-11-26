@@ -64,6 +64,16 @@ describe('rereadPractices', () => {
     assert.ok(asked.every((path: string) => /^(repos\/[^/]+\/[^/]+(\/git\/trees\/main\?recursive=1|\/contents\/.+)?|graphql|search\/issues\?.*is%3Amerged.*)$/.test(path)), asked.join('\n'));
   });
 
+  it('takes 1 to 90 days, and reads nothing when it refuses', () => {
+    for (const days of [0, 91, 1.5]) {
+      const asked = stubbed(fakeRepo({ repo: REPO }), {}, (log) => {
+        assert.throws(() => rereadPractices({ repo: REPO }, { days }), CliError, String(days));
+        return log().length;
+      });
+      assert.equal(asked, 0, String(days));
+    }
+  });
+
   it('refuses a checkout report, which has no repo to read', () => {
     assert.throws(() => rereadPractices({ repo: null }), CliError);
   });

@@ -1070,6 +1070,7 @@ export const scoreRepo = (repo: string, { days = 7, token, cacheDir }: ScoreOpti
  */
 export const rereadPractices = <R extends { repo: string | null }>(report: R, { days = 7, token, cacheDir }: ScoreOptions = {}) => {
   if (typeof report.repo !== 'string') throw new CliError("A checkout's report has no GitHub repo to read again.", 2);
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new CliError('days takes a whole number from 1 to 90.', 2);
 
   const r = report as any;
   const gh = new Gh(cacheDir ? new ApiCache(cacheDir) : undefined, token);
