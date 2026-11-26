@@ -121,6 +121,14 @@ const SCRIPT_FOR_CHANGES = /[\w./-]*(chang|affect|diff|impact)[\w.-]*\.(m?[jt]s|
 // Trunk's, is in no file: it can't be seen here.
 const QUEUE_WORDS = /merge[-_ ]?queue|gh-readonly-queue|\bbors\b|mergify|kodiak|aviator|graphite|trunk[-_ ]merge/i;
 
+// Strict forms a step can hold, kept by name so that an action no workflow reaches can still hint at them.
+const CANCEL = /cancel-in-progress:\s*(true|\$\{\{)|styfle\/cancel-workflow-action/;
+const PATHS_ACTION = /dorny\/paths-filter|changed-files/;
+const DRAFT = /draft\s*==\s*'?false'?|draft\s*!=\s*'?true'?|!\s*\(?\s*github\.event\.pull_request\.draft|ready_for_review/;
+const COMPILER_CACHE = /rust-cache|sccache|ccache/;
+const SHARDS = /--shard|shardIndex|shard_index|total-shards|split-tests|knapsack|--partition|--splits?\b|CI_NODE_(INDEX|TOTAL)|matrix\.shard\b/i;
+const TEST_RESULTS = /junit|buildpulse|trunk-io|test-results|test-reporter|codecov\/test-results-action|ctrf|allure|xunit|\.trx\b|publish-unit-test-result/i;
+
 const DEP_BOT = /^(dependabot|renovate|depfu|pyup|snyk|mend|whitesource)/i;
 // Grouped updates, by the titles the bots give them: Dependabot's "Bump the <group> group …", and Renovate's built-in
 // groups' "Update all non-major dependencies" and "… monorepo …".
@@ -169,15 +177,61 @@ export const practices = (source: Source, history?: History) => {
 
   const wf = workflowFiles(source);
   unknown.push(...wf.unknown);
-  const called = new Set(wf.files.flatMap((f) => localUses(f.text)));
-  const allActions = paths.filter((p) => /^(.+)\/action\.ya?ml$/.test(p) && (p.startsWith('.github/actions/') || called.has(p.replace(/\/action\.ya?ml$/, ''))));
-  const actionPaths = allActions.slice(0, MAX_ACTIONS);
-  if (allActions.length > MAX_ACTIONS) unknown.push(`Read the first ${MAX_ACTIONS} of ${allActions.length} local actions`);
+  // Local actions: every `.github/actions/**/action.yml`, and each one a workflow calls with `uses: ./`, then each one
+  // those call, in turn, up to MAX_ACTIONS read in all. Only an action a workflow reaches can show a practice.
+  // A workflow can check this repo out again under a `path`, and call an action from there.
+  const roots = wf.files.flatMap((f) => {
+    const doc = yaml(f.text);
+    const jobs = isMap(doc) && isMap(doc.jobs) ? Object.values(doc.jobs) : [];
+    return jobs.flatMap((j) => (isMap(j) && Array.isArray(j.steps) ? j.steps : [])).flatMap((step) => {
+      const w = isMap(step) && typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@') && isMap(step.with) ? step.with : undefined;
+      const same = w && (w.repository === undefined || w.repository === '${{ github.repository }}');
+      return same && typeof w.path === 'string' && w.path !== '' ? [w.path.replace(/^\.\//, '').replace(/\/$/, '')] : [];
+    });
+  });
+  const actionOf = (dir: string): string | undefined =>
+    [`${dir}/action.yml`, `${dir}/action.yaml`].find((p) => tree.has(p)) ?? roots.flatMap((r) => (dir.startsWith(`${r}/`) ? [actionOf(dir.slice(r.length + 1))] : [])).find((p) => p !== undefined);
+  const actionTexts = new Map<string, string>();
+  const attempted = new Set<string>();
+  let skipped = 0;
+  const readActions = (ps: string[], extra: string[] = []) => {
+    const fresh = [...new Set(ps)].filter((p) => !attempted.has(p));
+    const take = fresh.slice(0, Math.max(0, MAX_ACTIONS - attempted.size));
+    skipped += fresh.length - take.length;
+    for (const p of take) attempted.add(p);
+
+    const wanted = [...take, ...extra];
+    const got = source.readMany(wanted);
+    for (const p of wanted) if (!got.texts.has(p)) unknown.push(got.failed.has(p) ? `${p} couldn't be read: ${got.failed.get(p)}` : `${p} is in the tree but couldn't be found`);
+    for (const p of take) if (got.texts.has(p)) actionTexts.set(p, got.texts.get(p)!);
+    return got;
+  };
+  // A call to a reusable workflow is a job's, and that file is read as a workflow.
+  const callsOf = (from: string, text: string) => localUses(text).filter((dir) => !/^\.github\/workflows\/[^/]+\.ya?ml$/.test(dir)).map((dir) => ({ from, dir }));
+  let calls = wf.files.flatMap((f) => callsOf(f.path, f.text));
 
   // The actions and every tool's config, in one batch: a GraphQL query for up to 100 files, none when there are none.
-  const wanted = [...actionPaths, ...CONFIGS.filter((p) => tree.has(p))];
-  const got = source.readMany(wanted);
-  for (const p of wanted) if (!got.texts.has(p)) unknown.push(got.failed.has(p) ? `${p} couldn't be read: ${got.failed.get(p)}` : `${p} is in the tree but couldn't be found`);
+  const ghActions = paths.filter((p) => p.startsWith('.github/actions/') && /\/action\.ya?ml$/.test(p));
+  const got = readActions([...calls.flatMap((c) => actionOf(c.dir) ?? []), ...ghActions], CONFIGS.filter((p) => tree.has(p)));
+  const reached = new Set<string>();
+  let unresolved = false;
+  while (calls.length) {
+    const next: typeof calls = [];
+    for (const { from, dir } of calls) {
+      const p = actionOf(dir);
+      if (p === undefined) {
+        if (!unresolved && treeComplete) unknown.push(`${from} calls a local action that isn't in the tree`);
+        unresolved = true;
+      } else if (!reached.has(p)) {
+        reached.add(p);
+        next.push(...callsOf(p, actionTexts.get(p) ?? ''));
+      }
+    }
+    readActions(next.flatMap((c) => actionOf(c.dir) ?? []));
+    calls = next;
+  }
+  if (skipped) unknown.push(`Read the first ${MAX_ACTIONS} of ${MAX_ACTIONS + skipped} local actions`);
+
   /** The first of these the tree has: its text, '' when none is there, undefined when that's unknown. */
   const config = (...ps: string[]) => {
     const path = ps.find((p) => tree.has(p));
@@ -197,12 +251,16 @@ export const practices = (source: Source, history?: History) => {
   const inPkg = (re: RegExp) => re.test(pkg ?? '');
 
   const workflows: File[] = wf.files.map((f) => ({ path: f.path, text: decomment(f.text) }));
-  const actions: File[] = actionPaths.filter((p) => got.texts.has(p)).map((p) => ({ path: p, text: decomment(got.texts.get(p)!) }));
+  const actionFiles = [...actionTexts].map(([path, text]) => ({ path, text: decomment(text) }));
+  const actions: File[] = actionFiles.filter((a) => reached.has(a.path));
+  /** Actions read that no workflow reaches: a form found there hints at a practice, and never shows it. */
+  const unused: File[] = actionFiles.filter((a) => !reached.has(a.path));
   const ci = [...workflows, ...actions];
   const onPr = [...workflows.filter((w) => /pull_request|workflow_call/.test(w.text)), ...actions];
-  // A practice set only in a workflow file is known once every workflow is read; one a step can hold, once every local action is too.
+  // A practice set only in a workflow file is known once every workflow is read; one a step can hold, once every local
+  // action is too, and every local call resolves.
   const inWorkflows = wf.complete;
-  const inSteps = wf.complete && treeComplete && allActions.length <= MAX_ACTIONS && actions.length === actionPaths.length;
+  const inSteps = wf.complete && treeComplete && !skipped && !unresolved && [...attempted].every((p) => actionTexts.has(p));
   const parsed = wf.files.flatMap(({ path, text }) => {
     try {
       return [{ path, doc: parseYaml(text) }];
@@ -214,10 +272,12 @@ export const practices = (source: Source, history?: History) => {
   const parsedAll = parsed.length === wf.files.length;
 
   const firstIn = (files: File[], re: RegExp | ((f: File) => boolean)) => files.find((f) => (typeof re === 'function' ? re(f) : re.test(f.text)))?.path;
-  const word = (files: File[], re: RegExp) => {
+  const word = (files: File[], re: RegExp | ((f: File) => boolean)) => {
     const path = firstIn(files, re);
     return path === undefined ? undefined : ({ path, kind: 'word' } as const);
   };
+  /** Loose words in any CI file, used or not, or else a strict form in an action nothing reaches. */
+  const loose = (files: File[], re: RegExp | ((f: File) => boolean), strict: RegExp | ((f: File) => boolean)) => word([...files, ...unused], re) ?? word(unused, strict);
   const decide = (practice: string, strict: string | undefined, hint: { path: string; kind: HintKind } | undefined, complete: boolean): boolean | null => {
     if (strict !== undefined) {
       where[practice] = strict;
@@ -255,9 +315,10 @@ export const practices = (source: Source, history?: History) => {
 
   // Remote cache: CI files, then each runner's own config.
   const cacheConfigs = [{ path: 'nx.json', text: nx }, ...CACHE_CONFIGS.map((p) => ({ path: p, text: tree.has(p) ? got.texts.get(p) : treeComplete ? '' : undefined }))];
-  const remoteStrict = firstIn(ci, (f) => REMOTE_CACHE.test(f.text.replace(SET_OFF, ''))) ?? cacheConfigs.find((c) => c.text && remoteInConfig(c.path, c.text))?.path;
+  const remoteIn = (f: File) => REMOTE_CACHE.test(f.text.replace(SET_OFF, ''));
+  const remoteStrict = firstIn(ci, remoteIn) ?? cacheConfigs.find((c) => c.text && remoteInConfig(c.path, c.text))?.path;
   const remoteConfigHint = cacheConfigs.find((c) => !!c.text && /^(nx\.json|turbo|vite\.config)/.test(c.path) && REMOTE_CONFIG_WORDS.test(c.text))?.path;
-  const remoteHint = firstIn(ci, (f) => REMOTE_WORDS.test(f.text.replace(SET_OFF, '')));
+  const remoteHint = loose(ci, (f) => REMOTE_WORDS.test(f.text.replace(SET_OFF, '')), remoteIn)?.path;
 
   // Merge queue.
   const mergify = config(...MERGIFY);
@@ -278,18 +339,18 @@ export const practices = (source: Source, history?: History) => {
   // turns on enableImmutableInstalls on CI (yarnpkg.com/configuration/yarnrc), unless it's turned off.
   const yarnrc = config('.yarnrc.yml');
   const yarnImmutable = !!yarnrc?.path && !/enableImmutableInstalls:\s*false/.test(yarnrc.text) && !/YARN_ENABLE_IMMUTABLE_INSTALLS:\s*['"]?(false|0)/.test(all);
-  const frozen = firstIn(ci, (f) =>
+  const frozenIn = (f: File) =>
     /--frozen-lockfile|npm ci\b|--immutable|--locked|--frozen\b/.test(f.text) ||
     /\bpnpm (install|i)\b(?![^\n]*(--no-frozen-lockfile|\s-g\b|--global))|run_install:\s*(?!false)\S/.test(f.text) ||
-    (yarnImmutable && /\byarn( install)?\s*($|&&|;)/m.test(f.text)),
-  );
+    (yarnImmutable && /\byarn( install)?\s*($|&&|;)/m.test(f.text));
+  const frozen = firstIn(ci, frozenIn);
 
   // Dependency caches: any `…/cache` action, setup actions' cache inputs, and setup-go, which caches by default since v4.
-  const depCache = firstIn(ci, (f) =>
+  const depCacheIn = (f: File) =>
     /actions\/cache|cache:\s*['"]?(npm|pnpm|yarn|pip|pipenv|poetry|gradle|maven|bun|sbt)|enable-cache|cache-dependency-path|rust-cache|setup-gradle|bundler-cache:\s*true/.test(f.text) ||
     /uses:\s*['"]?[\w.-]+\/(?![\w.-]*sccache)[\w.-]*cache[\w.-]*(\/[\w.-]+)*@/i.test(f.text) ||
-    (/actions\/setup-go@v([4-9]|\d{2})/.test(f.text) && !/cache:\s*false/.test(f.text)),
-  );
+    (/actions\/setup-go@v([4-9]|\d{2})/.test(f.text) && !/cache:\s*false/.test(f.text));
+  const depCache = firstIn(ci, depCacheIn);
   const cargo = config('.cargo/config.toml', '.cargo/config');
 
   // Dependency updates batched: each bot's config, then the bots' merged pull requests.
@@ -316,29 +377,32 @@ export const practices = (source: Source, history?: History) => {
     else if (!botPrs.length) unknown.push('No dependency bot config and no bot pull requests merged in the window, so there are no updates to batch');
     else if (!history.complete) unknown.push("The window's merged pull requests run past one page of search, and no config says whether bots group updates");
   }
+  // A grouped pull request may be on a page not read, from a group set in GitHub's settings, which no file shows.
+  const historyCut = !!history && !history.complete;
+  if (!depStrict && !depHint && depKnown && depConfigs && historyCut) unknown.push("The window's merged pull requests run past one page of search, so a bot's grouped update may be on a page not read");
   if (!depStrict && sharedPreset) unknown.push(`${renovate!.path} extends a preset kept in another repo, so whether it batches updates can't be read here`);
 
   return {
     workflows: wf.all.length,
     // B. Running less
-    cancelInProgress: decide('cancelInProgress', firstIn(onPr, /cancel-in-progress:\s*(true|\$\{\{)|styfle\/cancel-workflow-action/), word(onPr, /cancel[-_ ]?(previous|superseded|outdated|redundant|duplicate|others)\b|skip-duplicate-actions/i), inSteps),
-    pathFilters: decide('pathFilters', prPaths ?? firstIn(onPr, /dorny\/paths-filter|changed-files/), word(onPr, CHANGED_FILES), inSteps && parsedAll),
-    affected: decide('affected', firstIn(ci, AFFECTED) ?? changes.strict, changes.named ? { path: changes.named, kind: 'job' } : word(ci, AFFECTED_WORDS), inSteps && parsedAll),
-    draftSkip: decide('draftSkip', firstIn(onPr, /draft\s*==\s*'?false'?|draft\s*!=\s*'?true'?|!\s*\(?\s*github\.event\.pull_request\.draft|ready_for_review/), word(onPr, /^\s*(-\s*)?if:[^\n]*\bdraft\b/im), inWorkflows),
-    mergeQueue: decide('mergeQueue', queueStrict, queueConfig ? { path: queueConfig, kind: 'config' } : word(ci, QUEUE_WORDS), inWorkflows && queueKnown),
+    cancelInProgress: decide('cancelInProgress', firstIn(onPr, CANCEL), loose(onPr, /cancel[-_ ]?(previous|superseded|outdated|redundant|duplicate|others)\b|skip-duplicate-actions/i, CANCEL), inSteps),
+    pathFilters: decide('pathFilters', prPaths ?? firstIn(onPr, PATHS_ACTION), loose(onPr, CHANGED_FILES, PATHS_ACTION), inSteps && parsedAll),
+    affected: decide('affected', firstIn(ci, AFFECTED) ?? changes.strict, changes.named ? { path: changes.named, kind: 'job' } : loose(ci, AFFECTED_WORDS, AFFECTED), inSteps && parsedAll),
+    draftSkip: decide('draftSkip', firstIn(onPr, DRAFT), loose(onPr, /^\s*(-\s*)?if:[^\n]*\bdraft\b/im, DRAFT), inWorkflows),
+    mergeQueue: decide('mergeQueue', queueStrict, queueConfig ? { path: queueConfig, kind: 'config' } : word([...ci, ...unused], QUEUE_WORDS), inWorkflows && queueKnown),
     scheduled: decide('scheduled', firstIn(workflows, /^\s*schedule:/m), word(workflows, /^name:[^\n]*\b(nightly|weekly|daily|cron|sweep)\b/im), inWorkflows),
     // C. Reusing work
-    depCache: decide('depCache', depCache, word(ci, /\bcache\b/i), inSteps),
+    depCache: decide('depCache', depCache, loose(ci, /\bcache\b/i, depCacheIn), inSteps),
     remoteCache: decide('remoteCache', remoteStrict, remoteConfigHint ? { path: remoteConfigHint, kind: 'config' } : remoteHint ? { path: remoteHint, kind: 'word' } : undefined, inSteps && cacheConfigs.every((c) => c.text !== undefined)),
     compilerCache: decide(
       'compilerCache',
-      firstIn(ci, /rust-cache|sccache|ccache/) ?? (cargo?.text && /rustc-wrapper\s*=\s*["'][^"']*cache/.test(cargo.text) ? cargo.path : undefined),
-      word(ci, /cachix|buildcache|compil\w*[-_ ]?cache|\btarget\b[^\n]{0,60}\bcache\b|\bcache\b[^\n]{0,60}\btarget\b/i),
+      firstIn(ci, COMPILER_CACHE) ?? (cargo?.text && /rustc-wrapper\s*=\s*["'][^"']*cache/.test(cargo.text) ? cargo.path : undefined),
+      loose(ci, /cachix|buildcache|compil\w*[-_ ]?cache|\btarget\b[^\n]{0,60}\bcache\b|\bcache\b[^\n]{0,60}\btarget\b/i, COMPILER_CACHE),
       inSteps && cargo !== undefined,
     ),
-    frozenInstall: decide('frozenInstall', frozen, word(ci, /\bvp (install|i)\b|\bnci\b|\bbun ci\b/), inSteps && yarnrc !== undefined),
+    frozenInstall: decide('frozenInstall', frozen, loose(ci, /\bvp (install|i)\b|\bnci\b|\bbun ci\b/, frozenIn), inSteps && yarnrc !== undefined),
     // D. Shards and runners
-    shardsConfigured: decide('shardsConfigured', firstIn(ci, /--shard|shardIndex|shard_index|total-shards|split-tests|knapsack|--partition|--splits?\b|CI_NODE_(INDEX|TOTAL)|matrix\.shard\b/i), word(ci, /\b(shards?|chunks?|partitions?|slices?)\b/i), inSteps),
+    shardsConfigured: decide('shardsConfigured', firstIn(ci, SHARDS), loose(ci, /\b(shards?|chunks?|partitions?|slices?)\b/i, SHARDS), inSteps),
     // `timeout-minutes` is GitHub's one form, and a local action can't set a job's: there's nothing looser to take.
     timeouts: decide('timeouts', firstIn(workflows, /timeout-minutes/), undefined, inWorkflows),
     // E. Workspace tooling
@@ -351,9 +415,9 @@ export const practices = (source: Source, history?: History) => {
     eslint: decide('eslint', (inPkg(/"eslint"/) ? 'package.json' : undefined) ?? find(/^(\.eslintrc(\.\w+)?|eslint\.config\.[cm]?[jt]s)$/), undefined, treeComplete && pkgKnown),
     testRunner: named(testRunner, treeComplete && pkgKnown && inSteps),
     // F. Tests and flakes
-    testResults: decide('testResults', firstIn(ci, /junit|buildpulse|trunk-io|test-results|test-reporter|codecov\/test-results-action|ctrf|allure|xunit|\.trx\b|publish-unit-test-result/i), word(ci, /--reporters?[= ]|test[-_ ]?reports?/i), inSteps),
+    testResults: decide('testResults', firstIn(ci, TEST_RESULTS), loose(ci, /--reporters?[= ]|test[-_ ]?reports?/i, TEST_RESULTS), inSteps),
     // G. Health
-    depBotsBatched: decide('depBotsBatched', depStrict, depHint, depKnown && (depConfigs || (!!history && botPrs.length > 0 && history.complete))),
+    depBotsBatched: decide('depBotsBatched', depStrict, depHint, depKnown && !historyCut && (depConfigs || (!!history && botPrs.length > 0))),
     // H. Ready for agents
     agentsMd: agentsMd.length || treeComplete ? agentsMd : null,
     agentRules: decide('agentRules', find(/^\.cursor\/rules\/|^\.cursorrules$|^\.(agents|claude)\/(skills|agents|commands)\/|^\.github\/instructions\/|^\.windsurf\/rules\/|^\.clinerules/), undefined, treeComplete),

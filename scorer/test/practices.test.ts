@@ -85,6 +85,55 @@ describe('local actions', () => {
   });
 });
 
+describe('local actions an action calls', () => {
+  const composite = (steps: string) => `runs:\n  using: composite\n  steps:\n${steps}\n`;
+  const nested = (inner: Record<string, string>) => ({
+    ...ci('      - uses: actions/checkout@v4\n      - uses: ./.github/actions/setup'),
+    '.github/actions/setup/action.yml': composite('    - uses: actions/setup-node@v4\n    - uses: ./tools/cache'),
+    ...inner,
+  });
+
+  it('follows them from an action, and takes a practice set two calls down', () => {
+    const p = of(nested({ 'tools/cache/action.yml': composite('    - shell: bash\n      run: echo "VP_REMOTE_CACHE=read" >> "$GITHUB_ENV"') }));
+    assert.equal(p.remoteCache, true);
+    assert.equal(p.where.remoteCache, 'tools/cache/action.yml');
+    // Calls to actions in other repositories are out of scope, and leave nothing unknown.
+    assert.equal(of(nested({ 'tools/cache/action.yml': composite('    - run: npm test') })).remoteCache, false);
+  });
+
+  it("leaves a step's practice unknown when a call isn't in the tree, or the chain runs past the cap", () => {
+    const missing = of(nested({}));
+    assert.equal(missing.remoteCache, null);
+    assert.equal(missing.timeouts, false);
+    assert.ok(missing.unknown.includes(".github/actions/setup/action.yml calls a local action that isn't in the tree"));
+
+    // The same repo checked out again under a path is no missing action.
+    const again = '      - uses: actions/checkout@v4\n        with:\n          path: .trusted\n      - uses: ./.trusted/.github/actions/setup';
+    const trusted = of({ ...ci(again), '.github/actions/setup/action.yml': composite('    - run: npm test') });
+    assert.equal(trusted.remoteCache, false);
+    assert.equal(of({ ...ci(again.replace('path:', 'repository: orchard/tools\n          path:')), '.github/actions/setup/action.yml': composite('    - run: npm test') }).remoteCache, null);
+
+    const chain = Object.fromEntries(Array.from({ length: MAX_ACTIONS + 1 }, (_, i) => [`tools/a${i}/action.yml`, composite(i < MAX_ACTIONS ? `    - uses: ./tools/a${i + 1}` : '    - run: echo "VP_REMOTE_CACHE=read" >> "$GITHUB_ENV"')]));
+    const long = of({ ...ci('      - uses: ./tools/a0'), ...chain });
+    assert.equal(long.remoteCache, null);
+    assert.ok(long.unknown.includes(`Read the first ${MAX_ACTIONS} of ${MAX_ACTIONS + 1} local actions`));
+  });
+});
+
+describe('an action no workflow reaches', () => {
+  it('hints at a practice and never shows it', () => {
+    const p = of({
+      ...ci('      - run: npm install\n      - run: npm test'),
+      '.github/actions/unused/action.yml': 'runs:\n  using: composite\n  steps:\n    - uses: actions/cache@v4\n    - run: npm ci\n    - run: npx nx affected -t test\n',
+    });
+    for (const key of ['frozenInstall', 'depCache', 'affected'] as const) {
+      assert.equal(p[key], null, key);
+      assert.equal(p.where[key], undefined, key);
+      assert.ok(p.hints.some((h) => h.practice === key && h.path === '.github/actions/unused/action.yml' && h.kind === 'word'), key);
+    }
+  });
+});
+
 describe('remote cache', () => {
   it("takes each runner's own switch outside the workflows", () => {
     assert.equal(of({ ...ci('      - run: bazel test //...'), '.bazelrc': 'build --remote_cache=grpcs://cache.example.com\n' }).remoteCache, true);
@@ -168,6 +217,14 @@ describe('dependency batching', () => {
     assert.equal(of({ '.github/dependabot.yml': 'updates:\n  - package-ecosystem: npm\n' }).depBotsBatched, false);
     assert.equal(of({}, prs(['dependabot[bot]', 'Bump vite from 7.1.0 to 7.1.2'])).depBotsBatched, false);
     assert.equal(of({}, { ...prs(['dependabot[bot]', 'Bump vite from 7.1.0 to 7.1.2']), complete: false }).depBotsBatched, null);
+  });
+
+  it('leaves a config with no groups unknown when the window runs past the page read, since GitHub settings can group', () => {
+    const cut = { ...prs(['dependabot[bot]', 'Bump vite from 7.1.0 to 7.1.2']), complete: false };
+    const p = of({ '.github/dependabot.yml': 'updates:\n  - package-ecosystem: npm\n' }, cut);
+    assert.equal(p.depBotsBatched, null);
+    assert.ok(p.unknown.includes("The window's merged pull requests run past one page of search, so a bot's grouped update may be on a page not read"));
+    assert.equal(of({ '.github/dependabot.yml': 'updates:\n  - package-ecosystem: npm\n' }, { ...cut, complete: true }).depBotsBatched, false);
   });
 
   it('has nothing to batch with no bot config and no bot pull requests, in a window or a checkout', () => {
