@@ -12,6 +12,7 @@ Under 1.0, a minor release carries what would be a major one.
 
 ### Skills
 
+- **Gating in the merge queue, and review scaled to risk.** `ci-workflows`' tiers say when running nothing on a pull request and building it in the queue fits, and what has to hold first. `review-gate` has a new reference on risk tiers, read from the base branch so a PR can't lower its own. `ci-merge-workflow` has one for a queue-only repo, where the result to read is the merge group's.
 - **`optimize-graphs`' selection: audit the running selector against the full gate.** A quarterly read of what the sweep or queue ran since: each widening rule's share of attempts, and every full-gate failure checked for an edge the selector missed, committed with its evidence.
 - **`speed-up-tests`' references,** from a slow-test run on 23 November 2026: count the tries where a test says "at once"; merge two cases only with every assertion of both; prove absence with a marker down the same ordered channel; make a backed-off job due and step it; parse a script's arguments before its module runner loads; a stand-in for a lock must lock; and compare a file's normalized median with its earlier normalized one.
 - **`ci-workflows`' tiers:** time each case before splitting a file for a tier move, and take a covered-only list from the code whose change could alter the proof's result, checked against the modules its run loads, never the whole module graph.

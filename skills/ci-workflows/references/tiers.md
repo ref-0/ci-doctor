@@ -13,6 +13,18 @@ Part of the [`ci-workflows`](../SKILL.md) skill. Read it before moving a test of
 
 Read each from its source, as `.agents/repo/ci.md`'s Selection and tiers names them: what a pull request selects, what scheduled runs check, and what a release waits for. Where a release publishes only what a passing sweep checked, a test the sweep runs already gates every release, and a tier of its own for releases adds nothing.
 
+## Checking pull requests only in the merge queue
+
+A repo can run nothing on a pull request and build each one in its merge queue instead. One open-source repo does: its pull requests run no checks, a maintainer picks what enters the queue, and each group builds once on a self-hosted runner in under three minutes. It's a tier choice like any other, and it fits only when all of these hold:
+
+- **The queue's build is fast,** a few minutes, since it's now the first result an author sees. A slow one turns every fault into a dropped entry and a second wait.
+- **Someone chooses what enters,** a maintainer or a review that scales with the change's risk, as [`review-gate`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/review-gate/references/risk-tiers.md) describes. With no PR run, nothing else stops a broken change from taking a queue slot.
+- **Authors can run the same selection locally,** from one impact map CI and the local command share, so a fault is found before the queue, not in it.
+- **A full gate runs somewhere,** such as a nightly run, and the selector is audited against it, as [`optimize-graphs`](https://github.com/ref-0/ci-doctor/blob/v0.4.0/skills/optimize-graphs/references/selection.md) says.
+- **A dropped entry is put back,** by a person or a job that re-enqueues what a flake or a neighbour's fault removed.
+
+Where one is missing, keep a PR run. State in the pull request what an author loses: a result before review, and a check on a PR nobody queues. The scorer reads such a repo's `merge_group` runs as its pushes and reports a merge-queue wait.
+
 ## Moving a test to a later tier
 
 1. **Map what already holds it back,** such as a selection that runs a test only when it's near the change, or a cache that replays a package's tests when nothing they read changed. A test that runs on few pull requests saves little by moving and, for a Git oracle, would skip exactly the runs that change its code.
