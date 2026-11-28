@@ -41,6 +41,8 @@ Read its result as the hub's [triage](https://github.com/ref-0/ci-doctor/blob/v0
 
 When a property test fails, read [property tests in CI](references/property-tests.md).
 
+When pull requests run no CI and the merge queue builds them, read [a queue-only repo](references/queue-only.md).
+
 ## 4. Run CI by hand
 
 Only to answer what a local run can't, such as a failure CI shows and your machine doesn't, or proving a flake's fix. Read [manual runs](references/manual-runs.md) first.
