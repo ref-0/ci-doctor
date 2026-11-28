@@ -75,6 +75,8 @@ const linScore = (x: number, good: number, bad: number) =>
 // ---------- runs: the outcomes ----------
 
 const PR_EVENTS = new Set(['pull_request', 'pull_request_target']);
+/** GitHub's merge queue builds each group of pull requests on this event. */
+const QUEUE_EVENT = 'merge_group';
 // Workflows that run on PRs but don't gate a merge; left out of the wait, listed in the report.
 const NOT_A_CHECK =
   /claude|codex|copilot|coderabbit|gemini|greptile|sourcery|ai.?review|pr.?review|label|triage|welcome|greet|stale|lock|assign|size|auto-?merge|preview|deploy|benchmark|codspeed|bundle.?(size|analy)|release|publish|cla\b|first.?interaction|backport|comment/i;
@@ -839,16 +841,28 @@ export const measure = (gh: Gh, repo: string, days: number) => {
   const inWindow = (r: Run) => Date.parse(r.created_at) >= from;
   const runs = [...prStream.runs.filter(inWindow), ...targetStream.runs.filter(inWindow), ...mainStream.runs];
   const total = prStream.total;
-  const covered = prStream.runs.length + targetStream.runs.length ? (Date.now() - from) / DAY : 0;
 
-  const prRuns = runs.filter((r) => PR_EVENTS.has(r.event));
-  const gating = prRuns.filter((r) => !NOT_A_CHECK.test(r.name));
-  const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
-  const ci = ciMinutes(gh, repo, gating, meta.private === true);
+  // The checks a set of runs holds: the ones that gate a merge, their minutes and the waits on each pushed head.
   const first = firstAttempts(gh, repo, 25);
   const ranAny = ranJobs(gh, repo, 60);
-  const wait = waits(gating, first, ci.heavy, ranAny);
-  const allPushes = waits(gating, first, undefined, ranAny);
+  const checksOf = (checks: Run[]) => {
+    const gating = checks.filter((r) => !NOT_A_CHECK.test(r.name));
+    const ci = ciMinutes(gh, repo, gating, meta.private === true);
+    return { checks, gating, ci, wait: waits(gating, first, ci.heavy, ranAny), allPushes: waits(gating, first, undefined, ranAny) };
+  };
+  const onPrs = checksOf(runs.filter((r) => PR_EVENTS.has(r.event)));
+  // A repo whose pull requests run too little to time may check each one in its merge queue instead: a group's
+  // build is then the wait on that pull request, and its runs are read only for such a repo, over the same days.
+  const queued = (): ReturnType<typeof checksOf> | undefined => {
+    if (onPrs.wait.timed >= MIN_TIMED) return undefined;
+    const groups = readRuns(gh, repo, since, `event=${QUEUE_EVENT}`, MAX_RUN_PAGES, from).runs.filter(inWindow);
+    const withGroups = groups.length ? checksOf([...onPrs.checks, ...groups]) : undefined;
+    return withGroups && withGroups.wait.timed >= MIN_TIMED ? withGroups : undefined;
+  };
+  const inQueue = queued();
+  const { checks: prRuns, gating, ci, wait, allPushes } = inQueue ?? onPrs;
+  const left = [...new Set(prRuns.filter((r) => NOT_A_CHECK.test(r.name)).map((r) => r.name))];
+  const covered = prRuns.length ? (Date.now() - from) / DAY : 0;
   const main = waits(runs.filter((r) => r.event === 'push' && r.head_branch === meta.default_branch && !NOT_A_CHECK.test(r.name)));
   const bots = share(runs.filter((r) => r.actor?.login.endsWith('[bot]')).length, runs.length);
 
@@ -935,7 +949,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     runners: jobs?.providers,
   });
   // The sampled runs' jobs and the workflow files are remembered from the reads above: no new calls.
-  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })), meta.private === true);
+  const jobGraph = jobGraphOf(source.read, perRun.map((x) => ({ id: x.run.id, path: x.run.path, jobs: readAllJobs(gh, repo, x.run.id) as ApiJob[] })), meta.private === true, repo);
   // The entry files and task configs: GraphQL blob batches at the tree's ids, counted here.
   const callsBefore = gh.calls;
   const graphs = graphsOf({ source, stack, jobGraph });
@@ -1008,7 +1022,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     defaultBranch: meta.default_branch as string,
     unscored,
     profile,
-    window: { days: r1(covered), runs: prStream.runs.length, runsInPeriod: total, truncated: total > prStream.fetched, mainDays: r1(mainStream.days) },
+    window: { days: r1(covered), runs: prStream.runs.length + (inQueue ? inQueue.checks.length - onPrs.checks.length : 0), runsInPeriod: total, truncated: total > prStream.fetched, mainDays: r1(mainStream.days) },
     size: sizeClass((wait.heads / Math.max(covered, 0.5)) * 7, profile.linesOfCode),
     headsPerWeek: Math.round((wait.heads / Math.max(covered, 0.5)) * 7),
     score: enough ? score : null,
@@ -1018,7 +1032,7 @@ export const measure = (gh: Gh, repo: string, days: number) => {
     detail,
     efficiency,
     evidence: enough ? evidence : { ...evidence, confidence: null, reasons: [] },
-    wait: { ...shown(wait), leftOut: left, heavyWorkflows: ci.heavyNames, allPushesP50: allPushes.p50 },
+    wait: { ...shown(wait), from: inQueue ? ('merge-queue' as const) : ('pull-requests' as const), leftOut: left, heavyWorkflows: ci.heavyNames, allPushesP50: allPushes.p50 },
     main: { heads: main.heads, p50: main.p50, p90: main.p90, redRate: main.redRate, redBy: main.redBy },
     botRunShare: bots,
     jobs,

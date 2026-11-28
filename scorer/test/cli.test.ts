@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { INSTALL_STEPS } from '../src/install-steps.ts';
-import { fakeRepo, LOG_LINE, type Routes } from './fixtures.ts';
+import { blobSha, fakeRepo, LOG_LINE, type Routes } from './fixtures.ts';
 import { checkout, CLI, listing, runCli, scratch } from './helpers.ts';
 
 const PUBLIC = 'pip/public-app';
@@ -30,8 +30,8 @@ describe('the bare command in a checkout', () => {
     const r = await runCli(['--json'], { cwd: dir, routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
 
     assert.equal(r.code, 0, r.stderr);
-    const workflowRead = r.calls.find((c) => c.at(-1) === `repos/${PUBLIC}/contents/.github/workflows/ci.yml?ref=main`);
-    assert.ok(workflowRead?.includes('Accept: application/vnd.github.raw'));
+    const workflowRead = r.calls.find((c) => c.includes('graphql') && c.at(-1)!.includes(blobSha('.github/workflows/ci.yml')));
+    assert.ok(workflowRead, "the workflow file is read at the tree's blob id, in gh's GraphQL call");
     for (const f of readdirSync(join(CLI, '..'))) assert.doesNotMatch(readFileSync(join(CLI, '..', f), 'utf8'), /raw\.githubusercontent/);
   });
 });
@@ -154,6 +154,51 @@ describe('statistics GitHub is still computing', () => {
   });
 });
 
+describe('a repo that checks pull requests in its merge queue', () => {
+  // The made-up repo's pull request runs, as its merge queue's group builds: its pull requests then run nothing.
+  const queueOnly = () => {
+    const routes = fakeRepo({ repo: PUBLIC });
+    const runs = routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`]!.json as { total_count: number; workflow_runs: Record<string, unknown>[] };
+    const groups = runs.workflow_runs.map((run, i) => ({ ...run, event: 'merge_group', head_branch: `gh-readonly-queue/main/pr-${i}-${String(run.head_sha)}` }));
+    routes[`repos/${PUBLIC}/actions/runs?event=merge_group&page=1`] = { status: 200, json: { total_count: groups.length, workflow_runs: groups } };
+    routes[`repos/${PUBLIC}/actions/runs?event=pull_request&page=1`] = { status: 200, json: { total_count: 0, workflow_runs: [] } };
+    return routes;
+  };
+
+  it("is scored on its groups' builds, and says so", async () => {
+    const queued = json((await runCli(['--repo', PUBLIC, '--json'], { routes: queueOnly(), noNetwork: true })).stdout);
+    const pushed = json((await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true })).stdout);
+
+    assert.equal(queued.wait.from, 'merge-queue');
+    assert.equal(pushed.wait.from, 'pull-requests');
+    assert.equal(queued.score, pushed.score);
+    assert.deepEqual([queued.wait.timed, queued.wait.p50, queued.wait.p90, queued.wait.redRate], [pushed.wait.timed, pushed.wait.p50, pushed.wait.p90, pushed.wait.redRate]);
+    assert.equal(queued.window.runs, pushed.window.runs);
+
+    const text = (await runCli(['--repo', PUBLIC], { routes: queueOnly() })).stdout;
+    assert.match(text, /^Window: [\d.]+ days, 20 PR and merge-queue runs, /m);
+    assert.match(text, /\(small: \d+ PR pushes and merge-queue groups a week\)$/m);
+    assert.match(text, /^Merge-queue wait p50 \/ p75 \/ p90: .* min \(a group's build, since pull requests run too little to time; those that ran "CI"; all pushes and groups p50 /m);
+  });
+
+  it("isn't read for a repo whose pull request pushes can be timed", async () => {
+    const r = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
+
+    assert.deepEqual(paths(r.calls).filter((p) => p.includes('event=merge_group')), []);
+    assert.match(r.stdout, /^PR wait p50 /m);
+  });
+
+  it('with too few groups too, stays unscored', async () => {
+    const routes = queueOnly();
+    const groups = routes[`repos/${PUBLIC}/actions/runs?event=merge_group&page=1`]!.json as { workflow_runs: unknown[] };
+    groups.workflow_runs.length = 3;
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes });
+
+    assert.equal(json(r.stdout).score, null);
+    assert.equal(json(r.stdout).wait.from, 'pull-requests');
+  });
+});
+
 describe('too little history', () => {
   it('says unscored with the reason, and still shows the practices', async () => {
     const r = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC, heads: 3 }) });
@@ -232,7 +277,7 @@ describe('too little history', () => {
 });
 
 describe('the stack', () => {
-  it('is in the report, its manifests read in one GraphQL call', async () => {
+  it('is in the report, its manifests read in one GraphQL call and the workflow files in another', async () => {
     const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC }), noNetwork: true });
 
     assert.equal(r.code, 0, r.stderr);
@@ -245,7 +290,8 @@ describe('the stack', () => {
     assert.deepEqual(stack.runners, json(r.stdout).jobs.providers);
     assert.deepEqual(stack.agentFiles, []);
     assert.deepEqual(stack.graph, { packages: [{ name: 'app', path: 'package.json', ecosystem: 'npm', internal: [], exports: false }], count: 1, edges: 0, cycles: [], maxDepth: 0, topFanIn: [] });
-    assert.equal(r.calls.filter((c) => c.includes('graphql')).length, 1);
+    assert.equal(r.calls.filter((c) => c.includes('graphql')).length, 2);
+    assert.equal(paths(r.calls).filter((p) => p.startsWith(`repos/${PUBLIC}/contents/.github/workflows/`)).length, 0);
 
     const text = await runCli(['--repo', PUBLIC], { routes: fakeRepo({ repo: PUBLIC }) });
     assert.match(text.stdout, /^Stack:\n  Languages\s+TypeScript 98%, JavaScript 3%\n  Workspace\s+pnpm · 1 npm package\n  Tests\s+Vitest\n  Lint, format\s+ESLint$/m);
@@ -309,12 +355,12 @@ describe('unknown is not absent', () => {
   });
 
   it('more workflows than it reads leaves the rest unknown', async () => {
-    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC, workflows: 45 }) });
+    const r = await runCli(['--repo', PUBLIC, '--json'], { routes: fakeRepo({ repo: PUBLIC, workflows: 205 }) });
 
     const report = json(r.stdout);
     assert.equal(report.practices.cancelInProgress, true);
     assert.equal(report.practices.mergeQueue, null);
-    assert.ok(report.practices.unknown.includes('Read the first 40 of 45 workflow files'));
+    assert.ok(report.practices.unknown.includes('Read the first 200 of 205 workflow files'));
   });
 
   it('a known absence still shows its fix', async () => {
