@@ -23,13 +23,18 @@ export const confidenceLine = (r: Report) =>
     ? `Confidence high: ${r.wait.timed} pushes timed and every measure made.`
     : `Confidence ${r.evidence.confidence}: ${r.evidence.reasons.join('; ')}.`;
 
+/** Whether the waits are the merge queue's group builds, the pull requests' own runs being too few to time. */
+const inQueue = (r: Report) => r.wait.from === 'merge-queue';
+/** What a wait is timed on, and what's counted a week: a push to a pull request, or with the queue's groups too. */
+const pushes = (r: Report) => (inQueue(r) ? 'PR pushes and merge-queue groups' : 'PR pushes');
+
 export const promptBlock = (r: Report) =>
   [
     `<ci-report repo="${r.repo}" date="${r.date}">`,
-    `Score ${r.score}/100, grade ${r.grade}: speed ${r.parts.speed}, reliability ${r.parts.reliability}, efficiency ${r.parts.efficiency} (${r.size}: ${r.headsPerWeek} PR pushes a week)`,
+    `Score ${r.score}/100, grade ${r.grade}: speed ${r.parts.speed}, reliability ${r.parts.reliability}, efficiency ${r.parts.efficiency} (${r.size}: ${r.headsPerWeek} ${pushes(r)} a week)`,
     confidenceLine(r),
     profileLine(r),
-    `PR wait p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (pushes that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all pushes p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
+    `${inQueue(r) ? 'Merge-queue wait' : 'PR wait'} p50 / p75 / p90: ${m(r.wait.p50)} / ${m(r.wait.p75)} / ${m(r.wait.p90)} min (${inQueue(r) ? 'a group\'s build, since pull requests run too little to time; those' : 'pushes'} that ran ${r.wait.heavyWorkflows.map((w) => `"${w}"`).join(', ')}; all ${inQueue(r) ? 'pushes and groups' : 'pushes'} p50 ${m(r.wait.allPushesP50)}) · queue p90 ${m(r.jobs?.queueP90Sec)} s · red heads ${p(r.wait.redRate)}${r.wait.redBy.length ? ` (${r.wait.redBy.map(([n, c]) => `${n} ×${c}`).join(', ')})` : ''} · green only on rerun ${p(r.wait.passedOnRerunRate)}`,
     `CI per merged PR: ${m(r.efficiency.jobMinutesPerMergedPr ?? NaN)} job-min, ${m(r.efficiency.vcpuMinutesPerMergedPr ?? NaN)} vCPU-min, across ${r.efficiency.workflowsOnPrs} PR workflows (expected for this size ~${r.efficiency.expectedVcpuMinutesPerMergedPr} vCPU-min); p50 wait expected for this size ~${r.efficiency.expectedWait} min; main red ${p(r.main.redRate)}`,
     r.jobs && `Last to finish: "${r.wait.lastToFinish[0]?.[0]}", ${r.jobs.jobs} jobs, ${m(r.jobs.jobMinutes)} job-min; run ${m(r.jobs.spanMin)} min; longest job "${r.jobs.longest.name}" ${m(r.jobs.longest.minutes)} min; setup ${m(r.jobs.setupMinPerJob)} min a job, ${p(r.jobs.setupShare)} of job time`,
     ...(r.jobGraph ? promptLines(r.jobGraph) : []),
@@ -134,7 +139,7 @@ export const scoredText = (r: Report, v: Provenance) => {
   const head = r.score === null
     ? `${r.repo}: unscored. ${r.unscored}`
     : `${r.repo}: score ${r.score}/100, grade ${r.grade} (${r.band}) · speed ${r.parts.speed} · reliability ${r.parts.reliability} · efficiency ${r.parts.efficiency} · size ${r.size}`;
-  const window = `Window: ${r.window.days ?? 0} days, ${r.window.runs}${r.window.truncated ? ` of ${r.window.runsInPeriod}` : ''} PR runs, from ${r.defaultBranch}'s workflows and Actions history.`;
+  const window = `Window: ${r.window.days ?? 0} days, ${r.window.runs}${r.window.truncated ? ` of ${r.window.runsInPeriod}` : ''} ${inQueue(r) ? 'PR and merge-queue runs' : 'PR runs'}, from ${r.defaultBranch}'s workflows and Actions history.`;
 
   return [
     head,

@@ -143,6 +143,7 @@ Agents duplicate code readily, so we gave them two tools:
 - **Exact versions from pnpm's `catalog:`,** with overrides keeping Vite, Vitest and Node types aligned.
 - **Node pinned** in `.node-version`, `devEngines` (which can download it) and `engines`; pnpm pinned by `packageManager`.
 - **`verifyDepsBeforeRun: false`** (section 14).
+- **Hold a new release back a week** before a bot or an install takes it: Dependabot's `cooldown.default-days: 7`, Renovate's `minimumReleaseAge: '7 days'`, pnpm's `minimumReleaseAge: 10080`, in minutes. A compromised release is usually pulled within days, and a security update skips Dependabot's wait. A pinned version nobody may take early costs CI nothing.
 - **A reusable static workflow** in the shared repo runs each supplied command, format, lint, types and doc budget, **even if an earlier one failed**, so one run reports every finding.
 
 ## If you use Effect

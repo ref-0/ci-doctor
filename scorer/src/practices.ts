@@ -9,7 +9,7 @@ import { parseYaml, uncomment, type Yaml } from './job-graph.ts';
 import type { Source } from './source.ts';
 
 /** Workflow files read. Past this, a practice found in none of them is unknown. */
-export const MAX_WORKFLOWS = 40;
+export const MAX_WORKFLOWS = 200;
 /** Local actions read with the workflows: each `.github/actions/**​/action.yml`, and any other a workflow calls with `uses: ./`. Past this, a practice a step can hold is unknown when it isn't found. */
 export const MAX_ACTIONS = 50;
 /** Which loose rule fired: words in a CI file, a tool's config that doesn't say the practice is on, a job named for changes whose outputs gate others, or bots' pull-request titles. */
@@ -47,15 +47,24 @@ const yaml = (text: string) => {
 };
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** The default branch's workflow files, up to MAX_WORKFLOWS, and whether every one was read. */
+/**
+ * The default branch's workflow files, up to MAX_WORKFLOWS, and whether every one was read. They're read together,
+ * 100 to a call; one that call didn't give is read alone, so a file GitHub no longer has is absent and a read that
+ * fails stops the report, as any other does.
+ */
 export const workflowFiles = (source: Source) => {
   const all = source.tree.blobs.map((b) => b.path).filter((p) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(p));
-  const read = all.slice(0, MAX_WORKFLOWS).map((path) => ({ path, text: source.read(path) }));
-  const files = read.filter((r): r is File => r.text !== undefined);
+  const asked = all.slice(0, MAX_WORKFLOWS);
+  const { texts } = source.readMany(asked);
+  const files = asked.flatMap((path): File[] => {
+    const text = texts.get(path) ?? source.read(path);
+    return text === undefined ? [] : [{ path, text }];
+  });
+  const found = new Set(files.map((f) => f.path));
   const unknown: string[] = [];
   if (all.length > MAX_WORKFLOWS) unknown.push(`Read the first ${MAX_WORKFLOWS} of ${all.length} workflow files`);
-  for (const r of read) if (r.text === undefined) unknown.push(`${r.path} is in the tree but couldn't be found`);
-  return { all, files, texts: files.map((f) => f.text), complete: !source.tree.truncated && all.length <= MAX_WORKFLOWS && files.length === read.length, unknown };
+  for (const path of asked) if (!found.has(path)) unknown.push(`${path} is in the tree but couldn't be found`);
+  return { all, files, texts: files.map((f) => f.text), complete: !source.tree.truncated && all.length <= MAX_WORKFLOWS && files.length === asked.length, unknown };
 };
 
 /** Found is true; not found where everything was read is false (absent); not found otherwise is null (unknown). */

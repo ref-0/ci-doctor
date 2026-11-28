@@ -27,6 +27,8 @@ The checker, `review-record.ts`, reads the repo's settings in `.agents/repo/revi
 - **Test code** (`testCode`'s globs) gets one [tests reviewer](references/tests-reviewer.md). Only `No review: low risk`, within the line limit, covers it.
 - **Everything else** gets behaviour checks instead: run it, read its output, show the screen. Its body has a line that starts `No review:` and says why, such as `No review: not an important system.`
 
+When the repo sorts changes into risk tiers, read [review scaled to risk](references/risk-tiers.md).
+
 ## Run the review
 
 - **The model, account and effort are review.md's,** signed in by a person with their own authorized account. Check the CLI's sign-in with its status command. If it isn't signed in, stop and ask a person. Never sign in yourself, and never ask for, paste, print or read a token or credentials file. At a usage limit, ask before going on without a review.

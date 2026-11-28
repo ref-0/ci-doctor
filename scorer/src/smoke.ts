@@ -66,6 +66,7 @@ const FIELDS: [string, string][] = [
   ['wait', 'object'],
   ['wait.heads', 'number'],
   ['wait.timed', 'number'],
+  ['wait.from', 'string|undefined'],
   ['wait.p50', 'number|null'],
   ['wait.p75', 'number|null'],
   ['wait.p90', 'number|null'],
@@ -215,7 +216,7 @@ export const smokeCheck = (text: string, { path, now = Date.now(), version: rele
   for (const field of NOT_NEGATIVE) if (typeof at(r, field) === 'number' && at(r, field) < 0) problems.push(`${field} is ${at(r, field)}; it can't be negative.`);
   for (const [a, b] of [['wait.p50', 'wait.p75'], ['wait.p75', 'wait.p90'], ['main.p50', 'main.p90'], ['wait.timed', 'wait.heads']] as const)
     if (Number.isFinite(at(r, a)) && Number.isFinite(at(r, b)) && at(r, a) > at(r, b)) problems.push(`${a} is ${at(r, a)}, more than ${b}, ${at(r, b)}.`);
-  if (r.wait.timed < MIN_TIMED) problems.push(`It's scored on ${r.wait.timed} timed PR pushes; a score needs ${MIN_TIMED}.`);
+  if (r.wait.timed < MIN_TIMED) problems.push(`It's scored on ${r.wait.timed} timed pushes; a score needs ${MIN_TIMED}.`);
   for (const list of ['fixes', 'notes'] as const)
     r[list].forEach((x: any, i: number) => {
       if (typeof x?.guide !== 'string' || !x.guide.startsWith(GUIDE) || !GUIDE_PAGE.test(x.guide.slice(GUIDE.length))) problems.push(`${list}[${i}].guide isn't a page of ci-doctor's guide, ${GUIDE}.`);
