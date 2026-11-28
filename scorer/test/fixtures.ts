@@ -112,6 +112,7 @@ export const fakeRepo = ({ repo, private: isPrivate = false, heads = 20, truncat
   });
   routes[`repos/${repo}/actions/runs?event=pull_request&page=1`] = ok(runsOf('pull_request', (i) => `feature-${i}`, heads, 3600e3));
   routes[`repos/${repo}/actions/runs?event=pull_request_target&page=1`] = ok({ total_count: 0, workflow_runs: [] });
+  routes[`repos/${repo}/actions/runs?event=merge_group&page=1`] = ok({ total_count: 0, workflow_runs: [] });
   routes[`repos/${repo}/actions/runs?event=push&branch=main&page=1`] = ok(runsOf('push', () => 'main', Math.min(heads, 10), 1800e3));
 
   const workflowPaths = Array.from({ length: workflows }, (_, i) => (i === 0 ? '.github/workflows/ci.yml' : `.github/workflows/extra-${i}.yml`));
