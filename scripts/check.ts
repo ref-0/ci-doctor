@@ -42,7 +42,15 @@
  * the OS temp folder: set TMPDIR to move them.
  */
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { argv, cwd } from 'node:process';
@@ -55,43 +63,92 @@ import { BASE, build, ORIGIN, served, siteProblems } from './site/build.ts';
 import { stale } from './skills/excerpts.ts';
 
 /** Where a link out of `skills/` may land: the paths the hub's "Outside the skills" names. */
-export const FALLBACK = ['docs/', 'scripts/', 'templates/', 'tools/', 'cache/', 'README.md', 'CHANGELOG.md'];
+export const FALLBACK = [
+  'docs/',
+  'scripts/',
+  'templates/',
+  'tools/',
+  'cache/',
+  'README.md',
+  'CHANGELOG.md',
+];
 
 /** Test files the build runs besides every one under `skills/`. */
-export const REPO_TESTS = ['scripts/skills/excerpts.test.ts', 'scripts/skills/ci-time.test.ts', 'scripts/check.test.ts', 'scripts/docs/check-links.test.ts', 'scripts/docs/docs-budget.test.ts', 'scripts/graph/test/graph.test.ts'];
+export const REPO_TESTS = [
+  'scripts/skills/excerpts.test.ts',
+  'scripts/skills/ci-time.test.ts',
+  'scripts/check.test.ts',
+  'scripts/docs/check-links.test.ts',
+  'scripts/docs/docs-budget.test.ts',
+  'scripts/graph/test/graph.test.ts',
+];
 
 /** Files the old-name scan leaves alone: history, provenance, and this file's own patterns and their tests. */
-export const SCAN_SKIPS = ['CHANGELOG.md', 'scripts/check.ts', 'scripts/check.test.ts', 'skills/test-audit/UPSTREAM.md'];
+export const SCAN_SKIPS = [
+  'CHANGELOG.md',
+  'scripts/check.ts',
+  'scripts/check.test.ts',
+  'skills/test-audit/UPSTREAM.md',
+];
 
 /** What this release replaced, each with what to use instead. */
 export const OLD_NAMES: ReadonlyArray<readonly [RegExp, string]> = [
   [/code-review/, 'review-gate'],
   [/<root>/, 'a path from the skill, or the skill by name'],
   [/(?<![\w-])install\.ts/, 'the plugin install, and scripts/docs/check-links.ts for links'],
-  [/ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/, 'skills/optimize-graphs/'],
+  [
+    /ci-doctor\/references\/graphs\b|\.\.\/graphs\/TOPIC\.md|<skills-dir>\/ci-doctor\/references\/graphs\b/,
+    'skills/optimize-graphs/',
+  ],
   [/verify-evidence/, 'skills/prove-it/'],
-  [/references\/agent-knowledge\b|(?<![\w-])agent-knowledge\/(?!SKILL\.md|templates\b|references\b)[\w-]+(?:\.md|\/)/, 'skills/agent-knowledge/templates/'],
-  [/ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/, 'skills/speed-up-tests/'],
+  [
+    /references\/agent-knowledge\b|(?<![\w-])agent-knowledge\/(?!SKILL\.md|templates\b|references\b)[\w-]+(?:\.md|\/)/,
+    'skills/agent-knowledge/templates/',
+  ],
+  [
+    /ci-doctor\/references\/speed-up-tests\b|(?<![\w-])speed-up-tests\/TOPIC\.md/,
+    'skills/speed-up-tests/',
+  ],
   [/(?<![\w-])(speed-up-tests\/references|triage)\/flakes\.md/, 'skills/fix-flaky-test/'],
   [/(?<![\w-])`?speed-up-tests`?('s)? topic\b/, 'the `speed-up-tests` skill'],
   [/ci-doctor\/references\/ci-runners\b|(?<![\w-])ci-runners\/TOPIC\.md/, 'skills/ci-runners/'],
   [/(?<![\w-])`?ci-runners`?('s)? topic\b/, 'the `ci-runners` skill'],
-  [/ci-doctor\/references\/blacksmith\b|(?<![\w-])blacksmith\/TOPIC\.md|(?<![\w-])`?blacksmith`?('s)? topic\b/, 'skills/blacksmith/'],
-  [/ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/, 'skills/ci-workflows/'],
-  [/(?<![\w-])ci-workflows\/references\/selection\.md/, 'skills/optimize-graphs/references/selection.md'],
+  [
+    /ci-doctor\/references\/blacksmith\b|(?<![\w-])blacksmith\/TOPIC\.md|(?<![\w-])`?blacksmith`?('s)? topic\b/,
+    'skills/blacksmith/',
+  ],
+  [
+    /ci-doctor\/references\/ci-workflows\b|(?<![\w-])ci-workflows\/TOPIC\.md|(?<![\w-])`?ci-workflows`?('s)? topic\b/,
+    'skills/ci-workflows/',
+  ],
+  [
+    /(?<![\w-])ci-workflows\/references\/selection\.md/,
+    'skills/optimize-graphs/references/selection.md',
+  ],
   [/(?<![\w-])ci-workflows\/references\/caches\.md/, 'skills/cache-ci/references/caches.md'],
   [/(?<![\w./-])docs\/prompts\b/, 'skills/ci-doctor/references/phases/'],
   [/(?<![\w./-])templates\/agent-knowledge\b/, 'skills/agent-knowledge/templates/'],
   [/`checks\/|<skills-dir>\/checks\//, 'skills/ci-doctor/references/checks/'],
   [/(?<![\w-])PROMPT\.md\b/, 'skills/ci-doctor/SKILL.md'],
-  [/(?<![\w-])scripts\/shards\/README\.md|\]\((?:\.\.\/)+(?:scripts\/)?shards\/|(?<![\w-])scripts\/shards\/[\w-]+\.test\.ts/, 'skills/ci-runners/references/shards.md and skills/ci-runners/scripts/'],
-  [/08-a-cheaper-test-harness|\bA cheaper test harness\b/i, 'docs/pages/08-a-faster-test-harness.md, "Test harness"'],
+  [
+    /(?<![\w-])scripts\/shards\/README\.md|\]\((?:\.\.\/)+(?:scripts\/)?shards\/|(?<![\w-])scripts\/shards\/[\w-]+\.test\.ts/,
+    'skills/ci-runners/references/shards.md and skills/ci-runners/scripts/',
+  ],
+  [
+    /08-a-cheaper-test-harness|\bA cheaper test harness\b/i,
+    'docs/pages/08-a-faster-test-harness.md, "Test harness"',
+  ],
 ];
 
 /** Files that may still name PROMPT.md as a path: the pointer itself, and the README's clone prompt. */
 const PROMPT_OK = new Set(['PROMPT.md', 'README.md']);
 
-type Result = { readonly name: string; readonly problems: ReadonlyArray<string>; readonly summary: string; readonly warnings?: ReadonlyArray<string> };
+type Result = {
+  readonly name: string;
+  readonly problems: ReadonlyArray<string>;
+  readonly summary: string;
+  readonly warnings?: ReadonlyArray<string>;
+};
 
 const tracked = (root: string) =>
   spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
@@ -110,8 +167,13 @@ export const skillsOnly = (root: string): string[] => {
   const problems: string[] = [];
   const hub = readFileSync(join(root, 'skills', 'ci-doctor', 'SKILL.md'), 'utf8');
   const fallback = /## Outside the skills\n([\s\S]*?)(?:\n## |$)/.exec(hub)?.[1] ?? '';
-  if (fallback === '') problems.push('skills/ci-doctor/SKILL.md: no "Outside the skills" section to cover links out of skills/');
-  for (const path of FALLBACK) if (!fallback.includes(`\`${path}\``)) problems.push(`skills/ci-doctor/SKILL.md: "Outside the skills" doesn't name \`${path}\``);
+  if (fallback === '')
+    problems.push(
+      'skills/ci-doctor/SKILL.md: no "Outside the skills" section to cover links out of skills/',
+    );
+  for (const path of FALLBACK)
+    if (!fallback.includes(`\`${path}\``))
+      problems.push(`skills/ci-doctor/SKILL.md: "Outside the skills" doesn't name \`${path}\``);
 
   const top = mkdtempSync(join(tmpdir(), 'ci-doctor-skills-'));
   try {
@@ -119,7 +181,15 @@ export const skillsOnly = (root: string): string[] => {
     cpSync(join(root, 'skills'), copy, { recursive: true, dereference: true });
     for (const file of walk(copy).filter((f) => f.endsWith('.md'))) {
       const shown = relative(top, file);
-      problems.push(...checkFile(file).filter((p) => resolve(dirname(file), p.target.split('#')[0] ?? '').startsWith(copy + sep) || p.target.startsWith('#')).map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, in a skills-only copy`));
+      problems.push(
+        ...checkFile(file)
+          .filter(
+            (p) =>
+              resolve(dirname(file), p.target.split('#')[0] ?? '').startsWith(copy + sep) ||
+              p.target.startsWith('#'),
+          )
+          .map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, in a skills-only copy`),
+      );
       proseLines(readFileSync(file, 'utf8')).forEach((line, index) => {
         for (const target of linkTargets(line)) {
           if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#|<)/i.test(target)) continue;
@@ -128,13 +198,24 @@ export const skillsOnly = (root: string): string[] => {
           if (resolved === copy || resolved.startsWith(copy + sep)) continue;
           const inRepo = relative(top, resolved).split(sep).join('/');
           const at = `${shown}:${index + 1}: ${target}`;
-          if (inRepo.startsWith('..') || !FALLBACK.some((f) => (f.endsWith('/') ? inRepo.startsWith(f) : inRepo === f))) {
-            problems.push(`${at}: leaves skills/ for ${inRepo}, which the hub's fallback doesn't cover`);
+          if (
+            inRepo.startsWith('..') ||
+            !FALLBACK.some((f) => (f.endsWith('/') ? inRepo.startsWith(f) : inRepo === f))
+          ) {
+            problems.push(
+              `${at}: leaves skills/ for ${inRepo}, which the hub's fallback doesn't cover`,
+            );
             continue;
           }
           const there = join(root, inRepo);
           if (!existsSync(there)) problems.push(`${at}: no ${inRepo} in the repo`);
-          else if (anchor && there.endsWith('.md') && statSync(there).isFile() && !anchorsOf(there).has(anchor.toLowerCase())) problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
+          else if (
+            anchor &&
+            there.endsWith('.md') &&
+            statSync(there).isFile() &&
+            !anchorsOf(there).has(anchor.toLowerCase())
+          )
+            problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
         }
       });
     }
@@ -158,7 +239,9 @@ export const GITHUB_REFS: readonly string[] = [GITHUB_REF, 'main'];
 
 /** A full link to this repo on GitHub, as its ref and path, or undefined for any other URL. */
 const githubLink = (base: string): { ref: string; path: string } | undefined => {
-  const github = new RegExp(`^${GITHUB_URL.replace(/[.\/]/g, '\\$&')}(?:blob|tree)/([^/]+)(?:/(.*))?$`).exec(base);
+  const github = new RegExp(
+    `^${GITHUB_URL.replace(/[.\/]/g, '\\$&')}(?:blob|tree)/([^/]+)(?:/(.*))?$`,
+  ).exec(base);
   return github ? { ref: github[1] ?? '', path: decodeURIComponent(github[2] ?? '') } : undefined;
 };
 
@@ -185,28 +268,56 @@ export const otherTag = (url: string): string | undefined => {
  * folder in the repo, with its anchor; the guide site's must be served. The hub may also leave it by a relative
  * link to a file the site serves.
  */
-export const standaloneSkill = (root: string, name: string, site: ReadonlySet<string> = new Set(served(root))): string[] => {
+export const standaloneSkill = (
+  root: string,
+  name: string,
+  site: ReadonlySet<string> = new Set(served(root)),
+): string[] => {
   const problems: string[] = [];
-  const folders = new Set([...site].flatMap((f) => f.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))));
+  const folders = new Set(
+    [...site].flatMap((f) =>
+      f
+        .split('/')
+        .slice(0, -1)
+        .map((_, i, parts) => parts.slice(0, i + 1).join('/')),
+    ),
+  );
   const top = mkdtempSync(join(tmpdir(), `ci-doctor-skill-${name}-`));
   const anchorIn = (inRepo: string, anchor: string, at: string) => {
     const there = join(root, inRepo);
-    if (anchor && there.endsWith('.md') && existsSync(there) && statSync(there).isFile() && !anchorsOf(there).has(anchor.toLowerCase())) problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
+    if (
+      anchor &&
+      there.endsWith('.md') &&
+      existsSync(there) &&
+      statSync(there).isFile() &&
+      !anchorsOf(there).has(anchor.toLowerCase())
+    )
+      problems.push(`${at}: no heading makes #${anchor} in ${inRepo}`);
   };
   try {
     const copy = join(top, name);
     cpSync(join(root, 'skills', name), copy, { recursive: true, dereference: true });
     for (const file of walk(copy).filter((f) => f.endsWith('.md'))) {
       const shown = `skills/${relative(top, file).split(sep).join('/')}`;
-      const inside = (target: string) => target.startsWith('#') || resolve(dirname(file), decodeURIComponent(target.split('#')[0] ?? '')).startsWith(copy + sep);
-      problems.push(...checkFile(file).filter((p) => inside(p.target)).map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, with ${name} installed alone`));
+      const inside = (target: string) =>
+        target.startsWith('#') ||
+        resolve(dirname(file), decodeURIComponent(target.split('#')[0] ?? '')).startsWith(
+          copy + sep,
+        );
+      problems.push(
+        ...checkFile(file)
+          .filter((p) => inside(p.target))
+          .map((p) => `${shown}:${p.line}: ${p.target}: ${p.why}, with ${name} installed alone`),
+      );
       proseLines(readFileSync(file, 'utf8')).forEach((line, index) => {
         for (const target of linkTargets(line)) {
           const at = `${shown}:${index + 1}: ${target}`;
           const [path = '', anchor = ''] = target.split('#');
           const tag = otherTag(target);
           if (tag !== undefined) {
-            problems.push(`${at}: links ${tag}, not this release's ${GITHUB_REF}: point it at ${GITHUB_REF}`);
+            problems.push(
+              `${at}: links ${tag}, not this release's ${GITHUB_REF}: point it at ${GITHUB_REF}`,
+            );
             continue;
           }
           const own = ownPath(target);
@@ -214,7 +325,12 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
             if (own === '' && target.startsWith(GUIDE_URL)) continue;
             const exists = existsSync(join(root, own.replace(/\/$/, '')));
             if (!exists) problems.push(`${at}: no ${own} in the repo`);
-            else if (target.startsWith(GUIDE_URL) && !site.has(own) && !folders.has(own.replace(/\/$/, ''))) problems.push(`${at}: ${GUIDE_URL} doesn't serve ${own}`);
+            else if (
+              target.startsWith(GUIDE_URL) &&
+              !site.has(own) &&
+              !folders.has(own.replace(/\/$/, ''))
+            )
+              problems.push(`${at}: ${GUIDE_URL} doesn't serve ${own}`);
             else anchorIn(own, anchor, at);
             continue;
           }
@@ -223,11 +339,18 @@ export const standaloneSkill = (root: string, name: string, site: ReadonlySet<st
           if (resolved === copy || resolved.startsWith(copy + sep)) continue;
           const inRepo = repoPath(relative(top, resolved));
           if (name !== HUB) {
-            problems.push(`${at}: leaves ${name}/ by a relative path, which dangles with ${name} installed alone: copy what the skill needs into it, or link ${GUIDE_URL}<path> or ${GITHUB_URL}blob/${GITHUB_REF}/<path>`);
+            problems.push(
+              `${at}: leaves ${name}/ by a relative path, which dangles with ${name} installed alone: copy what the skill needs into it, or link ${GUIDE_URL}<path> or ${GITHUB_URL}blob/${GITHUB_REF}/<path>`,
+            );
             continue;
           }
-          if (inRepo === undefined || (!site.has(inRepo) && !folders.has(inRepo.replace(/\/$/, '')))) {
-            problems.push(`${at}: leaves ${name}/ for ${inRepo ?? 'outside the repo'}, which ${GUIDE_URL} doesn't serve`);
+          if (
+            inRepo === undefined ||
+            (!site.has(inRepo) && !folders.has(inRepo.replace(/\/$/, '')))
+          ) {
+            problems.push(
+              `${at}: leaves ${name}/ for ${inRepo ?? 'outside the repo'}, which ${GUIDE_URL} doesn't serve`,
+            );
             continue;
           }
           anchorIn(inRepo, anchor, at);
@@ -270,7 +393,9 @@ export const site = (root: string): { problems: string[]; files: number } => {
 /** Each line that names what this release replaced, in prose or in code. */
 export const oldNames = (root: string, files = tracked(root)): string[] => {
   const problems: string[] = [];
-  for (const file of files.filter((f) => /\.(md|ts|ya?ml|sh)$/.test(f) && !SCAN_SKIPS.includes(f))) {
+  for (const file of files.filter(
+    (f) => /\.(md|ts|ya?ml|sh)$/.test(f) && !SCAN_SKIPS.includes(f),
+  )) {
     readFileSync(join(root, file), 'utf8')
       .split('\n')
       .forEach((line, index) => {
@@ -291,35 +416,66 @@ export const DESCRIPTION_MAX = 320;
 /** One description's breaks of `skills/README.md`'s "Writing a description", each with why the rule exists. */
 export const descriptionProblems = (description: string, skills: ReadonlySet<string>): string[] => {
   const problems: string[] = [];
-  if (description.length > DESCRIPTION_MAX) problems.push(`${description.length} characters, over ${DESCRIPTION_MAX}: Codex and Claude Code shorten or drop long descriptions when many skills are installed`);
-  if (!description.includes('Use when')) problems.push('no "Use when": a harness picks a skill by when to use it, in the words people ask with');
-  if (/[`<>]/.test(description)) problems.push('a backtick or angle bracket: listings show descriptions as plain text, and Claude Code escapes angle brackets');
-  const person = /\b(?:our|ours|your|yours|you|we)\b/i.exec(description)?.[0] ?? /\bI\b/.exec(description)?.[0];
-  if (person !== undefined) problems.push(`"${person}": the hosts ask for the third person, since a description is injected into the agent's own prompt`);
+  if (description.length > DESCRIPTION_MAX)
+    problems.push(
+      `${description.length} characters, over ${DESCRIPTION_MAX}: Codex and Claude Code shorten or drop long descriptions when many skills are installed`,
+    );
+  if (!description.includes('Use when'))
+    problems.push(
+      'no "Use when": a harness picks a skill by when to use it, in the words people ask with',
+    );
+  if (/[`<>]/.test(description))
+    problems.push(
+      'a backtick or angle bracket: listings show descriptions as plain text, and Claude Code escapes angle brackets',
+    );
+  const person =
+    /\b(?:our|ours|your|yours|you|we)\b/i.exec(description)?.[0] ?? /\bI\b/.exec(description)?.[0];
+  if (person !== undefined)
+    problems.push(
+      `"${person}": the hosts ask for the third person, since a description is injected into the agent's own prompt`,
+    );
   const cheap = /\bcheap(?:er|est|ly)?\b/i.exec(description)?.[0];
-  if (cheap !== undefined) problems.push(`"${cheap}": calling CI or a change cheap devalues what it buys; say it costs less`);
-  if (description.includes('?')) problems.push('a question: say what the skill does and when, not what the user might ask');
+  if (cheap !== undefined)
+    problems.push(
+      `"${cheap}": calling CI or a change cheap devalues what it buys; say it costs less`,
+    );
+  if (description.includes('?'))
+    problems.push('a question: say what the skill does and when, not what the user might ask');
   const notFor = /Not for (.*)$/s.exec(description)?.[1] ?? '';
   for (const [, named = ''] of notFor.matchAll(/\(([^)]*)\)/g)) {
-    if (!skills.has(named)) problems.push(`"Not for" names (${named}), which isn't a skill folder: a sibling named there must exist, or the request goes nowhere`);
+    if (!skills.has(named))
+      problems.push(
+        `"Not for" names (${named}), which isn't a skill folder: a sibling named there must exist, or the request goes nowhere`,
+      );
   }
   return problems;
 };
 
 /** Every skill's description, against the rules. */
 export const descriptions = (root: string): string[] => {
-  const names = readdirSync(join(root, 'skills'), { withFileTypes: true }).filter((e) => e.isDirectory() && existsSync(join(root, 'skills', e.name, 'SKILL.md'))).map((e) => e.name);
+  const names = readdirSync(join(root, 'skills'), { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(root, 'skills', e.name, 'SKILL.md')))
+    .map((e) => e.name);
   const skills = new Set(names);
   return names.sort().flatMap((name) => {
-    const { description } = frontmatter(readFileSync(join(root, 'skills', name, 'SKILL.md'), 'utf8'));
+    const { description } = frontmatter(
+      readFileSync(join(root, 'skills', name, 'SKILL.md'), 'utf8'),
+    );
     if (description === undefined) return [`skills/${name}/SKILL.md: no description`];
-    return descriptionProblems(description, skills).map((p) => `skills/${name}/SKILL.md: description: ${p}`);
+    return descriptionProblems(description, skills).map(
+      (p) => `skills/${name}/SKILL.md: description: ${p}`,
+    );
   });
 };
 
 /** Run each test file from its folder; a failure or a skip is a problem. */
 export const tests = (root: string): { problems: string[]; ran: number; passed: number } => {
-  const files = [...tracked(root).filter((f) => (f.startsWith('skills/') || f.startsWith('scorer/test/')) && f.endsWith('.test.ts')), ...REPO_TESTS];
+  const files = [
+    ...tracked(root).filter(
+      (f) => (f.startsWith('skills/') || f.startsWith('scorer/test/')) && f.endsWith('.test.ts'),
+    ),
+    ...REPO_TESTS,
+  ];
   const problems: string[] = [];
   let passed = 0;
   for (const file of files) {
@@ -328,36 +484,103 @@ export const tests = (root: string): { problems: string[]; ran: number; passed: 
       continue;
     }
     // The spec reporter, pinned: its summary lines are what the counts below read, whatever NODE_OPTIONS or a TTY would pick.
-    const { NODE_TEST_CONTEXT: _parent, ...inherited } = process.env; // run as a test of its own, even when this runs under node --test
+    // Uncoloured too: Vite Task sets FORCE_COLOR in a cached task, as the pre-push hook's `vp run --cache` is, and colour hides the summary.
+    const { NODE_TEST_CONTEXT: _parent, FORCE_COLOR: _color, ...inherited } = process.env; // run as a test of its own, even when this runs under node --test
     const env = { ...inherited, CI_DOCTOR_TEST_CLI: 'src' }; // the scorer's CLI tests run its source: no build, no npm install
-    const done = spawnSync(process.execPath, ['--test', '--test-reporter=spec', file.split('/').at(-1) ?? file], { cwd: join(root, dirname(file)), encoding: 'utf8', env });
-    const count = (key: string) => Number(new RegExp(`^ℹ ${key} (\\d+)$`, 'm').exec(done.stdout)?.[1] ?? 0);
+    const done = spawnSync(
+      process.execPath,
+      ['--test', '--test-reporter=spec', file.split('/').at(-1) ?? file],
+      { cwd: join(root, dirname(file)), encoding: 'utf8', env },
+    );
+    const count = (key: string) =>
+      Number(new RegExp(`^ℹ ${key} (\\d+)$`, 'm').exec(done.stdout)?.[1] ?? 0);
     passed += count('pass');
-    if (!/^ℹ tests \d+$/m.test(done.stdout)) problems.push(`${file}: no test summary in its output\n${(done.stdout + done.stderr).split('\n').slice(-12).join('\n')}`);
+    if (!/^ℹ tests \d+$/m.test(done.stdout))
+      problems.push(
+        `${file}: no test summary in its output\n${(done.stdout + done.stderr).split('\n').slice(-12).join('\n')}`,
+      );
     else if (count('pass') === 0) problems.push(`${file}: no test passed`);
-    if (done.status !== 0 || count('fail') > 0) problems.push(`${file}: failed\n${done.stdout.split('\n').filter((l) => /not ok|Error|expected|actual/.test(l)).slice(0, 12).join('\n')}`);
-    if (count('skipped') > 0) problems.push(`${file}: ${count('skipped')} skipped; each test needs its fixtures:\n${done.stdout.split('\n').filter((l) => /# SKIP/.test(l)).join('\n')}`);
+    if (done.status !== 0 || count('fail') > 0)
+      problems.push(
+        `${file}: failed\n${done.stdout
+          .split('\n')
+          .filter((l) => /not ok|Error|expected|actual/.test(l))
+          .slice(0, 12)
+          .join('\n')}`,
+      );
+    if (count('skipped') > 0)
+      problems.push(
+        `${file}: ${count('skipped')} skipped; each test needs its fixtures:\n${done.stdout
+          .split('\n')
+          .filter((l) => /# SKIP/.test(l))
+          .join('\n')}`,
+      );
   }
   return { problems, ran: files.length, passed };
 };
 
 export const checks = (root: string): Result[] => {
   const links = filesUnder(root, []).filter((f) => f.endsWith('.md'));
-  const budget = docsBudget(root, { ...layout, skillPath: /^skills\/([^/]+)\/SKILL\.md$/, upstreamLock: undefined, upstreamPrefixes: ['test-audit'], rules: undefined });
+  const budget = docsBudget(root, {
+    ...layout,
+    skillPath: /^skills\/([^/]+)\/SKILL\.md$/,
+    upstreamLock: undefined,
+    upstreamPrefixes: ['test-audit'],
+    rules: undefined,
+  });
   const run = tests(root);
   const built = site(root);
   const alone = standalone(root);
   return [
-    { name: 'plugin', problems: validate(root), summary: 'manifests agree; each skill loads as one' },
-    { name: 'excerpts', problems: stale(root).map((p) => `${p}: stale; run node scripts/skills/excerpts.ts`), summary: 'match their sources' },
-    { name: 'links, repo', problems: links.flatMap(checkFile).map((p) => `${relative(root, p.file)}:${p.line}: ${p.target}: ${p.why}`), summary: `${links.length} Markdown files resolve` },
-    { name: 'links, skills only', problems: skillsOnly(root), summary: 'resolve in the copy, or leave it only for the fallback' },
-    { name: 'links, each skill alone', problems: alone.flatMap((s) => s.problems), summary: alone.map((s) => `${s.name} ok`).join(', ') },
+    {
+      name: 'plugin',
+      problems: validate(root),
+      summary: 'manifests agree; each skill loads as one',
+    },
+    {
+      name: 'excerpts',
+      problems: stale(root).map((p) => `${p}: stale; run node scripts/skills/excerpts.ts`),
+      summary: 'match their sources',
+    },
+    {
+      name: 'links, repo',
+      problems: links
+        .flatMap(checkFile)
+        .map((p) => `${relative(root, p.file)}:${p.line}: ${p.target}: ${p.why}`),
+      summary: `${links.length} Markdown files resolve`,
+    },
+    {
+      name: 'links, skills only',
+      problems: skillsOnly(root),
+      summary: 'resolve in the copy, or leave it only for the fallback',
+    },
+    {
+      name: 'links, each skill alone',
+      problems: alone.flatMap((s) => s.problems),
+      summary: alone.map((s) => `${s.name} ok`).join(', '),
+    },
     { name: 'old names', problems: oldNames(root), summary: 'none' },
-    { name: 'docs budget', problems: budget.problems, summary: `${budget.docs.length} Markdown files within budget`, warnings: budget.warnings },
-    { name: 'site', problems: built.problems, summary: `${built.files} files; every link lands on one, and llms.txt names every page` },
-    { name: 'descriptions', problems: descriptions(root), summary: 'each in the shape skills/README.md gives' },
-    { name: 'tests', problems: run.problems, summary: `${run.ran} files, ${run.passed} tests passed, none skipped` },
+    {
+      name: 'docs budget',
+      problems: budget.problems,
+      summary: `${budget.docs.length} Markdown files within budget`,
+      warnings: budget.warnings,
+    },
+    {
+      name: 'site',
+      problems: built.problems,
+      summary: `${built.files} files; every link lands on one, and llms.txt names every page`,
+    },
+    {
+      name: 'descriptions',
+      problems: descriptions(root),
+      summary: 'each in the shape skills/README.md gives',
+    },
+    {
+      name: 'tests',
+      problems: run.problems,
+      summary: `${run.ran} files, ${run.passed} tests passed, none skipped`,
+    },
   ];
 };
 
