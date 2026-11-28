@@ -48,3 +48,15 @@ Replaying diffs checks that two selectors agree, not that either catches a real 
 3. Run the test on the broken tree and check that it fails for the expected reason.
 
 Fix a miss with a named edge or a wider fallback, then replay that bug again.
+
+## Audit the selector against the full gate
+
+A replay checks a selector before it ships. An audit checks the one that's running, against what the full gate found since. Where a sweep or a queue runs everything the selector left out, do one each quarter, and after any failure there that a pull request's checks should have caught. [moq's audit of a month of merge groups](https://github.com/moq-dev/moq/blob/main/.github/ci-selection-audit.md) is one to copy.
+
+1. **Fix the window, and freeze it:** its two dates, the events read and the query, so later runs can't move the denominator. Say what's left out and why, such as skipped runs.
+2. **Classify every attempt by the rules of its own commit.** Diff each attempt's base against its head, and read the selector as it was at that head, not today's.
+3. **Count how often each widening rule fired,** as a share of the classified attempts, and which path triggered it. A rule that forces everything on a tenth of changes is the next thing to narrow. One that never fired isn't costing anything.
+4. **Read every failure of the full gate for a missed edge.** For each, ask whether the selector picked the failing check on the change that broke it. A miss becomes a named edge or a wider fallback, then a [replayed regression](#replay-past-regressions).
+5. **Commit the audit with its evidence,** a file of each attempt's SHAs, run id, conclusion and trigger beside the write-up, so the next audit starts from it and a reader can check a count.
+
+The audit's answer is one of three: keep a rule, narrow it, or add an edge. Record each with its count, in ci.md's Selection and tiers.
