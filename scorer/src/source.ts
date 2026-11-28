@@ -151,5 +151,6 @@ export const remembered = (source: Source): Source => {
       failed: new Map(paths.flatMap((p) => (failed.has(p) ? [[p, failed.get(p)!] as const] : []))),
     };
   };
-  return { tree: source.tree, read: source.read, readMany };
+  // A file a batch already read is answered from it, for no call of its own.
+  return { tree: source.tree, read: (path) => texts.get(path) ?? source.read(path), readMany };
 };

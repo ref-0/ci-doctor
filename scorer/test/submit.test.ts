@@ -238,7 +238,7 @@ describe('smokeCheck', () => {
     assert.deepEqual(check(edit((r) => (r.wait.redRate = 1.5))), ['wait.redRate is 1.5; a share runs 0 to 1.']);
     assert.deepEqual(check(edit((r) => (r.wait.p50 = -1))), ["wait.p50 is -1; it can't be negative."]);
     assert.deepEqual(check(good.replace(/"p75": [\d.]+/, '"p75": 1e999')), ["`wait.p75` isn't a finite number."]);
-    assert.deepEqual(check(edit((r) => (r.wait.timed = 3))), ["It's scored on 3 timed PR pushes; a score needs 5."]);
+    assert.deepEqual(check(edit((r) => (r.wait.timed = 3))), ["It's scored on 3 timed pushes; a score needs 5."]);
   });
 
   it('5. holds the score, grade and parts its own measures give', () => {

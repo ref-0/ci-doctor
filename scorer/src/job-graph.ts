@@ -320,8 +320,13 @@ const namePattern = (label: string, matrix: boolean, values = new Map<string, Se
   return { source: body + suffix, loose: any + suffix, fixed: parts.join('').length };
 };
 
-/** One workflow file's jobs and their `needs`, with local reusable workflows read through `read` and expanded. */
-export const workflowGraph = (path: string, text: string, read: (path: string) => string | undefined): Graph => {
+/**
+ * One workflow file's jobs and their `needs`, with local reusable workflows read through `read` and expanded. With
+ * `repo`, its `owner/name`, a call that names this repo in full, such as `owner/name/.github/workflows/build.yml@main`,
+ * is local too, read as `read` has the file, whichever ref the call names.
+ */
+export const workflowGraph = (path: string, text: string, read: (path: string) => string | undefined, repo?: string): Graph => {
+  const inRepo = repo ? new RegExp(`^${escape(repo)}/(\\.github/workflows/[^@\\s]+\\.ya?ml)@\\S+$`, 'i') : undefined;
   const unknown: string[] = [];
   const jobs: GraphJob[] = [];
 
@@ -363,7 +368,7 @@ export const workflowGraph = (path: string, text: string, read: (path: string) =
 
       // A reusable workflow: its jobs show in the API as `caller / inner`.
       // `./` is this repo, at the caller's commit: never another repo's, however it reads.
-      const local = uses.trim().match(/^\.\/(\.github\/workflows\/[^@\s]+\.ya?ml)$/)?.[1];
+      const local = uses.trim().match(/^\.\/(\.github\/workflows\/[^@\s]+\.ya?ml)$/)?.[1] ?? (inRepo ? uses.trim().match(inRepo)?.[1] : undefined);
       let called: string | undefined;
       let failed = '';
       try {
@@ -731,9 +736,9 @@ export interface SampledRun {
  * The job graph of the sampled runs: what sets the wait most often, how long the path is, what's blocked and queued
  * on it, the top blockers and the waits the YAML can't show. `read` answers a workflow file's text, as `practices` read it.
  * It's asked only for the sampled runs' workflow files and the local workflows they call. A read that fails, such as
- * a 403, leaves that part of the graph unknown, with the reason; it never stops the report.
+ * a 403, leaves that part of the graph unknown, with the reason; it never stops the report. `repo` is `workflowGraph`'s.
  */
-export const jobGraphOf = (read: (path: string) => string | undefined, sampled: SampledRun[], isPrivate = false) => {
+export const jobGraphOf = (read: (path: string) => string | undefined, sampled: SampledRun[], isPrivate = false, repo?: string) => {
   const graphs = new Map<string, Graph | undefined>();
   const failures = new Map<string, string>();
   const graphFor = (path: string) => {
@@ -744,7 +749,7 @@ export const jobGraphOf = (read: (path: string) => string | undefined, sampled: 
       } catch (e) {
         failures.set(path, `${path} couldn't be read (${(e as Error).message.replace(/\.$/, '')}), so its jobs are taken as waiting on nothing`);
       }
-      graphs.set(path, text === undefined ? undefined : workflowGraph(path, text, read));
+      graphs.set(path, text === undefined ? undefined : workflowGraph(path, text, read, repo));
     }
     return graphs.get(path);
   };
