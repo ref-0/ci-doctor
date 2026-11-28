@@ -1,4 +1,43 @@
 {
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "prepare": "vp config --no-agent",
+    "check": "node scripts/check.ts",
+    "check:types": "npm --prefix scorer run check",
+    "test:scorer": "npm --prefix scorer test"
+  },
+  "devDependencies": {
+    "@ref0/workspace": "0.0.0-placeholder",
+    "vite-plus": "1.7.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.21.0",
+  "ref0-workspace": {
+    "commitScopes": [
+      "skills",
+      "scorer",
+      "guide",
+      "evals",
+      "plugin",
+      "ci",
+      "docs"
+    ],
+    "prePush": {
+      "always": [
+        "check",
+        "check:types"
+      ],
+      "packages": {
+        "paths": [
+          "scorer/"
+        ],
+        "run": [
+          "test:scorer"
+        ]
+      }
+    }
+  }
 }
