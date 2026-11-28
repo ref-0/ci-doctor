@@ -4,7 +4,7 @@ What the shared skills read for how to check and test `ref-0/ci-doctor`. Run eve
 
 ## Install
 
-pnpm runs the root, `pnpm install --frozen-lockfile`, and the scorer keeps its own npm lock under `scorer/`. The root's `pnpm-lock.yaml` is written at adoption, once `@ref0/workspace`'s version is real.
+pnpm runs the root, `pnpm install --frozen-lockfile`, and the scorer keeps its own npm lock under `scorer/`.
 
 ## Pre-push set
 
